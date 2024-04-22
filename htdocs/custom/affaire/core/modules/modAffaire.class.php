@@ -294,21 +294,48 @@ class modAffaire extends DolibarrModules
 		// Permissions provided by this module
 		$this->rights = array();
 		$r = 0;
+		// $this->rights[$r][0]     Id permission (unique tous modules confondus)
+        // $this->rights[$r][1]     Libelle par defaut si traduction de cle "PermissionXXX" non trouvee (XXX = Id permission)
+		// $this->rights[$r][2]		'w', 'r', 'd' Non utilise - type de la permission (deprecated)
+        // $this->rights[$r][3]     1=Permis par defaut, 0=Non permis par defaut
+        // $this->rights[$r][4]     Niveau 1 pour nommer permission dans code 
+        // $this->rights[$r][5]     Niveau 2 pour nommer permission dans code
+		
+		// In php code, permission will be checked by test if ($user->hasRight('Affaire', 'niveau 1', 'niveau 2'))
+
 		// Add here entries to declare new permissions
 		/* BEGIN MODULEBUILDER PERMISSIONS */
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 0 + 1);
-		$this->rights[$r][1] = 'Read Affaire object of Affaire';
-		$this->rights[$r][4] = 'affaire';
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
+		$this->rights[$r][1] = 'Lire les affaires (affaires partagées et celles dont je suis un contact)';
+		$this->rights[$r][3] = 1;
 		$this->rights[$r][5] = 'read';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 1 + 1);
-		$this->rights[$r][1] = 'Create/Update Affaire object of Affaire';
-		$this->rights[$r][4] = 'affaire';
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
+		$this->rights[$r][1] = 'Creéer/Modifier les affaires (affaires partagées et celles dont je suis un contact)';
+		$this->rights[$r][3] = 1;
 		$this->rights[$r][5] = 'write';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 2 + 1);
-		$this->rights[$r][1] = 'Delete Affaire object of Affaire';
-		$this->rights[$r][4] = 'affaire';
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
+		$this->rights[$r][1] = 'Supprimer les affaires (affaires partagées et celles dont je suis un contact)';
+		$this->rights[$r][3] = 1;
+		$this->rights[$r][5] = 'delete';
+		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
+		$this->rights[$r][1] = 'Lire les affaires (même les affaires privée dont je ne suis pas un conctact)';
+		$this->rights[$r][3] = 0;
+		$this->rights[$r][4] = 'all';
+		$this->rights[$r][5] = 'read';
+		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
+		$this->rights[$r][1] = 'Créer/Modifier les affaires (même les affaires privée dont je ne suis pas un conctact)';
+		$this->rights[$r][3] = 0;
+		$this->rights[$r][4] = 'all';
+		$this->rights[$r][5] = 'write';
+		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
+		$this->rights[$r][1] = 'Supprimer les affaires (même les affaires privée dont je ne suis pas un conctact)';
+		$this->rights[$r][3] = 0;
+		$this->rights[$r][4] = 'all';
 		$this->rights[$r][5] = 'delete';
 		$r++;
 		
