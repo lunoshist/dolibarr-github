@@ -86,7 +86,7 @@ class modAffaire extends DolibarrModules
 		// If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
 		// If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
 		// To use a supported fa-xxx css style of font awesome, use this->picto='xxx'
-		$this->picto = 'affaire.png@affaire';
+		$this->picto = 'affaire.svg@affaire';
 
 		// Define some features supported by module (triggers, login, substitutions, menus, css, etc...)
 		$this->module_parts = array(
@@ -103,7 +103,7 @@ class modAffaire extends DolibarrModules
 			// Set this to 1 if module has its own barcode directory (core/modules/barcode)
 			'barcode' => 0,
 			// Set this to 1 if module has its own models directory (core/modules/xxx)
-			'models' => 0,
+			'models' => 1,
 			// Set this to 1 if module has its own printing directory (core/modules/printing)
 			'printing' => 0,
 			// Set this to 1 if module has its own theme directory (theme)
@@ -237,7 +237,19 @@ class modAffaire extends DolibarrModules
 		 );
 		 */
 		/* BEGIN MODULEBUILDER DICTIONARIES */
-		$this->dictionaries = array();
+		$this->dictionaries=array(
+			'langs'=>'affaire@affaire',
+			'tabname'=>array('c_affaire_step'),
+			'tablib'=>array('Toutes les étapes'),
+			'tabsql'=>array('SELECT f.rowid as rowid, f.code, f.label, f.label_short, f.workflow_type, f.position, f.added, f.active FROM llx_c_affaire_step as f'),
+			'tabsqlsort'=>array('label ASC'),
+			'tabfield'=>array('code,label,label_short,workflow_type,position,added,active,'),
+			'tabfieldvalue'=>array('code,label,label_short,workflow_type,position,added,active,'),
+			'tabfieldinsert'=>array('code,label,label_short,workflow_type,position,added,active,'),
+			'tabrowid'=>array('rowid'),
+			'tabcond'=>array(isModEnabled('affaire')),
+			'tabhelp'=>array(array('code'=>$langs->trans('CodeTooltipHelp'), 'field2' => 'field2tooltip')),
+		);
 		/* END MODULEBUILDER DICTIONARIES */
 
 		// Boxes/Widgets
@@ -260,8 +272,8 @@ class modAffaire extends DolibarrModules
 			//  0 => array(
 			//      'label' => 'MyJob label',
 			//      'jobtype' => 'method',
-			//      'class' => '/affaire/class/myobject.class.php',
-			//      'objectname' => 'MyObject',
+			//      'class' => '/affaire/class/affaire.class.php',
+			//      'objectname' => 'Affaire',
 			//      'method' => 'doScheduledJob',
 			//      'parameters' => '',
 			//      'comment' => 'Comment',
@@ -283,24 +295,22 @@ class modAffaire extends DolibarrModules
 		$r = 0;
 		// Add here entries to declare new permissions
 		/* BEGIN MODULEBUILDER PERMISSIONS */
-		/*
-		$o = 1;
-		$this->rights[$r][0] = $this->numero . sprintf("%02d", ($o * 10) + 1); // Permission id (must not be already used)
-		$this->rights[$r][1] = 'Read objects of Affaire'; // Permission label
-		$this->rights[$r][4] = 'myobject';
-		$this->rights[$r][5] = 'read'; // In php code, permission will be checked by test if ($user->hasRight('affaire', 'myobject', 'read'))
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 0 + 1);
+		$this->rights[$r][1] = 'Read Affaire object of Affaire';
+		$this->rights[$r][4] = 'affaire';
+		$this->rights[$r][5] = 'read';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf("%02d", ($o * 10) + 2); // Permission id (must not be already used)
-		$this->rights[$r][1] = 'Create/Update objects of Affaire'; // Permission label
-		$this->rights[$r][4] = 'myobject';
-		$this->rights[$r][5] = 'write'; // In php code, permission will be checked by test if ($user->hasRight('affaire', 'myobject', 'write'))
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 1 + 1);
+		$this->rights[$r][1] = 'Create/Update Affaire object of Affaire';
+		$this->rights[$r][4] = 'affaire';
+		$this->rights[$r][5] = 'write';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf("%02d", ($o * 10) + 3); // Permission id (must not be already used)
-		$this->rights[$r][1] = 'Delete objects of Affaire'; // Permission label
-		$this->rights[$r][4] = 'myobject';
-		$this->rights[$r][5] = 'delete'; // In php code, permission will be checked by test if ($user->hasRight('affaire', 'myobject', 'delete'))
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 2 + 1);
+		$this->rights[$r][1] = 'Delete Affaire object of Affaire';
+		$this->rights[$r][4] = 'affaire';
+		$this->rights[$r][5] = 'delete';
 		$r++;
-		*/
+		
 		/* END MODULEBUILDER PERMISSIONS */
 
 		// Main menu entries to add
@@ -321,7 +331,7 @@ class modAffaire extends DolibarrModules
 			'langs'=>'affaire@affaire', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000 + $r,
 			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
-			'perms'=>'1', // Use 'perms'=>'$user->hasRight("affaire", "myobject", "read")' if you want your menu with a permission rules
+			'perms'=>'1', // Use 'perms'=>'$user->hasRight("affaire", "affaire", "read")' if you want your menu with a permission rules
 			'target'=>'',
 			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
 		);
@@ -332,47 +342,93 @@ class modAffaire extends DolibarrModules
 		$this->menu[$r++]=array(
 			'fk_menu'=>'fk_mainmenu=affaire',      // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'left',                          // This is a Left menu entry
-			'titre'=>'MyObject',
+			'titre'=>'Affaire',
 			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu'=>'affaire',
-			'leftmenu'=>'myobject',
+			'leftmenu'=>'affaire',
 			'url'=>'/affaire/affaireindex.php',
 			'langs'=>'affaire@affaire',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
 			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
-			'perms'=>'$user->hasRight("affaire", "myobject", "read")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
 			'target'=>'',
 			'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
 		);
 		$this->menu[$r++]=array(
-			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=myobject',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'left',			                // This is a Left menu entry
-			'titre'=>'New_MyObject',
+			'titre'=>'New_Affaire',
 			'mainmenu'=>'affaire',
-			'leftmenu'=>'affaire_myobject_new',
-			'url'=>'/affaire/myobject_card.php?action=create',
+			'leftmenu'=>'affaire_affaire_new',
+			'url'=>'/affaire/affaire_card.php?action=create',
 			'langs'=>'affaire@affaire',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
 			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled. Use '$leftmenu==\'system\'' to show if leftmenu system is selected.
-			'perms'=>'$user->hasRight("affaire", "myobject", "write")'
+			'perms'=>'$user->hasRight("affaire", "affaire", "write")'
 			'target'=>'',
 			'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
 		);
 		$this->menu[$r++]=array(
-			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=myobject',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'left',			                // This is a Left menu entry
-			'titre'=>'List_MyObject',
+			'titre'=>'List_Affaire',
 			'mainmenu'=>'affaire',
-			'leftmenu'=>'affaire_myobject_list',
-			'url'=>'/affaire/myobject_list.php',
+			'leftmenu'=>'affaire_affaire_list',
+			'url'=>'/affaire/affaire_list.php',
 			'langs'=>'affaire@affaire',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
 			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
-			'perms'=>'$user->hasRight("affaire", "myobject", "read")'
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")'
 			'target'=>'',
 			'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
 		);
 		*/
+		/*LEFTMENU AFFAIRE*/
+		$this->menu[$r++]=array(
+			'fk_menu'=>'fk_mainmenu=affaire',
+			'type'=>'left',
+			'titre'=>'Affaire',
+			'prefix' => img_picto('', $this->picto, 'class="paddingright pictofixedwidth valignmiddle"'),
+			'mainmenu'=>'affaire',
+			'leftmenu'=>'affaire',
+			'url'=>'/affaire/affaire_list.php',
+			'langs'=>'affaire@affaire',
+			'position'=>1000+$r,
+			'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+			'target'=>'',
+			'user'=>2,
+		);
+        $this->menu[$r++]=array(
+            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
+            'type'=>'left',
+            'titre'=>'List Affaire',
+            'mainmenu'=>'affaire',
+            'leftmenu'=>'affaire_affaire_list',
+            'url'=>'/affaire/affaire_list.php',
+            'langs'=>'affaire@affaire',
+            'position'=>1000+$r,
+            'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+            'target'=>'',
+            'user'=>2,
+        );
+        $this->menu[$r++]=array(
+            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
+            'type'=>'left',
+            'titre'=>'New Affaire',
+            'mainmenu'=>'affaire',
+            'leftmenu'=>'affaire_affaire_new',
+            'url'=>'/affaire/affaire_card.php?action=create',
+            'langs'=>'affaire@affaire',
+            'position'=>1000+$r,
+            'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "write")',
+            'target'=>'',
+            'user'=>2
+        );
+
+		/*END LEFTMENU AFFAIRE*/
 		/* END MODULEBUILDER LEFTMENU MYOBJECT */
 
 
@@ -382,28 +438,28 @@ class modAffaire extends DolibarrModules
 		/*
 		$langs->load("affaire@affaire");
 		$this->export_code[$r] = $this->rights_class.'_'.$r;
-		$this->export_label[$r] = 'MyObjectLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
+		$this->export_label[$r] = 'AffaireLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
 		$this->export_icon[$r] = $this->picto;
 		// Define $this->export_fields_array, $this->export_TypeFields_array and $this->export_entities_array
-		$keyforclass = 'MyObject'; $keyforclassfile='/affaire/class/myobject.class.php'; $keyforelement='myobject@affaire';
+		$keyforclass = 'Affaire'; $keyforclassfile='/affaire/class/affaire.class.php'; $keyforelement='affaire@affaire';
 		include DOL_DOCUMENT_ROOT.'/core/commonfieldsinexport.inc.php';
 		//$this->export_fields_array[$r]['t.fieldtoadd']='FieldToAdd'; $this->export_TypeFields_array[$r]['t.fieldtoadd']='Text';
 		//unset($this->export_fields_array[$r]['t.fieldtoremove']);
-		//$keyforclass = 'MyObjectLine'; $keyforclassfile='/affaire/class/myobject.class.php'; $keyforelement='myobjectline@affaire'; $keyforalias='tl';
+		//$keyforclass = 'AffaireLine'; $keyforclassfile='/affaire/class/affaire.class.php'; $keyforelement='affaireline@affaire'; $keyforalias='tl';
 		//include DOL_DOCUMENT_ROOT.'/core/commonfieldsinexport.inc.php';
-		$keyforselect='myobject'; $keyforaliasextra='extra'; $keyforelement='myobject@affaire';
+		$keyforselect='affaire'; $keyforaliasextra='extra'; $keyforelement='affaire@affaire';
 		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
-		//$keyforselect='myobjectline'; $keyforaliasextra='extraline'; $keyforelement='myobjectline@affaire';
+		//$keyforselect='affaireline'; $keyforaliasextra='extraline'; $keyforelement='affaireline@affaire';
 		//include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
-		//$this->export_dependencies_array[$r] = array('myobjectline'=>array('tl.rowid','tl.ref')); // To force to activate one or several fields if we select some fields that need same (like to select a unique key if we ask a field of a child to avoid the DISTINCT to discard them, or for computed field than need several other fields)
+		//$this->export_dependencies_array[$r] = array('affaireline'=>array('tl.rowid','tl.ref')); // To force to activate one or several fields if we select some fields that need same (like to select a unique key if we ask a field of a child to avoid the DISTINCT to discard them, or for computed field than need several other fields)
 		//$this->export_special_array[$r] = array('t.field'=>'...');
 		//$this->export_examplevalues_array[$r] = array('t.field'=>'Example');
 		//$this->export_help_array[$r] = array('t.field'=>'FieldDescHelp');
 		$this->export_sql_start[$r]='SELECT DISTINCT ';
-		$this->export_sql_end[$r]  =' FROM '.MAIN_DB_PREFIX.'affaire_myobject as t';
-		//$this->export_sql_end[$r]  =' LEFT JOIN '.MAIN_DB_PREFIX.'affaire_myobject_line as tl ON tl.fk_myobject = t.rowid';
+		$this->export_sql_end[$r]  =' FROM '.MAIN_DB_PREFIX.'affaire_affaire as t';
+		//$this->export_sql_end[$r]  =' LEFT JOIN '.MAIN_DB_PREFIX.'affaire_affaire_line as tl ON tl.fk_affaire = t.rowid';
 		$this->export_sql_end[$r] .=' WHERE 1 = 1';
-		$this->export_sql_end[$r] .=' AND t.entity IN ('.getEntity('myobject').')';
+		$this->export_sql_end[$r] .=' AND t.entity IN ('.getEntity('affaire').')';
 		$r++; */
 		/* END MODULEBUILDER EXPORT MYOBJECT */
 
@@ -413,27 +469,27 @@ class modAffaire extends DolibarrModules
 		/*
 		$langs->load("affaire@affaire");
 		$this->import_code[$r] = $this->rights_class.'_'.$r;
-		$this->import_label[$r] = 'MyObjectLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
+		$this->import_label[$r] = 'AffaireLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
 		$this->import_icon[$r] = $this->picto;
-		$this->import_tables_array[$r] = array('t' => MAIN_DB_PREFIX.'affaire_myobject', 'extra' => MAIN_DB_PREFIX.'affaire_myobject_extrafields');
+		$this->import_tables_array[$r] = array('t' => MAIN_DB_PREFIX.'affaire_affaire', 'extra' => MAIN_DB_PREFIX.'affaire_affaire_extrafields');
 		$this->import_tables_creator_array[$r] = array('t' => 'fk_user_author'); // Fields to store import user id
 		$import_sample = array();
-		$keyforclass = 'MyObject'; $keyforclassfile='/affaire/class/myobject.class.php'; $keyforelement='myobject@affaire';
+		$keyforclass = 'Affaire'; $keyforclassfile='/affaire/class/affaire.class.php'; $keyforelement='affaire@affaire';
 		include DOL_DOCUMENT_ROOT.'/core/commonfieldsinimport.inc.php';
 		$import_extrafield_sample = array();
-		$keyforselect='myobject'; $keyforaliasextra='extra'; $keyforelement='myobject@affaire';
+		$keyforselect='affaire'; $keyforaliasextra='extra'; $keyforelement='affaire@affaire';
 		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinimport.inc.php';
-		$this->import_fieldshidden_array[$r] = array('extra.fk_object' => 'lastrowid-'.MAIN_DB_PREFIX.'affaire_myobject');
+		$this->import_fieldshidden_array[$r] = array('extra.fk_object' => 'lastrowid-'.MAIN_DB_PREFIX.'affaire_affaire');
 		$this->import_regex_array[$r] = array();
 		$this->import_examplevalues_array[$r] = array_merge($import_sample, $import_extrafield_sample);
 		$this->import_updatekeys_array[$r] = array('t.ref' => 'Ref');
 		$this->import_convertvalue_array[$r] = array(
 			't.ref' => array(
 				'rule'=>'getrefifauto',
-				'class'=>(!getDolGlobalString('AFFAIRE_MYOBJECT_ADDON') ? 'mod_myobject_standard' : getDolGlobalString('AFFAIRE_MYOBJECT_ADDON')),
-				'path'=>"/core/modules/commande/".(!getDolGlobalString('AFFAIRE_MYOBJECT_ADDON') ? 'mod_myobject_standard' : getDolGlobalString('AFFAIRE_MYOBJECT_ADDON')).'.php'
-				'classobject'=>'MyObject',
-				'pathobject'=>'/affaire/class/myobject.class.php',
+				'class'=>(!getDolGlobalString('AFFAIRE_MYOBJECT_ADDON') ? 'mod_affaire_standard' : getDolGlobalString('AFFAIRE_MYOBJECT_ADDON')),
+				'path'=>"/core/modules/commande/".(!getDolGlobalString('AFFAIRE_MYOBJECT_ADDON') ? 'mod_affaire_standard' : getDolGlobalString('AFFAIRE_MYOBJECT_ADDON')).'.php'
+				'classobject'=>'Affaire',
+				'pathobject'=>'/affaire/class/affaire.class.php',
 			),
 			't.fk_soc' => array('rule' => 'fetchidfromref', 'file' => '/societe/class/societe.class.php', 'class' => 'Societe', 'method' => 'fetch', 'element' => 'ThirdParty'),
 			't.fk_user_valid' => array('rule' => 'fetchidfromref', 'file' => '/user/class/user.class.php', 'class' => 'User', 'method' => 'fetch', 'element' => 'user'),
@@ -480,16 +536,16 @@ class modAffaire extends DolibarrModules
 		// Document templates
 		$moduledir = dol_sanitizeFileName('affaire');
 		$myTmpObjects = array();
-		$myTmpObjects['MyObject'] = array('includerefgeneration'=>0, 'includedocgeneration'=>0);
+		$myTmpObjects['Affaire'] = array('includerefgeneration'=>0, 'includedocgeneration'=>0);
 
 		foreach ($myTmpObjects as $myTmpObjectKey => $myTmpObjectArray) {
-			if ($myTmpObjectKey == 'MyObject') {
+			if ($myTmpObjectKey == 'Affaire') {
 				continue;
 			}
 			if ($myTmpObjectArray['includerefgeneration']) {
-				$src = DOL_DOCUMENT_ROOT.'/install/doctemplates/'.$moduledir.'/template_myobjects.odt';
+				$src = DOL_DOCUMENT_ROOT.'/install/doctemplates/'.$moduledir.'/template_affaires.odt';
 				$dirodt = DOL_DATA_ROOT.'/doctemplates/'.$moduledir;
-				$dest = $dirodt.'/template_myobjects.odt';
+				$dest = $dirodt.'/template_affaires.odt';
 
 				if (file_exists($src) && !file_exists($dest)) {
 					require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
