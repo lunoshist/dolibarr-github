@@ -25,6 +25,6 @@ CREATE TABLE llx_c_affaire_status(
 	
 	type integer,
 	added integer,
-	active integer,
+	active integer
 	-- END MODULEBUILDER FIELDS
 ) ENGINE=innodb;

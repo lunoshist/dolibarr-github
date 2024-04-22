@@ -54,25 +54,26 @@ class modAffaire extends DolibarrModules
 
 		// Family can be 'base' (core modules),'crm','financial','hr','projects','products','ecm','technic' (transverse modules),'interface' (link with external tools),'other','...'
 		// It is used to group modules by family in module setup page
-		$this->family = 'technic';
+		$this->family = 'hr';
 
 		// Module position in the family on 2 digits ('01', '10', '20', ...)
-		$this->module_position = '90';
+		$this->module_position = '01';
 
 		// Gives the possibility for the module, to provide his own family info and position of this family (Overwrite $this->family and $this->module_position. Avoid this)
-		//$this->familyinfo = array('myownfamily' => array('position' => '01', 'label' => $langs->trans("MyOwnFamily")));
+		// $this->familyinfo = array('Workflow' => array('position' => '06', 'label' => $langs->trans("Workflow")));
+		
 		// Module label (no space allowed), used if translation string 'ModuleAffaireName' not found (Affaire is name of module).
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 
 		// Module description, used if translation string 'ModuleAffaireDesc' not found (Affaire is name of module).
-		$this->description = "AffaireDescription";
+		$this->description = "Un module qui propose un réel suivis des affaires commerciales.";
 		// Used only if file README.md and README-LL.md not found.
-		$this->descriptionlong = "AffaireDescription";
+		$this->descriptionlong = "Grâce à un (ou plusieurs) véritable flow définis à l’avance, constitué d’étapes accompagné de leurs statuts d’avancement (les deux pouvant être personnaliser). Ainsi qu’un nouvel objet affaire qui unifie les objets dolibarr (propal, facture, …) afin de laisser à l’objet projet actuel seulement la partie production";
 
 		// Author
 		$this->editor_name = 'SEREM';
 		$this->editor_url = 'www.serem-electronics.com';		// Must be an external online web site
-		$this->editor_squarred_logo = '';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@affaire'
+		$this->editor_squarred_logo = 'LogoCarre_Serem.jpg';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@affaire'
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
 		$this->version = '1.0';
@@ -86,7 +87,7 @@ class modAffaire extends DolibarrModules
 		// If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
 		// If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
 		// To use a supported fa-xxx css style of font awesome, use this->picto='xxx'
-		$this->picto = 'affaire.svg@affaire';
+		$this->picto = 'affaire.png@affaire';
 
 		// Define some features supported by module (triggers, login, substitutions, menus, css, etc...)
 		$this->module_parts = array(
@@ -151,7 +152,7 @@ class modAffaire extends DolibarrModules
 		$this->langfiles = array("affaire@affaire");
 
 		// Prerequisites
-		$this->phpmin = array(7, 1); // Minimum version of PHP required by module
+		$this->phpmin = array(8, 1); // Minimum version of PHP required by module
 		$this->need_dolibarr_version = array(19, -3); // Minimum version of Dolibarr required by module
 		$this->need_javascript_ajax = 0;
 
@@ -239,15 +240,15 @@ class modAffaire extends DolibarrModules
 		/* BEGIN MODULEBUILDER DICTIONARIES */
 		$this->dictionaries=array(
 			'langs'=>'affaire@affaire',
-			'tabname'=>array('c_affaire_step'),
-			'tablib'=>array('Toutes les étapes'),
-			'tabsql'=>array('SELECT f.rowid as rowid, f.code, f.label, f.label_short, f.workflow_type, f.position, f.added, f.active FROM llx_c_affaire_step as f'),
-			'tabsqlsort'=>array('label ASC'),
-			'tabfield'=>array('code,label,label_short,workflow_type,position,added,active,'),
-			'tabfieldvalue'=>array('code,label,label_short,workflow_type,position,added,active,'),
-			'tabfieldinsert'=>array('code,label,label_short,workflow_type,position,added,active,'),
-			'tabrowid'=>array('rowid'),
-			'tabcond'=>array(isModEnabled('affaire')),
+			'tabname'=>array('llx_c_affaire_steps','c_llx_c_affaire_status'),
+			'tablib'=>array('Toutes les étapes','Tous les statuts'),
+			'tabsql'=>array('SELECT f.rowid as rowid, f.label, f.label_short, f.fk_workflow_type, f.fk_default_status, f.position, f.added, f.active FROM llx_c_affaire_steps as f','SELECT t.rowid as rowid, t.label, t.label_short, t.fk_workflow_type, t.fk_step, t.type, t.added, t.active FROM llx_c_affaire_status as t'),
+			'tabsqlsort'=>array('label ASC','label ASC'),
+			'tabfield'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
+			'tabfieldvalue'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
+			'tabfieldinsert'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
+			'tabrowid'=>array('rowid','rowid'),
+			'tabcond'=>array(isModEnabled('affaire'),isModEnabled('affaire')),
 			'tabhelp'=>array(array('code'=>$langs->trans('CodeTooltipHelp'), 'field2' => 'field2tooltip')),
 		);
 		/* END MODULEBUILDER DICTIONARIES */

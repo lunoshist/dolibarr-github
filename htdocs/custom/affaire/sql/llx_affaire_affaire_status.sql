@@ -14,29 +14,15 @@
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
 
-CREATE TABLE llx_affaire_affaire(
+CREATE TABLE llx_affaire_affaire_status(
 	-- BEGIN MODULEBUILDER FIELDS
 	rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL, 
-	ref varchar(128) NOT NULL, 
-	label varchar(255), 
-	fk_soc integer, 
-	description text, 
-	note_public text, 
-	note_private text, 
-	date_creation datetime NOT NULL, 
-	tms timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, 
-	fk_user_creat integer NOT NULL, 
-	fk_user_modif integer, 
-	last_main_doc varchar(255), 
-	import_key varchar(14), 
-	model_pdf varchar(255), 
-	fk_workflow_type integer NOT NULL, 
-	final_customer integer, 
-	date_close datetime, 
-	fk_user_close integer, 
-	total_ht double DEFAULT NULL, 
-	total_ttc double DEFAULT NULL, 
-	fk_step integer NOT NULL, 
-	fk_status integer NOT NULL
-	-- END MODULEBUILDER FIELDS
+	fk_affaire integer,
+	fk_statut_propal integer,
+	fk_statut_order integer,
+	fk_statut_fab integer,
+	fk_statut_post_prod integer,
+	fk_statut_shipment integer,
+	fk_statut_invoice integer,
+	fk_statut_admin integer
 ) ENGINE=innodb;

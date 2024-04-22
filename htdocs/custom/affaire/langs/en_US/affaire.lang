@@ -20,7 +20,7 @@
 # Module label 'ModuleAffaireName'
 ModuleAffaireName = Affaire
 # Module description 'ModuleAffaireDesc'
-ModuleAffaireDesc = Affaire description
+ModuleAffaireDesc = Un module qui propose un réel suivis des affaires commerciales.
 
 #
 # Admin page

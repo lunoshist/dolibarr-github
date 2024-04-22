@@ -1,4 +1,4 @@
-# Copyright (C) ---Put here your own copyright and developer email---
+# Copyright (C) 2024 Lucas NOIRIE <lnoirie@serem-electronics.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,35 +17,35 @@
 # Generic
 #
 
-# Module label 'ModuleMyModuleName'
-ModuleMyModuleName = MyModule
-# Module description 'ModuleMyModuleDesc'
-ModuleMyModuleDesc = MyModule description
+# Module label 'ModuleAffaireName'
+ModuleAffaireName = Affaire
+# Module description 'ModuleAffaireDesc'
+ModuleAffaireDesc = Un module qui propose un réel suivis des affaires commerciales.
 
 #
 # Admin page
 #
-MyModuleSetup = MyModule setup
-Settings = Settings
-MyModuleSetupPage = MyModule setup page
-NewSection=New section
-MYMODULE_MYPARAM1 = My param 1
-MYMODULE_MYPARAM1Tooltip = My param 1 tooltip
-MYMODULE_MYPARAM2=My param 2
-MYMODULE_MYPARAM2Tooltip=My param 2 tooltip
+AffaireSetup = Affaire setup
+Settings = Paramètres
+AffaireSetupPage = Affaire setup page
+NewSection=Nouvelle section
+AFFAIRE_MYPARAM1 = My param 1
+AFFAIRE_MYPARAM1Tooltip = My param 1 tooltip
+AFFAIRE_MYPARAM2=My param 2
+AFFAIRE_MYPARAM2Tooltip=My param 2 tooltip
 
 
 #
 # About page
 #
-About = About
-MyModuleAbout = About MyModule
-MyModuleAboutPage = MyModule about page
+About = À propos
+AffaireAbout = À propos d'Affaire
+AffaireAboutPage = À propos d'Affaire page
 
 #
 # Sample page
 #
-MyModuleArea = Home MyModule
+AffaireArea = Home Affaire
 MyPageName = My page name
 
 #
