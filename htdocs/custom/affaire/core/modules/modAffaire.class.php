@@ -240,15 +240,15 @@ class modAffaire extends DolibarrModules
 		/* BEGIN MODULEBUILDER DICTIONARIES */
 		$this->dictionaries=array(
 			'langs'=>'affaire@affaire',
-			'tabname'=>array('llx_c_affaire_steps','c_llx_c_affaire_status'),
-			'tablib'=>array('Toutes les étapes','Tous les statuts'),
-			'tabsql'=>array('SELECT f.rowid as rowid, f.label, f.label_short, f.fk_workflow_type, f.fk_default_status, f.position, f.added, f.active FROM llx_c_affaire_steps as f','SELECT t.rowid as rowid, t.label, t.label_short, t.fk_workflow_type, t.fk_step, t.type, t.added, t.active FROM llx_c_affaire_status as t'),
-			'tabsqlsort'=>array('label ASC','label ASC'),
-			'tabfield'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
-			'tabfieldvalue'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
-			'tabfieldinsert'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
-			'tabrowid'=>array('rowid','rowid'),
-			'tabcond'=>array(isModEnabled('affaire'),isModEnabled('affaire')),
+			'tabname'=>array('llx_c_affaire_steps','c_llx_c_affaire_status','c_llx_c_affaire_status_type'),
+			'tablib'=>array('Toutes les étapes','Tous les statuts','Les types de status'),
+			'tabsql'=>array('SELECT f.rowid as rowid, f.label, f.label_short, f.fk_workflow_type, f.fk_default_status, f.position, f.added, f.active FROM llx_c_affaire_steps as f','SELECT t.rowid as rowid, t.label, t.label_short, t.fk_workflow_type, t.fk_step, t.fk_type, t.added, t.active FROM llx_c_affaire_status as t','SELECT t.rowid as rowid, t.code, t.label, t.description, t.more_css, t.active FROM llx_c_llx_c_affaire_status_type as t'),
+			'tabsqlsort'=>array('label ASC','label ASC','label ASC'),
+			'tabfield'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,fk_type,added,active','code,label,description,more_css'),
+			'tabfieldvalue'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,fk_type,added,active','code,label,description,more_css'),
+			'tabfieldinsert'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,fk_type,added,active','code,label,description,more_css'),
+			'tabrowid'=>array('rowid','rowid','rowid'),
+			'tabcond'=>array(isModEnabled('affaire'),isModEnabled('affaire'),isModEnabled('affaire')),
 			'tabhelp'=>array(array('code'=>$langs->trans('CodeTooltipHelp'), 'field2' => 'field2tooltip')),
 		);
 		/* END MODULEBUILDER DICTIONARIES */
@@ -308,34 +308,37 @@ class modAffaire extends DolibarrModules
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
 		$this->rights[$r][1] = 'Lire les affaires (affaires partagées et celles dont je suis un contact)';
 		$this->rights[$r][3] = 1;
+		$this->rights[$r][4] = 'affaire';
 		$this->rights[$r][5] = 'read';
 		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
 		$this->rights[$r][1] = 'Creéer/Modifier les affaires (affaires partagées et celles dont je suis un contact)';
 		$this->rights[$r][3] = 1;
+		$this->rights[$r][4] = 'affaire';
 		$this->rights[$r][5] = 'write';
 		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
 		$this->rights[$r][1] = 'Supprimer les affaires (affaires partagées et celles dont je suis un contact)';
 		$this->rights[$r][3] = 1;
+		$this->rights[$r][4] = 'affaire';
 		$this->rights[$r][5] = 'delete';
 		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
 		$this->rights[$r][1] = 'Lire les affaires (même les affaires privée dont je ne suis pas un conctact)';
 		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'all';
+		$this->rights[$r][4] = 'allAffaire';
 		$this->rights[$r][5] = 'read';
 		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
 		$this->rights[$r][1] = 'Créer/Modifier les affaires (même les affaires privée dont je ne suis pas un conctact)';
 		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'all';
+		$this->rights[$r][4] = 'allAffaire';
 		$this->rights[$r][5] = 'write';
 		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
 		$this->rights[$r][1] = 'Supprimer les affaires (même les affaires privée dont je ne suis pas un conctact)';
 		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'all';
+		$this->rights[$r][4] = 'allAffaire';
 		$this->rights[$r][5] = 'delete';
 		$r++;
 		

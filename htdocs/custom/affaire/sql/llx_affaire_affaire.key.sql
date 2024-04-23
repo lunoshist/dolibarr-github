@@ -24,4 +24,4 @@ ALTER TABLE llx_affaire_affaire ADD INDEX idx_affaire_affaire_final_customer (fi
 --ALTER TABLE llx_affaire_affaire ADD UNIQUE INDEX uk_affaire_affaire_fieldxy(fieldx, fieldy);
 
 --ALTER TABLE llx_affaire_affaire ADD CONSTRAINT llx_affaire_affaire_fk_field FOREIGN KEY (fk_field) REFERENCES llx_affaire_myotherobject(rowid);
-
+ALTER TABLE llx_affaire_affaire ADD CONSTRAINT llx_affaire_affaire_fk_workflow_type FOREIGN KEY (fk_workflow_type) REFERENCES llx_c_affaire_workflow_types(rowid);

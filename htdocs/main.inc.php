@@ -2271,7 +2271,7 @@ function top_menu($head, $title = '', $target = '', $disablejs = 0, $disablehead
 
 		// Link to print main content area (optioncss=print)
 		if (!getDolGlobalString('MAIN_PRINT_DISABLELINK') && !getDolGlobalString('MAIN_OPTIMIZEFORTEXTBROWSER')) {
-			$qs = dol_escape_htmltag($_SERVER["QUERY_STRING"]);
+			$qs = dol_escape_htmltag($_SERVER["QUERY_STRING"] ?? '');
 
 			if (isset($_POST) && is_array($_POST)) {
 				foreach ($_POST as $key => $value) {

@@ -13,6 +13,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
+--
+-- Structure de la table `llx_c_affaire_steps`
+--
 
 CREATE TABLE llx_c_affaire_steps(
 	-- BEGIN MODULEBUILDER FIELDS
@@ -28,3 +31,16 @@ CREATE TABLE llx_c_affaire_steps(
 	active integer
 	-- END MODULEBUILDER FIELDS
 ) ENGINE=innodb;
+
+--
+-- Déchargement des données de la table `llx_c_affaire_steps`
+--
+
+INSERT INTO `llx_c_affaire_steps` (`rowid`, `label`, `label_short`, `fk_workflow_type`, `fk_default_status`, `position`, `added`, `active`) VALUES
+(1, 'Proposition Commerciale', 'Propal', 2, 2, 1, 0, 1),
+(2, 'Commande Client', 'CMDE', 2, 9, 2, 0, 1),
+(3, 'Production', 'Prod', 2, 20, 3, 0, 1),
+(4, 'Post-production', 'Post-Prod', 2, 27, 4, 0, 1),
+(5, 'Expédition', 'Expe', 2, 36, 5, 0, 1),
+(6, 'Facturation', 'Facture', 2, 44, 6, 0, 1),
+(7, 'Administratif', 'Admin', 2, 51, 7, 1, 1);
