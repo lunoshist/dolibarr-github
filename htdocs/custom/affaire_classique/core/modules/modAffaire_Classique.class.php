@@ -19,20 +19,20 @@
  */
 
 /**
- * 	\defgroup   affaire     Module Affaire
- *  \brief      Affaire module descriptor.
+ * 	\defgroup   affaire_classique     Module Affaire_Classique
+ *  \brief      Affaire_Classique module descriptor.
  *
- *  \file       htdocs/affaire/core/modules/modAffaire.class.php
- *  \ingroup    affaire
- *  \brief      Description and activation file for module Affaire
+ *  \file       htdocs/affaire_classique/core/modules/modAffaire_Classique.class.php
+ *  \ingroup    affaire_classique
+ *  \brief      Description and activation file for module Affaire_Classique
  */
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
 
 
 /**
- *  Description and activation class for module Affaire
+ *  Description and activation class for module Affaire_Classique
  */
-class modAffaire extends DolibarrModules
+class modAffaire_Classique extends DolibarrModules
 {
 	/**
 	 * Constructor. Define names, constants, directories, boxes, permissions
@@ -47,40 +47,39 @@ class modAffaire extends DolibarrModules
 
 		// Id for module (must be unique).
 		// Use here a free id (See in Home -> System information -> Dolibarr for list of used modules id).
-		$this->numero = 800000; // TODO Go on page https://wiki.dolibarr.org/index.php/List_of_modules_id to reserve an id number for your module
+		$this->numero = 8000001; // TODO Go on page https://wiki.dolibarr.org/index.php/List_of_modules_id to reserve an id number for your module
 
 		// Key text used to identify module (for permissions, menus, etc...)
-		$this->rights_class = 'affaire';
+		$this->rights_class = 'affaire_classique';
 
 		// Family can be 'base' (core modules),'crm','financial','hr','projects','products','ecm','technic' (transverse modules),'interface' (link with external tools),'other','...'
 		// It is used to group modules by family in module setup page
-		$this->family = 'hr';
+		$this->family = "hr";
 
 		// Module position in the family on 2 digits ('01', '10', '20', ...)
-		$this->module_position = '01';
+		$this->module_position = '91';
 
 		// Gives the possibility for the module, to provide his own family info and position of this family (Overwrite $this->family and $this->module_position. Avoid this)
-		// $this->familyinfo = array('Workflow' => array('position' => '06', 'label' => $langs->trans("Workflow")));
-		
-		// Module label (no space allowed), used if translation string 'ModuleAffaireName' not found (Affaire is name of module).
+		//$this->familyinfo = array('myownfamily' => array('position' => '01', 'label' => $langs->trans("MyOwnFamily")));
+		// Module label (no space allowed), used if translation string 'ModuleAffaire_ClassiqueName' not found (Affaire_Classique is name of module).
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 
-		// Module description, used if translation string 'ModuleAffaireDesc' not found (Affaire is name of module).
-		$this->description = "Un module qui propose un réel suivis des affaires commerciales.";
+		// Module description, used if translation string 'ModuleAffaire_ClassiqueDesc' not found (Affaire_Classique is name of module).
+		$this->description = "Ce module définis le worklow usuel pour une affaire.";
 		// Used only if file README.md and README-LL.md not found.
-		$this->descriptionlong = "Grâce à un (ou plusieurs) véritable flow définis à l’avance, constitué d’étapes accompagné de leurs statuts d’avancement (les deux pouvant être personnaliser). Ainsi qu’un nouvel objet affaire qui unifie les objets dolibarr (propal, facture, …) afin de laisser à l’objet projet actuel seulement la partie production";
+		$this->descriptionlong = "Ce module définis le worklow usuel pour une affaire.";
 
 		// Author
 		$this->editor_name = 'SEREM';
 		$this->editor_url = 'www.serem-electronics.com';		// Must be an external online web site
-		$this->editor_squarred_logo = 'LogoCarre_Serem.jpg';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@affaire'
+		$this->editor_squarred_logo = 'LogoCarre_Serem.jpg';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@affaire_classique'
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
 		$this->version = '1.0';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
-		// Key used in llx_const table to save module status enabled/disabled (where AFFAIRE is value of property name of module in uppercase)
+		// Key used in llx_const table to save module status enabled/disabled (where AFFAIRE_CLASSIQUE is value of property name of module in uppercase)
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 
 		// Name of image file used for this module.
@@ -104,18 +103,18 @@ class modAffaire extends DolibarrModules
 			// Set this to 1 if module has its own barcode directory (core/modules/barcode)
 			'barcode' => 0,
 			// Set this to 1 if module has its own models directory (core/modules/xxx)
-			'models' => 1,
+			'models' => 0,
 			// Set this to 1 if module has its own printing directory (core/modules/printing)
 			'printing' => 0,
 			// Set this to 1 if module has its own theme directory (theme)
 			'theme' => 0,
 			// Set this to relative path of css file if module has its own css file
 			'css' => array(
-				//    '/affaire/css/affaire.css.php',
+				//    '/affaire_classique/css/affaire_classique.css.php',
 			),
 			// Set this to relative path of js file if module must load a js on all pages
 			'js' => array(
-				//   '/affaire/js/affaire.js.php',
+				//   '/affaire_classique/js/affaire_classique.js.php',
 			),
 			// Set here all hooks context managed by module. To find available hook context, make a "grep -r '>initHooks(' *" on source code. You can also set hook context to 'all'
 			'hooks' => array(
@@ -132,15 +131,15 @@ class modAffaire extends DolibarrModules
 		);
 
 		// Data directories to create when module is enabled.
-		// Example: this->dirs = array("/affaire/temp","/affaire/subdir");
-		$this->dirs = array("/affaire/temp");
+		// Example: this->dirs = array("/affaire_classique/temp","/affaire_classique/subdir");
+		$this->dirs = array("/affaire_classique/temp");
 
-		// Config pages. Put here list of php page, stored into affaire/admin directory, to use to setup module.
-		$this->config_page_url = array("setup.php@affaire");
+		// Config pages. Put here list of php page, stored into affaire_classique/admin directory, to use to setup module.
+		$this->config_page_url = array("setup.php@affaire_classique");
 
 		// Dependencies
 		// A condition to hide module
-		$this->hidden = getDolGlobalInt('MODULE_AFFAIRE_DISABLED'); // A condition to disable module;
+		$this->hidden = getDolGlobalInt('MODULE_AFFAIRE_CLASSIQUE_DISABLED'); // A condition to disable module;
 		// List of module class names that must be enabled if this module is enabled. Example: array('always'=>array('modModuleToEnable1','modModuleToEnable2'), 'FR'=>array('modModuleToEnableFR')...)
 		$this->depends = array();
 		// List of module class names to disable if this one is disabled. Example: array('modModuleToDisable1', ...)
@@ -149,23 +148,23 @@ class modAffaire extends DolibarrModules
 		$this->conflictwith = array();
 
 		// The language file dedicated to your module
-		$this->langfiles = array("affaire@affaire");
+		$this->langfiles = array("affaire_classique@affaire_classique");
 
 		// Prerequisites
-		$this->phpmin = array(8, 1); // Minimum version of PHP required by module
+		$this->phpmin = array(7, 1); // Minimum version of PHP required by module
 		$this->need_dolibarr_version = array(19, -3); // Minimum version of Dolibarr required by module
 		$this->need_javascript_ajax = 0;
 
 		// Messages at activation
 		$this->warnings_activation = array(); // Warning to show when we activate module. array('always'='text') or array('FR'='textfr','MX'='textmx'...)
 		$this->warnings_activation_ext = array(); // Warning to show when we activate an external module. array('always'='text') or array('FR'='textfr','MX'='textmx'...)
-		//$this->automatic_activation = array('FR'=>'AffaireWasAutomaticallyActivatedBecauseOfYourCountryChoice');
+		//$this->automatic_activation = array('FR'=>'Affaire_ClassiqueWasAutomaticallyActivatedBecauseOfYourCountryChoice');
 		//$this->always_enabled = true;								// If true, can't be disabled
 
 		// Constants
 		// List of particular constants to add when module is enabled (key, 'chaine', value, desc, visible, 'current' or 'allentities', deleteonunactive)
-		// Example: $this->const=array(1 => array('AFFAIRE_MYNEWCONST1', 'chaine', 'myvalue', 'This is a constant to add', 1),
-		//                             2 => array('AFFAIRE_MYNEWCONST2', 'chaine', 'myvalue', 'This is another constant to add', 0, 'current', 1)
+		// Example: $this->const=array(1 => array('AFFAIRE_CLASSIQUE_MYNEWCONST1', 'chaine', 'myvalue', 'This is a constant to add', 1),
+		//                             2 => array('AFFAIRE_CLASSIQUE_MYNEWCONST2', 'chaine', 'myvalue', 'This is another constant to add', 0, 'current', 1)
 		// );
 		$this->const = array();
 
@@ -175,18 +174,18 @@ class modAffaire extends DolibarrModules
 			'fr_FR:ParentCompany'=>'Maison mère ou revendeur'
 		)*/
 
-		if (!isModEnabled("affaire")) {
-			$conf->affaire = new stdClass();
-			$conf->affaire->enabled = 0;
+		if (!isModEnabled("affaire_classique")) {
+			$conf->affaire_classique = new stdClass();
+			$conf->affaire_classique->enabled = 0;
 		}
 
 		// Array to add new pages in new tabs
 		$this->tabs = array();
 		// Example:
 		// To add a new tab identified by code tabname1
-		// $this->tabs[] = array('data'=>'objecttype:+tabname1:Title1:mylangfile@affaire:$user->hasRight('affaire', 'read'):/affaire/mynewtab1.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'objecttype:+tabname1:Title1:mylangfile@affaire_classique:$user->hasRight('affaire_classique', 'read'):/affaire_classique/mynewtab1.php?id=__ID__');
 		// To add another new tab identified by code tabname2. Label will be result of calling all substitution functions on 'Title2' key.
-		// $this->tabs[] = array('data'=>'objecttype:+tabname2:SUBSTITUTION_Title2:mylangfile@affaire:$user->hasRight('othermodule', 'read'):/affaire/mynewtab2.php?id=__ID__',
+		// $this->tabs[] = array('data'=>'objecttype:+tabname2:SUBSTITUTION_Title2:mylangfile@affaire_classique:$user->hasRight('othermodule', 'read'):/affaire_classique/mynewtab2.php?id=__ID__',
 		// To remove an existing tab identified by code tabname
 		// $this->tabs[] = array('data'=>'objecttype:-tabname:NU:conditiontoremove');
 		//
@@ -214,7 +213,7 @@ class modAffaire extends DolibarrModules
 		// Dictionaries
 		/* Example:
 		 $this->dictionaries=array(
-		 'langs'=>'affaire@affaire',
+		 'langs'=>'affaire_classique@affaire_classique',
 		 // List of tables we want to see into dictonnary editor
 		 'tabname'=>array("table1", "table2", "table3"),
 		 // Label of tables
@@ -232,34 +231,22 @@ class modAffaire extends DolibarrModules
 		 // Name of columns with primary key (try to always name it 'rowid')
 		 'tabrowid'=>array("rowid", "rowid", "rowid"),
 		 // Condition to show each dictionary
-		 'tabcond'=>array(isModEnabled('affaire'), isModEnabled('affaire'), isModEnabled('affaire')),
+		 'tabcond'=>array(isModEnabled('affaire_classique'), isModEnabled('affaire_classique'), isModEnabled('affaire_classique')),
 		 // Tooltip for every fields of dictionaries: DO NOT PUT AN EMPTY ARRAY
 		 'tabhelp'=>array(array('code'=>$langs->trans('CodeTooltipHelp'), 'field2' => 'field2tooltip'), array('code'=>$langs->trans('CodeTooltipHelp'), 'field2' => 'field2tooltip'), ...),
 		 );
 		 */
 		/* BEGIN MODULEBUILDER DICTIONARIES */
-		$this->dictionaries=array(
-			'langs'=>'affaire@affaire',
-			'tabname'=>array('llx_c_affaire_steps','c_llx_c_affaire_status'),
-			'tablib'=>array('Toutes les étapes','Tous les statuts'),
-			'tabsql'=>array('SELECT f.rowid as rowid, f.label, f.label_short, f.fk_workflow_type, f.fk_default_status, f.position, f.added, f.active FROM llx_c_affaire_steps as f','SELECT t.rowid as rowid, t.label, t.label_short, t.fk_workflow_type, t.fk_step, t.type, t.added, t.active FROM llx_c_affaire_status as t'),
-			'tabsqlsort'=>array('label ASC','label ASC'),
-			'tabfield'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
-			'tabfieldvalue'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
-			'tabfieldinsert'=>array('label,label_short,fk_workflow_type,fk_default_status,position,added,active','label,label_short,fk_workflow_type,fk_step,type,added,active'),
-			'tabrowid'=>array('rowid','rowid'),
-			'tabcond'=>array(isModEnabled('affaire'),isModEnabled('affaire')),
-			'tabhelp'=>array(array('code'=>$langs->trans('CodeTooltipHelp'), 'field2' => 'field2tooltip')),
-		);
+		$this->dictionaries = array();
 		/* END MODULEBUILDER DICTIONARIES */
 
 		// Boxes/Widgets
-		// Add here list of php file(s) stored in affaire/core/boxes that contains a class to show a widget.
+		// Add here list of php file(s) stored in affaire_classique/core/boxes that contains a class to show a widget.
 		/* BEGIN MODULEBUILDER WIDGETS */
 		$this->boxes = array(
 			//  0 => array(
-			//      'file' => 'affairewidget1.php@affaire',
-			//      'note' => 'Widget provided by Affaire',
+			//      'file' => 'affaire_classiquewidget1.php@affaire_classique',
+			//      'note' => 'Widget provided by Affaire_Classique',
 			//      'enabledbydefaulton' => 'Home',
 			//  ),
 			//  ...
@@ -273,72 +260,47 @@ class modAffaire extends DolibarrModules
 			//  0 => array(
 			//      'label' => 'MyJob label',
 			//      'jobtype' => 'method',
-			//      'class' => '/affaire/class/affaire.class.php',
-			//      'objectname' => 'Affaire',
+			//      'class' => '/affaire_classique/class/myobject.class.php',
+			//      'objectname' => 'MyObject',
 			//      'method' => 'doScheduledJob',
 			//      'parameters' => '',
 			//      'comment' => 'Comment',
 			//      'frequency' => 2,
 			//      'unitfrequency' => 3600,
 			//      'status' => 0,
-			//      'test' => 'isModEnabled("affaire")',
+			//      'test' => 'isModEnabled("affaire_classique")',
 			//      'priority' => 50,
 			//  ),
 		);
 		/* END MODULEBUILDER CRON */
 		// Example: $this->cronjobs=array(
-		//    0=>array('label'=>'My label', 'jobtype'=>'method', 'class'=>'/dir/class/file.class.php', 'objectname'=>'MyClass', 'method'=>'myMethod', 'parameters'=>'param1, param2', 'comment'=>'Comment', 'frequency'=>2, 'unitfrequency'=>3600, 'status'=>0, 'test'=>'isModEnabled("affaire")', 'priority'=>50),
-		//    1=>array('label'=>'My label', 'jobtype'=>'command', 'command'=>'', 'parameters'=>'param1, param2', 'comment'=>'Comment', 'frequency'=>1, 'unitfrequency'=>3600*24, 'status'=>0, 'test'=>'isModEnabled("affaire")', 'priority'=>50)
+		//    0=>array('label'=>'My label', 'jobtype'=>'method', 'class'=>'/dir/class/file.class.php', 'objectname'=>'MyClass', 'method'=>'myMethod', 'parameters'=>'param1, param2', 'comment'=>'Comment', 'frequency'=>2, 'unitfrequency'=>3600, 'status'=>0, 'test'=>'isModEnabled("affaire_classique")', 'priority'=>50),
+		//    1=>array('label'=>'My label', 'jobtype'=>'command', 'command'=>'', 'parameters'=>'param1, param2', 'comment'=>'Comment', 'frequency'=>1, 'unitfrequency'=>3600*24, 'status'=>0, 'test'=>'isModEnabled("affaire_classique")', 'priority'=>50)
 		// );
 
 		// Permissions provided by this module
 		$this->rights = array();
 		$r = 0;
-		// $this->rights[$r][0]     Id permission (unique tous modules confondus)
-        // $this->rights[$r][1]     Libelle par defaut si traduction de cle "PermissionXXX" non trouvee (XXX = Id permission)
-		// $this->rights[$r][2]		'w', 'r', 'd' Non utilise - type de la permission (deprecated)
-        // $this->rights[$r][3]     1=Permis par defaut, 0=Non permis par defaut
-        // $this->rights[$r][4]     Niveau 1 pour nommer permission dans code 
-        // $this->rights[$r][5]     Niveau 2 pour nommer permission dans code
-		
-		// In php code, permission will be checked by test if ($user->hasRight('Affaire', 'niveau 1', 'niveau 2'))
-
 		// Add here entries to declare new permissions
 		/* BEGIN MODULEBUILDER PERMISSIONS */
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
-		$this->rights[$r][1] = 'Lire les affaires (affaires partagées et celles dont je suis un contact)';
-		$this->rights[$r][3] = 1;
-		$this->rights[$r][5] = 'read';
+		/*
+		$o = 1;
+		$this->rights[$r][0] = $this->numero . sprintf("%02d", ($o * 10) + 1); // Permission id (must not be already used)
+		$this->rights[$r][1] = 'Read objects of Affaire_Classique'; // Permission label
+		$this->rights[$r][4] = 'myobject';
+		$this->rights[$r][5] = 'read'; // In php code, permission will be checked by test if ($user->hasRight('affaire_classique', 'myobject', 'read'))
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
-		$this->rights[$r][1] = 'Creéer/Modifier les affaires (affaires partagées et celles dont je suis un contact)';
-		$this->rights[$r][3] = 1;
-		$this->rights[$r][5] = 'write';
+		$this->rights[$r][0] = $this->numero . sprintf("%02d", ($o * 10) + 2); // Permission id (must not be already used)
+		$this->rights[$r][1] = 'Create/Update objects of Affaire_Classique'; // Permission label
+		$this->rights[$r][4] = 'myobject';
+		$this->rights[$r][5] = 'write'; // In php code, permission will be checked by test if ($user->hasRight('affaire_classique', 'myobject', 'write'))
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
-		$this->rights[$r][1] = 'Supprimer les affaires (affaires partagées et celles dont je suis un contact)';
-		$this->rights[$r][3] = 1;
-		$this->rights[$r][5] = 'delete';
+		$this->rights[$r][0] = $this->numero . sprintf("%02d", ($o * 10) + 3); // Permission id (must not be already used)
+		$this->rights[$r][1] = 'Delete objects of Affaire_Classique'; // Permission label
+		$this->rights[$r][4] = 'myobject';
+		$this->rights[$r][5] = 'delete'; // In php code, permission will be checked by test if ($user->hasRight('affaire_classique', 'myobject', 'delete'))
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
-		$this->rights[$r][1] = 'Lire les affaires (même les affaires privée dont je ne suis pas un conctact)';
-		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'all';
-		$this->rights[$r][5] = 'read';
-		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
-		$this->rights[$r][1] = 'Créer/Modifier les affaires (même les affaires privée dont je ne suis pas un conctact)';
-		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'all';
-		$this->rights[$r][5] = 'write';
-		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + $r + 1);
-		$this->rights[$r][1] = 'Supprimer les affaires (même les affaires privée dont je ne suis pas un conctact)';
-		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'all';
-		$this->rights[$r][5] = 'delete';
-		$r++;
-		
+		*/
 		/* END MODULEBUILDER PERMISSIONS */
 
 		// Main menu entries to add
@@ -347,116 +309,73 @@ class modAffaire extends DolibarrModules
 
 		// Add here entries to declare new menus
 
-		/* BEGIN MODULEBUILDER TOPMENU MYOBJECT */
+		/* BEGIN MODULEBUILDER TOPMENU */
 		$this->menu[$r++] = array(
 			'fk_menu'=>'', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'top', // This is a Top menu entry
-			'titre'=>'ModuleAffaireName',
+			'titre'=>'ModuleAffaire_ClassiqueName',
 			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
-			'mainmenu'=>'affaire',
+			'mainmenu'=>'affaire_classique',
 			'leftmenu'=>'',
-			'url'=>'/affaire/affaireindex.php',
-			'langs'=>'affaire@affaire', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'url'=>'/affaire_classique/affaire_classiqueindex.php',
+			'langs'=>'affaire_classique@affaire_classique', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000 + $r,
-			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
-			'perms'=>'1', // Use 'perms'=>'$user->hasRight("affaire", "affaire", "read")' if you want your menu with a permission rules
+			'enabled'=>'isModEnabled("affaire_classique")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire_classique")' if entry must be visible if module is enabled.
+			'perms'=>'1', // Use 'perms'=>'$user->hasRight("affaire_classique", "myobject", "read")' if you want your menu with a permission rules
 			'target'=>'',
 			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
 		);
-		/* END MODULEBUILDER TOPMENU MYOBJECT */
+		/* END MODULEBUILDER TOPMENU */
 
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
 		/*
 		$this->menu[$r++]=array(
-			'fk_menu'=>'fk_mainmenu=affaire',      // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'fk_menu'=>'fk_mainmenu=affaire_classique',      // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'left',                          // This is a Left menu entry
-			'titre'=>'Affaire',
+			'titre'=>'MyObject',
 			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle paddingright"'),
-			'mainmenu'=>'affaire',
-			'leftmenu'=>'affaire',
-			'url'=>'/affaire/affaireindex.php',
-			'langs'=>'affaire@affaire',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'mainmenu'=>'affaire_classique',
+			'leftmenu'=>'myobject',
+			'url'=>'/affaire_classique/affaire_classiqueindex.php',
+			'langs'=>'affaire_classique@affaire_classique',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
-			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
-			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+			'enabled'=>'isModEnabled("affaire_classique")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire_classique")' if entry must be visible if module is enabled.
+			'perms'=>'$user->hasRight("affaire_classique", "myobject", "read")',
 			'target'=>'',
 			'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
+			'object'=>'MyObject'
 		);
 		$this->menu[$r++]=array(
-			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'fk_menu'=>'fk_mainmenu=affaire_classique,fk_leftmenu=myobject',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'left',			                // This is a Left menu entry
-			'titre'=>'New_Affaire',
-			'mainmenu'=>'affaire',
-			'leftmenu'=>'affaire_affaire_new',
-			'url'=>'/affaire/affaire_card.php?action=create',
-			'langs'=>'affaire@affaire',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'titre'=>'New_MyObject',
+			'mainmenu'=>'affaire_classique',
+			'leftmenu'=>'affaire_classique_myobject_new',
+			'url'=>'/affaire_classique/myobject_card.php?action=create',
+			'langs'=>'affaire_classique@affaire_classique',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
-			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled. Use '$leftmenu==\'system\'' to show if leftmenu system is selected.
-			'perms'=>'$user->hasRight("affaire", "affaire", "write")'
+			'enabled'=>'isModEnabled("affaire_classique")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire_classique")' if entry must be visible if module is enabled. Use '$leftmenu==\'system\'' to show if leftmenu system is selected.
+			'perms'=>'$user->hasRight("affaire_classique", "myobject", "write")'
 			'target'=>'',
 			'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
+			'object'=>'MyObject'
 		);
 		$this->menu[$r++]=array(
-			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'fk_menu'=>'fk_mainmenu=affaire_classique,fk_leftmenu=myobject',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'left',			                // This is a Left menu entry
-			'titre'=>'List_Affaire',
-			'mainmenu'=>'affaire',
-			'leftmenu'=>'affaire_affaire_list',
-			'url'=>'/affaire/affaire_list.php',
-			'langs'=>'affaire@affaire',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'titre'=>'List_MyObject',
+			'mainmenu'=>'affaire_classique',
+			'leftmenu'=>'affaire_classique_myobject_list',
+			'url'=>'/affaire_classique/myobject_list.php',
+			'langs'=>'affaire_classique@affaire_classique',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
-			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
-			'perms'=>'$user->hasRight("affaire", "affaire", "read")'
+			'enabled'=>'isModEnabled("affaire_classique")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire_classique")' if entry must be visible if module is enabled.
+			'perms'=>'$user->hasRight("affaire_classique", "myobject", "read")'
 			'target'=>'',
 			'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
+			'object'=>'MyObject'
 		);
 		*/
-		/*LEFTMENU AFFAIRE*/
-		$this->menu[$r++]=array(
-			'fk_menu'=>'fk_mainmenu=affaire',
-			'type'=>'left',
-			'titre'=>'Affaire',
-			'prefix' => img_picto('', $this->picto, 'class="paddingright pictofixedwidth valignmiddle"'),
-			'mainmenu'=>'affaire',
-			'leftmenu'=>'affaire',
-			'url'=>'/affaire/affaire_list.php',
-			'langs'=>'affaire@affaire',
-			'position'=>1000+$r,
-			'enabled'=>'isModEnabled("affaire")',
-			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
-			'target'=>'',
-			'user'=>2,
-		);
-        $this->menu[$r++]=array(
-            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
-            'type'=>'left',
-            'titre'=>'List Affaire',
-            'mainmenu'=>'affaire',
-            'leftmenu'=>'affaire_affaire_list',
-            'url'=>'/affaire/affaire_list.php',
-            'langs'=>'affaire@affaire',
-            'position'=>1000+$r,
-            'enabled'=>'isModEnabled("affaire")',
-			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
-            'target'=>'',
-            'user'=>2,
-        );
-        $this->menu[$r++]=array(
-            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
-            'type'=>'left',
-            'titre'=>'New Affaire',
-            'mainmenu'=>'affaire',
-            'leftmenu'=>'affaire_affaire_new',
-            'url'=>'/affaire/affaire_card.php?action=create',
-            'langs'=>'affaire@affaire',
-            'position'=>1000+$r,
-            'enabled'=>'isModEnabled("affaire")',
-			'perms'=>'$user->hasRight("affaire", "affaire", "write")',
-            'target'=>'',
-            'user'=>2
-        );
-
-		/*END LEFTMENU AFFAIRE*/
 		/* END MODULEBUILDER LEFTMENU MYOBJECT */
 
 
@@ -464,30 +383,30 @@ class modAffaire extends DolibarrModules
 		$r = 1;
 		/* BEGIN MODULEBUILDER EXPORT MYOBJECT */
 		/*
-		$langs->load("affaire@affaire");
+		$langs->load("affaire_classique@affaire_classique");
 		$this->export_code[$r] = $this->rights_class.'_'.$r;
-		$this->export_label[$r] = 'AffaireLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
+		$this->export_label[$r] = 'MyObjectLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
 		$this->export_icon[$r] = $this->picto;
 		// Define $this->export_fields_array, $this->export_TypeFields_array and $this->export_entities_array
-		$keyforclass = 'Affaire'; $keyforclassfile='/affaire/class/affaire.class.php'; $keyforelement='affaire@affaire';
+		$keyforclass = 'MyObject'; $keyforclassfile='/affaire_classique/class/myobject.class.php'; $keyforelement='myobject@affaire_classique';
 		include DOL_DOCUMENT_ROOT.'/core/commonfieldsinexport.inc.php';
 		//$this->export_fields_array[$r]['t.fieldtoadd']='FieldToAdd'; $this->export_TypeFields_array[$r]['t.fieldtoadd']='Text';
 		//unset($this->export_fields_array[$r]['t.fieldtoremove']);
-		//$keyforclass = 'AffaireLine'; $keyforclassfile='/affaire/class/affaire.class.php'; $keyforelement='affaireline@affaire'; $keyforalias='tl';
+		//$keyforclass = 'MyObjectLine'; $keyforclassfile='/affaire_classique/class/myobject.class.php'; $keyforelement='myobjectline@affaire_classique'; $keyforalias='tl';
 		//include DOL_DOCUMENT_ROOT.'/core/commonfieldsinexport.inc.php';
-		$keyforselect='affaire'; $keyforaliasextra='extra'; $keyforelement='affaire@affaire';
+		$keyforselect='myobject'; $keyforaliasextra='extra'; $keyforelement='myobject@affaire_classique';
 		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
-		//$keyforselect='affaireline'; $keyforaliasextra='extraline'; $keyforelement='affaireline@affaire';
+		//$keyforselect='myobjectline'; $keyforaliasextra='extraline'; $keyforelement='myobjectline@affaire_classique';
 		//include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
-		//$this->export_dependencies_array[$r] = array('affaireline'=>array('tl.rowid','tl.ref')); // To force to activate one or several fields if we select some fields that need same (like to select a unique key if we ask a field of a child to avoid the DISTINCT to discard them, or for computed field than need several other fields)
+		//$this->export_dependencies_array[$r] = array('myobjectline'=>array('tl.rowid','tl.ref')); // To force to activate one or several fields if we select some fields that need same (like to select a unique key if we ask a field of a child to avoid the DISTINCT to discard them, or for computed field than need several other fields)
 		//$this->export_special_array[$r] = array('t.field'=>'...');
 		//$this->export_examplevalues_array[$r] = array('t.field'=>'Example');
 		//$this->export_help_array[$r] = array('t.field'=>'FieldDescHelp');
 		$this->export_sql_start[$r]='SELECT DISTINCT ';
-		$this->export_sql_end[$r]  =' FROM '.MAIN_DB_PREFIX.'affaire_affaire as t';
-		//$this->export_sql_end[$r]  =' LEFT JOIN '.MAIN_DB_PREFIX.'affaire_affaire_line as tl ON tl.fk_affaire = t.rowid';
+		$this->export_sql_end[$r]  =' FROM '.MAIN_DB_PREFIX.'affaire_classique_myobject as t';
+		//$this->export_sql_end[$r]  =' LEFT JOIN '.MAIN_DB_PREFIX.'affaire_classique_myobject_line as tl ON tl.fk_myobject = t.rowid';
 		$this->export_sql_end[$r] .=' WHERE 1 = 1';
-		$this->export_sql_end[$r] .=' AND t.entity IN ('.getEntity('affaire').')';
+		$this->export_sql_end[$r] .=' AND t.entity IN ('.getEntity('myobject').')';
 		$r++; */
 		/* END MODULEBUILDER EXPORT MYOBJECT */
 
@@ -495,29 +414,29 @@ class modAffaire extends DolibarrModules
 		$r = 1;
 		/* BEGIN MODULEBUILDER IMPORT MYOBJECT */
 		/*
-		$langs->load("affaire@affaire");
+		$langs->load("affaire_classique@affaire_classique");
 		$this->import_code[$r] = $this->rights_class.'_'.$r;
-		$this->import_label[$r] = 'AffaireLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
+		$this->import_label[$r] = 'MyObjectLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
 		$this->import_icon[$r] = $this->picto;
-		$this->import_tables_array[$r] = array('t' => MAIN_DB_PREFIX.'affaire_affaire', 'extra' => MAIN_DB_PREFIX.'affaire_affaire_extrafields');
+		$this->import_tables_array[$r] = array('t' => MAIN_DB_PREFIX.'affaire_classique_myobject', 'extra' => MAIN_DB_PREFIX.'affaire_classique_myobject_extrafields');
 		$this->import_tables_creator_array[$r] = array('t' => 'fk_user_author'); // Fields to store import user id
 		$import_sample = array();
-		$keyforclass = 'Affaire'; $keyforclassfile='/affaire/class/affaire.class.php'; $keyforelement='affaire@affaire';
+		$keyforclass = 'MyObject'; $keyforclassfile='/affaire_classique/class/myobject.class.php'; $keyforelement='myobject@affaire_classique';
 		include DOL_DOCUMENT_ROOT.'/core/commonfieldsinimport.inc.php';
 		$import_extrafield_sample = array();
-		$keyforselect='affaire'; $keyforaliasextra='extra'; $keyforelement='affaire@affaire';
+		$keyforselect='myobject'; $keyforaliasextra='extra'; $keyforelement='myobject@affaire_classique';
 		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinimport.inc.php';
-		$this->import_fieldshidden_array[$r] = array('extra.fk_object' => 'lastrowid-'.MAIN_DB_PREFIX.'affaire_affaire');
+		$this->import_fieldshidden_array[$r] = array('extra.fk_object' => 'lastrowid-'.MAIN_DB_PREFIX.'affaire_classique_myobject');
 		$this->import_regex_array[$r] = array();
 		$this->import_examplevalues_array[$r] = array_merge($import_sample, $import_extrafield_sample);
 		$this->import_updatekeys_array[$r] = array('t.ref' => 'Ref');
 		$this->import_convertvalue_array[$r] = array(
 			't.ref' => array(
 				'rule'=>'getrefifauto',
-				'class'=>(!getDolGlobalString('AFFAIRE_MYOBJECT_ADDON') ? 'mod_affaire_standard' : getDolGlobalString('AFFAIRE_MYOBJECT_ADDON')),
-				'path'=>"/core/modules/commande/".(!getDolGlobalString('AFFAIRE_MYOBJECT_ADDON') ? 'mod_affaire_standard' : getDolGlobalString('AFFAIRE_MYOBJECT_ADDON')).'.php'
-				'classobject'=>'Affaire',
-				'pathobject'=>'/affaire/class/affaire.class.php',
+				'class'=>(!getDolGlobalString('AFFAIRE_CLASSIQUE_MYOBJECT_ADDON') ? 'mod_myobject_standard' : getDolGlobalString('AFFAIRE_CLASSIQUE_MYOBJECT_ADDON')),
+				'path'=>"/core/modules/commande/".(!getDolGlobalString('AFFAIRE_CLASSIQUE_MYOBJECT_ADDON') ? 'mod_myobject_standard' : getDolGlobalString('AFFAIRE_CLASSIQUE_MYOBJECT_ADDON')).'.php'
+				'classobject'=>'MyObject',
+				'pathobject'=>'/affaire_classique/class/myobject.class.php',
 			),
 			't.fk_soc' => array('rule' => 'fetchidfromref', 'file' => '/societe/class/societe.class.php', 'class' => 'Societe', 'method' => 'fetch', 'element' => 'ThirdParty'),
 			't.fk_user_valid' => array('rule' => 'fetchidfromref', 'file' => '/user/class/user.class.php', 'class' => 'User', 'method' => 'fetch', 'element' => 'user'),
@@ -540,8 +459,8 @@ class modAffaire extends DolibarrModules
 	{
 		global $conf, $langs;
 
-		//$result = $this->_load_tables('/install/mysql/', 'affaire');
-		$result = $this->_load_tables('/affaire/sql/');
+		//$result = $this->_load_tables('/install/mysql/', 'affaire_classique');
+		$result = $this->_load_tables('/affaire_classique/sql/');
 		if ($result < 0) {
 			return -1; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
 		}
@@ -549,12 +468,12 @@ class modAffaire extends DolibarrModules
 		// Create extrafields during init
 		//include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		//$extrafields = new ExtraFields($this->db);
-		//$result0=$extrafields->addExtraField('affaire_separator1', "Separator 1", 'separator', 1,  0, 'thirdparty',   0, 0, '', array('options'=>array(1=>1)), 1, '', 1, 0, '', '', 'affaire@affaire', 'isModEnabled("affaire")');
-		//$result1=$extrafields->addExtraField('affaire_myattr1', "New Attr 1 label", 'boolean', 1,  3, 'thirdparty',   0, 0, '', '', 1, '', -1, 0, '', '', 'affaire@affaire', 'isModEnabled("affaire")');
-		//$result2=$extrafields->addExtraField('affaire_myattr2', "New Attr 2 label", 'varchar', 1, 10, 'project',      0, 0, '', '', 1, '', -1, 0, '', '', 'affaire@affaire', 'isModEnabled("affaire")');
-		//$result3=$extrafields->addExtraField('affaire_myattr3', "New Attr 3 label", 'varchar', 1, 10, 'bank_account', 0, 0, '', '', 1, '', -1, 0, '', '', 'affaire@affaire', 'isModEnabled("affaire")');
-		//$result4=$extrafields->addExtraField('affaire_myattr4', "New Attr 4 label", 'select',  1,  3, 'thirdparty',   0, 1, '', array('options'=>array('code1'=>'Val1','code2'=>'Val2','code3'=>'Val3')), 1,'', -1, 0, '', '', 'affaire@affaire', 'isModEnabled("affaire")');
-		//$result5=$extrafields->addExtraField('affaire_myattr5', "New Attr 5 label", 'text',    1, 10, 'user',         0, 0, '', '', 1, '', -1, 0, '', '', 'affaire@affaire', 'isModEnabled("affaire")');
+		//$result0=$extrafields->addExtraField('affaire_classique_separator1', "Separator 1", 'separator', 1,  0, 'thirdparty',   0, 0, '', array('options'=>array(1=>1)), 1, '', 1, 0, '', '', 'affaire_classique@affaire_classique', 'isModEnabled("affaire_classique")');
+		//$result1=$extrafields->addExtraField('affaire_classique_myattr1', "New Attr 1 label", 'boolean', 1,  3, 'thirdparty',   0, 0, '', '', 1, '', -1, 0, '', '', 'affaire_classique@affaire_classique', 'isModEnabled("affaire_classique")');
+		//$result2=$extrafields->addExtraField('affaire_classique_myattr2', "New Attr 2 label", 'varchar', 1, 10, 'project',      0, 0, '', '', 1, '', -1, 0, '', '', 'affaire_classique@affaire_classique', 'isModEnabled("affaire_classique")');
+		//$result3=$extrafields->addExtraField('affaire_classique_myattr3', "New Attr 3 label", 'varchar', 1, 10, 'bank_account', 0, 0, '', '', 1, '', -1, 0, '', '', 'affaire_classique@affaire_classique', 'isModEnabled("affaire_classique")');
+		//$result4=$extrafields->addExtraField('affaire_classique_myattr4', "New Attr 4 label", 'select',  1,  3, 'thirdparty',   0, 1, '', array('options'=>array('code1'=>'Val1','code2'=>'Val2','code3'=>'Val3')), 1,'', -1, 0, '', '', 'affaire_classique@affaire_classique', 'isModEnabled("affaire_classique")');
+		//$result5=$extrafields->addExtraField('affaire_classique_myattr5', "New Attr 5 label", 'text',    1, 10, 'user',         0, 0, '', '', 1, '', -1, 0, '', '', 'affaire_classique@affaire_classique', 'isModEnabled("affaire_classique")');
 
 		// Permissions
 		$this->remove($options);
@@ -562,18 +481,18 @@ class modAffaire extends DolibarrModules
 		$sql = array();
 
 		// Document templates
-		$moduledir = dol_sanitizeFileName('affaire');
+		$moduledir = dol_sanitizeFileName('affaire_classique');
 		$myTmpObjects = array();
-		$myTmpObjects['Affaire'] = array('includerefgeneration'=>0, 'includedocgeneration'=>0);
+		$myTmpObjects['MyObject'] = array('includerefgeneration'=>0, 'includedocgeneration'=>0);
 
 		foreach ($myTmpObjects as $myTmpObjectKey => $myTmpObjectArray) {
-			if ($myTmpObjectKey == 'Affaire') {
+			if ($myTmpObjectKey == 'MyObject') {
 				continue;
 			}
 			if ($myTmpObjectArray['includerefgeneration']) {
-				$src = DOL_DOCUMENT_ROOT.'/install/doctemplates/'.$moduledir.'/template_affaires.odt';
+				$src = DOL_DOCUMENT_ROOT.'/install/doctemplates/'.$moduledir.'/template_myobjects.odt';
 				$dirodt = DOL_DATA_ROOT.'/doctemplates/'.$moduledir;
-				$dest = $dirodt.'/template_affaires.odt';
+				$dest = $dirodt.'/template_myobjects.odt';
 
 				if (file_exists($src) && !file_exists($dest)) {
 					require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
