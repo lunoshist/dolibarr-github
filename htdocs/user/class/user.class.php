@@ -396,8 +396,8 @@ class User extends CommonObject
 	//private $egroupware_id;
 
 	/**
-	 * @var array		Entity in table llx_user_group
-	 * @deprecated		Seems not used.
+	 * @var array<int>		Entity in table llx_user_group
+	 * @deprecated			Seems not used.
 	 */
 	public $usergroup_entity;
 
@@ -1839,11 +1839,11 @@ class User extends CommonObject
 	public function create_from_member($member, $login = '')
 	{
 		// phpcs:enable
-		global $conf, $user, $langs;
+		global $user;
 
 		// Set properties on new user
 		$this->admin = 0;
-		$this->civility_code = $member->civility_id;
+		$this->civility_code = $member->civility_code;
 		$this->lastname     = $member->lastname;
 		$this->firstname    = $member->firstname;
 		$this->gender		= $member->gender;
