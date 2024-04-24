@@ -5,9 +5,9 @@
 --
 
 CREATE TABLE `llx_c_affaire_workflow_types` (
-  `rowid` integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
-  `label` varchar(255) NOT NULL
-) ENGINE=InnoDB
+  rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+  label varchar(255) NOT NULL
+) ENGINE=InnoDB;
 
 --
 -- Déchargement des données de la table `llx_c_affaire_workflow_types`

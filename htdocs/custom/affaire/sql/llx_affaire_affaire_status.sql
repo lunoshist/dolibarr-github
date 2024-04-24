@@ -15,7 +15,6 @@
 
 
 CREATE TABLE llx_affaire_affaire_status(
-	-- BEGIN MODULEBUILDER FIELDS
 	rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL, 
 	fk_affaire integer,
 	fk_statut_propal integer,

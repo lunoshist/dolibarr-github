@@ -27,7 +27,7 @@ CREATE TABLE llx_affaire_affaire(
 	note_private text, 
 	total_ht double DEFAULT NULL, 
 	total_ttc double DEFAULT NULL, 
-	fk_status integer NOT NULL
+	fk_status integer NOT NULL,
 	fk_step integer NOT NULL, 
 	date_creation datetime NOT NULL, 
 	tms timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, 
@@ -37,6 +37,6 @@ CREATE TABLE llx_affaire_affaire(
 	fk_user_close integer, 
 	last_main_doc varchar(255), 
 	import_key varchar(14), 
-	model_pdf varchar(255), 
+	model_pdf varchar(255)
 	-- END MODULEBUILDER FIELDS
 ) ENGINE=innodb;
