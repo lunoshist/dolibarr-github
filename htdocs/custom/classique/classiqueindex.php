@@ -19,9 +19,9 @@
  */
 
 /**
- *	\file       affaire_classique/affaire_classiqueindex.php
- *	\ingroup    affaire_classique
- *	\brief      Home page of affaire_classique top menu
+ *	\file       classique/classiqueindex.php
+ *	\ingroup    classique
+ *	\brief      Home page of classique top menu
  */
 
 // Load Dolibarr environment
@@ -59,7 +59,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 
 // Load translation files required by the page
-$langs->loadLangs(array("affaire_classique@affaire_classique"));
+$langs->loadLangs(array("classique@classique"));
 
 $action = GETPOST('action', 'aZ09');
 
@@ -76,13 +76,13 @@ if (isset($user->socid) && $user->socid > 0) {
 // Security check (enable the most restrictive one)
 //if ($user->socid > 0) accessforbidden();
 //if ($user->socid > 0) $socid = $user->socid;
-//if (!isModEnabled('affaire_classique')) {
+//if (!isModEnabled('classique')) {
 //	accessforbidden('Module not enabled');
 //}
-//if (! $user->hasRight('affaire_classique', 'myobject', 'read')) {
+//if (! $user->hasRight('classique', 'myobject', 'read')) {
 //	accessforbidden();
 //}
-//restrictedArea($user, 'affaire_classique', 0, 'affaire_classique_myobject', 'myobject', '', 'rowid');
+//restrictedArea($user, 'classique', 0, 'classique_myobject', 'myobject', '', 'rowid');
 //if (empty($user->admin)) {
 //	accessforbidden('Must be admin');
 //}
@@ -102,16 +102,16 @@ if (isset($user->socid) && $user->socid > 0) {
 $form = new Form($db);
 $formfile = new FormFile($db);
 
-llxHeader("", $langs->trans("Affaire_ClassiqueArea"), '', '', 0, 0, '', '', '', 'mod-affaire_classique page-index');
+llxHeader("", $langs->trans("ClassiqueArea"), '', '', 0, 0, '', '', '', 'mod-classique page-index');
 
-print load_fiche_titre($langs->trans("Affaire_ClassiqueArea"), '', 'affaire_classique.png@affaire_classique');
+print load_fiche_titre($langs->trans("ClassiqueArea"), '', 'classique.png@classique');
 
 print '<div class="fichecenter"><div class="fichethirdleft">';
 
 
 /* BEGIN MODULEBUILDER DRAFT MYOBJECT
 // Draft MyObject
-if (isModEnabled('affaire_classique') && $user->hasRight('affaire_classique', 'read')) {
+if (isModEnabled('classique') && $user->hasRight('classique', 'read')) {
 	$langs->load("orders");
 
 	$sql = "SELECT c.rowid, c.ref, c.ref_client, c.total_ht, c.tva as total_tva, c.total_ttc, s.rowid as socid, s.nom as name, s.client, s.canvas";
@@ -186,9 +186,9 @@ print '</div><div class="fichetwothirdright">';
 
 /* BEGIN MODULEBUILDER LASTMODIFIED MYOBJECT
 // Last modified myobject
-if (isModEnabled('affaire_classique') && $user->hasRight('affaire_classique', 'read')) {
+if (isModEnabled('classique') && $user->hasRight('classique', 'read')) {
 	$sql = "SELECT s.rowid, s.ref, s.label, s.date_creation, s.tms";
-	$sql.= " FROM ".MAIN_DB_PREFIX."affaire_classique_myobject as s";
+	$sql.= " FROM ".MAIN_DB_PREFIX."classique_myobject as s";
 	$sql.= " WHERE s.entity IN (".getEntity($myobjectstatic->element).")";
 	//if ($socid)	$sql.= " AND s.rowid = $socid";
 	$sql .= " ORDER BY s.tms DESC";

@@ -17,9 +17,9 @@
  */
 
 /**
- * \file    affaire_classique/admin/about.php
- * \ingroup affaire_classique
- * \brief   About page of module Affaire_Classique.
+ * \file    classique/admin/about.php
+ * \ingroup classique
+ * \brief   About page of module Classique.
  */
 
 // Load Dolibarr environment
@@ -54,10 +54,10 @@ if (!$res) {
 // Libraries
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-require_once '../lib/affaire_classique.lib.php';
+require_once '../lib/classique.lib.php';
 
 // Translations
-$langs->loadLangs(array("errors", "admin", "affaire_classique@affaire_classique"));
+$langs->loadLangs(array("errors", "admin", "classique@classique"));
 
 // Access control
 if (!$user->admin) {
@@ -83,9 +83,9 @@ $backtopage = GETPOST('backtopage', 'alpha');
 $form = new Form($db);
 
 $help_url = '';
-$title = "Affaire_ClassiqueSetup";
+$title = "ClassiqueSetup";
 
-llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-affaire_classique page-admin_about');
+llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-classique page-admin_about');
 
 // Subheader
 $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.$langs->trans("BackToModuleList").'</a>';
@@ -93,11 +93,11 @@ $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/module
 print load_fiche_titre($langs->trans($title), $linkback, 'title_setup');
 
 // Configuration header
-$head = affaire_classiqueAdminPrepareHead();
-print dol_get_fiche_head($head, 'about', $langs->trans($title), 0, 'affaire_classique@affaire_classique');
+$head = classiqueAdminPrepareHead();
+print dol_get_fiche_head($head, 'about', $langs->trans($title), 0, 'classique@classique');
 
-dol_include_once('/affaire_classique/core/modules/modAffaire_Classique.class.php');
-$tmpmodule = new modAffaire_Classique($db);
+dol_include_once('/classique/core/modules/modClassique.class.php');
+$tmpmodule = new modClassique($db);
 print $tmpmodule->getDescLong();
 
 // Page end

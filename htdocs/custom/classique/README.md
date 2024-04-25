@@ -1,11 +1,11 @@
-# AFFAIRE_CLASSIQUE FOR [DOLIBARR ERP & CRM](https://www.dolibarr.org)
+# CLASSIQUE FOR [DOLIBARR ERP & CRM](https://www.dolibarr.org)
 
 ## Features
 
 Description of the module...
 
 <!--
-![Screenshot affaire_classique](img/screenshot_affaire_classique.png?raw=true "Affaire_Classique"){imgmd}
+![Screenshot classique](img/screenshot_classique.png?raw=true "Classique"){imgmd}
 -->
 
 Other external modules are available on [Dolistore.com](https://www.dolistore.com).
@@ -66,11 +66,11 @@ Note: If this screen tells you that there is no "custom" directory, check that y
 
 ### From a GIT repository
 
-Clone the repository in `$dolibarr_main_document_root_alt/affaire_classique`
+Clone the repository in `$dolibarr_main_document_root_alt/classique`
 
 ```shell
 cd ....../custom
-git clone git@github.com:gitlogin/affaire_classique.git affaire_classique
+git clone git@github.com:gitlogin/classique.git classique
 ```
 
 -->

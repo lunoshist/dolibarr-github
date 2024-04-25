@@ -16,9 +16,9 @@
  */
 
 /**
- * \file    affaire_classique/lib/affaire_classique.lib.php
- * \ingroup affaire_classique
- * \brief   Library files with common functions for Affaire_Classique
+ * \file    classique/lib/classique.lib.php
+ * \ingroup classique
+ * \brief   Library files with common functions for Classique
  */
 
 /**
@@ -26,7 +26,7 @@
  *
  * @return array
  */
-function affaire_classiqueAdminPrepareHead()
+function classiqueAdminPrepareHead()
 {
 	global $langs, $conf;
 
@@ -34,18 +34,18 @@ function affaire_classiqueAdminPrepareHead()
 	// $extrafields = new ExtraFields($db);
 	// $extrafields->fetch_name_optionals_label('myobject');
 
-	$langs->load("affaire_classique@affaire_classique");
+	$langs->load("classique@classique");
 
 	$h = 0;
 	$head = array();
 
-	$head[$h][0] = dol_buildpath("/affaire_classique/admin/setup.php", 1);
+	$head[$h][0] = dol_buildpath("/classique/admin/setup.php", 1);
 	$head[$h][1] = $langs->trans("Settings");
 	$head[$h][2] = 'settings';
 	$h++;
 
 	/*
-	$head[$h][0] = dol_buildpath("/affaire_classique/admin/myobject_extrafields.php", 1);
+	$head[$h][0] = dol_buildpath("/classique/admin/myobject_extrafields.php", 1);
 	$head[$h][1] = $langs->trans("ExtraFields");
 	$nbExtrafields = is_countable($extrafields->attributes['myobject']['label']) ? count($extrafields->attributes['myobject']['label']) : 0;
 	if ($nbExtrafields > 0) {
@@ -55,7 +55,7 @@ function affaire_classiqueAdminPrepareHead()
 	$h++;
 	*/
 
-	$head[$h][0] = dol_buildpath("/affaire_classique/admin/about.php", 1);
+	$head[$h][0] = dol_buildpath("/classique/admin/about.php", 1);
 	$head[$h][1] = $langs->trans("About");
 	$head[$h][2] = 'about';
 	$h++;
@@ -63,14 +63,14 @@ function affaire_classiqueAdminPrepareHead()
 	// Show more tabs from modules
 	// Entries must be declared in modules descriptor with line
 	//$this->tabs = array(
-	//	'entity:+tabname:Title:@affaire_classique:/affaire_classique/mypage.php?id=__ID__'
+	//	'entity:+tabname:Title:@classique:/classique/mypage.php?id=__ID__'
 	//); // to add new tab
 	//$this->tabs = array(
-	//	'entity:-tabname:Title:@affaire_classique:/affaire_classique/mypage.php?id=__ID__'
+	//	'entity:-tabname:Title:@classique:/classique/mypage.php?id=__ID__'
 	//); // to remove a tab
-	complete_head_from_modules($conf, $langs, null, $head, $h, 'affaire_classique@affaire_classique');
+	complete_head_from_modules($conf, $langs, null, $head, $h, 'classique@classique');
 
-	complete_head_from_modules($conf, $langs, null, $head, $h, 'affaire_classique@affaire_classique', 'remove');
+	complete_head_from_modules($conf, $langs, null, $head, $h, 'classique@classique', 'remove');
 
 	return $head;
 }

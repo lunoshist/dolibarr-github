@@ -1,4 +1,4 @@
-# Copyright (C) ---Put here your own copyright and developer email---
+# Copyright (C) 2024 Lucas NOIRIE <lnoirie@serem-electronics.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,35 +17,35 @@
 # Generic
 #
 
-# Module label 'ModuleAffaire_ClassiqueName'
-ModuleAffaire_ClassiqueName = Affaire_Classique
-# Module description 'ModuleAffaire_ClassiqueDesc'
-ModuleAffaire_ClassiqueDesc = Ce module définis le worklow usuel pour une affaire.
+# Module label 'ModuleClassiqueName'
+ModuleClassiqueName = Classique
+# Module description 'ModuleClassiqueDesc'
+ModuleClassiqueDesc = Classique description
 
 #
 # Admin page
 #
-Affaire_ClassiqueSetup = Affaire_Classique setup
+ClassiqueSetup = Classique setup
 Settings = Settings
-Affaire_ClassiqueSetupPage = Affaire_Classique setup page
+ClassiqueSetupPage = Classique setup page
 NewSection=New section
-Affaire_Classique_MYPARAM1 = My param 1
-Affaire_Classique_MYPARAM1Tooltip = My param 1 tooltip
-Affaire_Classique_MYPARAM2=My param 2
-Affaire_Classique_MYPARAM2Tooltip=My param 2 tooltip
+CLASSIQUE_MYPARAM1 = My param 1
+CLASSIQUE_MYPARAM1Tooltip = My param 1 tooltip
+CLASSIQUE_MYPARAM2=My param 2
+CLASSIQUE_MYPARAM2Tooltip=My param 2 tooltip
 
 
 #
 # About page
 #
 About = About
-Affaire_ClassiqueAbout = About Affaire_Classique
-Affaire_ClassiqueAboutPage = Affaire_Classique about page
+ClassiqueAbout = About Classique
+ClassiqueAboutPage = Classique about page
 
 #
 # Sample page
 #
-Affaire_ClassiqueArea = Home Affaire_Classique
+ClassiqueArea = Home Classique
 MyPageName = My page name
 
 #

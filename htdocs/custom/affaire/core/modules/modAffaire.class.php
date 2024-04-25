@@ -458,6 +458,20 @@ class modAffaire extends DolibarrModules
             'target'=>'',
             'user'=>2
         );
+		// $this->menu[$r++]=array(
+        //     'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
+        //     'type'=>'left',
+        //     'titre'=>'New Affaire Classique',
+        //     'mainmenu'=>'affaire',
+        //     'leftmenu'=>'affaire_affaire_classique_new',
+        //     'url'=>'/affaire_classique/affaire_classique_card.php?action=create',
+        //     'langs'=>'affaire@affaire',
+        //     'position'=>1000+$r,
+        //     'enabled'=>'isModEnabled("affaire")',
+		// 	'perms'=>'$user->hasRight("affaire", "affaire", "write")',
+        //     'target'=>'',
+        //     'user'=>2
+        // );
 
 		/*END LEFTMENU AFFAIRE*/
 		/* END MODULEBUILDER LEFTMENU MYOBJECT */
