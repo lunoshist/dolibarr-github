@@ -385,7 +385,7 @@ class modClassique extends DolibarrModules
             'titre'=>'New Affaire Classique',
             'mainmenu'=>'affaire',
             'leftmenu'=>'classique_new',
-            'url'=>'/classique/classique_card.php?action=create',
+            'url'=>'/classique/classique_create.php?action=create',
             'langs'=>'affaire@affaire',
             'position'=>1005+$r,
             'enabled'=>'isModEnabled("classique")',
