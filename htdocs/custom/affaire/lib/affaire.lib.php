@@ -74,3 +74,66 @@ function affaireAdminPrepareHead()
 
 	return $head;
 }
+
+/**
+ * Get the id of the linked affaire if there is one
+ *
+ * @param int $id 	id of the object 
+ * @return int 		id of the linked affaire if exist
+ */
+function getLinkedAff($id) {
+	// TODO The entiere function
+	$AffID = 1;
+	return $AffID;
+}
+
+/**
+ * Print a nav bar with the tabs of the specified object
+ *
+ * @param object $object
+ * @return void
+ */
+function dol_tabs($object) {
+	// TODO The entiere function
+	print dol_get_fiche_head();
+}
+
+/**
+ * Print the banner (Icon, Ref, Thirdparty, Affaire, backlink, Status) of the specified object
+ *
+ * @param object $object
+ * @return void
+ */
+function dol_banner($object) {
+	// TODO The entiere function
+	dol_banner_tab($object, '');
+}
+
+/**
+ * Print a nav bar with the steps of the specified workflow as tabs
+ *
+ * @param int $workflow_type
+ * @return void
+ */
+function dol_workflow_tabs($workflow_type) {
+	// TODO review the entiere function
+	$sql = 'SELECT label from llx_c_affaire_workflow_types WHERE rowid='.$workflow_type;
+	$res= $db->query($sql);
+	$label = $res->label;
+	dol_include_once("/$label/core/modules/mod$label.class.php");
+	$modLabel = "mod$label";
+	$modAffaire = new $modLabel;
+	dol_tabs($modAffaire);
+}
+
+/**
+ * Return the list of linked objects of an object (where type of objects returned can be specified)
+ *
+ * @param object $object			
+ * @param string $linkedObjectType	String to spécify the type of objects returned ('propal', 'order' ...)
+ * @return array
+ */
+function getLinkedObject($object, $linkedObjectType) {
+	// TODO The entiere function
+	return $linkedObjectArray;
+}

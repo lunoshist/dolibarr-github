@@ -62,6 +62,9 @@ if (isModEnabled('variants')) {
 	require_once DOL_DOCUMENT_ROOT.'/variants/class/ProductCombination.class.php';
 }
 
+dol_include_once('/affaire/class/affaire.class.php');
+dol_include_once('/affaire/lib/affaire.lib.php');
+
 // Load translation files required by the page
 $langs->loadLangs(array('companies', 'propal', 'compta', 'bills', 'orders', 'products', 'deliveries', 'sendings', 'other'));
 if (isModEnabled('incoterm')) {
@@ -101,7 +104,7 @@ if (empty($affaireID)) {
 
 // Load affaire
 if ($affaireID > 0) {
-	$affaire = new Affaire;
+	$affaire = new Affaire($db);
 	$res = $affaire->fetch($affaireID);
 	if ($res > 0) {
 		$res = $affaire->fetch_thirdparty();
