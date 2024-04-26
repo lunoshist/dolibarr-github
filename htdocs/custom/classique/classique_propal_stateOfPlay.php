@@ -98,8 +98,8 @@ $hideref = (GETPOSTINT('hideref') ? GETPOSTINT('hideref') : (getDolGlobalString(
 // AFFAIRE
 $affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
 
-if (empty($affaireID)) {
-	$affaireID = getLinkedAff($propalID);
+if (empty($affaireID) && !empty($id)) {
+	$affaireID = getLinkedAff($id);
 }
 
 // Load affaire
@@ -473,11 +473,17 @@ if (empty($reshook)) {
 		$object->fetch_thirdparty();
 
 		$datep = dol_mktime(12, 0, 0, GETPOST('remonth'), GETPOST('reday'), GETPOST('reyear'));
+		$date_relaunch = dol_mktime(12, 0, 0, GETPOST('date_relaunchmonth'), GETPOST('date_relaunchday'), GETPOST('date_relaunchyear'));
 		$date_delivery = dol_mktime(12, 0, 0, GETPOST('date_livraisonmonth'), GETPOST('date_livraisonday'), GETPOST('date_livraisonyear'));
 		$duration = GETPOSTINT('duree_validite');
 
 		if (empty($datep)) {
 			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("DatePropal")), null, 'errors');
+			$action = 'create';
+			$error++;
+		}
+		if (empty($date_relaunch)) {
+			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("DateRelaunch")), null, 'errors');
 			$action = 'create';
 			$error++;
 		}
@@ -503,6 +509,7 @@ if (empty($reshook)) {
 					$object->ref = GETPOST('ref');
 					$object->datep = $datep;
 					$object->date = $datep;
+					$object->date_relaunch = $date_relaunch;
 					$object->delivery_date = $date_delivery;
 					$object->availability_id = GETPOSTINT('availability_id');
 					$object->demand_reason_id = GETPOSTINT('demand_reason_id');
@@ -2026,6 +2033,12 @@ if ($action == 'create') {
 		print img_picto('', 'action', 'class="pictofixedwidth"');
 		print $form->selectDate('', '', 0, 0, 0, "addprop", 1, 1);
 		print '</td></tr>';
+		
+		// Date relaunch
+		print '<tr class="field_date_relaunch"><td class="titlefieldcreate fieldrequired">'.$langs->trans('DateRelaunch').'</td><td class="valuefieldcreate">';
+		print img_picto('', 'action', 'class="pictofixedwidth"');
+		print $form->selectDate('', '', 0, 0, 0, "date_relaunch", 1, 1);
+		print '</td></tr>';
 
 		// Validaty duration
 		print '<tr class="field_duree_validitee"><td class="titlefieldcreate fieldrequired">'.$langs->trans("ValidityDuration").'</td><td class="valuefieldcreate">'.img_picto('', 'clock', 'class="pictofixedwidth"').'<input name="duree_validite" class="width50" value="'.(GETPOSTISSET('duree_validite') ? GETPOST('duree_validite', 'alphanohtml') : $conf->global->PROPALE_VALIDITY_DURATION).'"> '.$langs->trans("days").'</td></tr>';
@@ -2646,6 +2659,8 @@ if ($action == 'create') {
 			}
 		}
 		print '</td>';
+
+		// TODO Date relaunch
 
 		// Date end proposal
 		print '<tr>';

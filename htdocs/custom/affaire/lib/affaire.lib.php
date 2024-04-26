@@ -120,6 +120,7 @@ function dol_workflow_tabs($workflow_type) {
 	$sql = 'SELECT label from llx_c_affaire_workflow_types WHERE rowid='.$workflow_type;
 	$res= $db->query($sql);
 	$label = $res->label;
+	// $res = @include dol_buildpath($reldir . '/' . $tplname . '.tpl.php');
 	dol_include_once("/$label/core/modules/mod$label.class.php");
 	$modLabel = "mod$label";
 	$modAffaire = new $modLabel;
