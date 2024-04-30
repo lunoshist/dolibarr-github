@@ -214,10 +214,55 @@ if (empty($reshook)) {
 	}
 
 	// Actions to send emails
-	$triggersendname = 'AFFAIRE_MYOBJECT_SENTBYMAIL';
-	$autocopy = 'MAIN_MAIL_AUTOCOPY_MYOBJECT_TO';
-	$trackid = 'affaire'.$object->id;
-	include DOL_DOCUMENT_ROOT.'/core/actions_sendmails.inc.php';
+	// $triggersendname = 'AFFAIRE_MYOBJECT_SENTBYMAIL';
+	// $autocopy = 'MAIN_MAIL_AUTOCOPY_MYOBJECT_TO';
+	// $trackid = 'affaire'.$object->id;
+	// include DOL_DOCUMENT_ROOT.'/core/actions_sendmails.inc.php';
+
+	// Actions to redirect to current step page
+	if ($action != 'create' || 'add') {
+		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE rowid = ".$object->fk_workflow_type;
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$currentWorkflow = $db->fetch_object($resql);
+				var_dump($currentWorkflow);
+				print(json_encode($currentWorkflow, JSON_PRETTY_PRINT));
+				
+				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE rowid = $object->fk_step AND fk_workflow_type = $object->fk_workflow_type";
+				$resql = $db->query($sql);
+				if ($resql) {
+					if ($resql->num_rows > 0) {
+						$currentStep = $db->fetch_object($resql);
+						var_dump($currentStep);
+						print(json_encode($currentStep, JSON_PRETTY_PRINT));
+						
+						$path = '/'.strtolower($currentWorkflow->label).'/'.strtolower($currentWorkflow->label).'_'.strtolower($currentStep->label_short).'_stateOfPlay.php';
+						$card_page = dol_buildpath($path, 1);
+						var_dump($card_page);
+						print($card_page);
+						
+						header("Location: " . $card_page);
+						exit;
+						
+						$display_step_error = "File : $card_page not found on this server";
+					} else {
+						setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+						$display_step_error = $langs->trans("NoSuchStepInThisWorkflow");
+					}
+				} else {
+					dol_print_error($db);
+					$display_step_error = $db->lasterror;
+				}			
+			} else {
+				setEventMessages($langs->trans("NoSuchWorkflowType"), null, 'errors');
+				$display_step_error = $langs->trans("NoSuchWorkflowType");
+			}
+		} else {
+			dol_print_error($db);
+			$display_step_error = $db->lasterror;
+		}
+	}
 }
 
 
@@ -530,32 +575,32 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 		if (empty($reshook)) {
 			// Send
-			if (empty($user->socid)) {
-				print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=presend&token='.newToken().'&mode=init#formmailbeforetitle');
-			}
+			// if (empty($user->socid)) {
+			// 	print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=presend&token='.newToken().'&mode=init#formmailbeforetitle');
+			// }
 
 			// Back to draft
-			if ($object->status == $object::STATUS_VALIDATED) {
-				print dolGetButtonAction('', $langs->trans('SetToDraft'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_setdraft&confirm=yes&token='.newToken(), '', $permissiontoadd);
-			}
+			// if ($object->status == $object::STATUS_VALIDATED) {
+			// 	print dolGetButtonAction('', $langs->trans('SetToDraft'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_setdraft&confirm=yes&token='.newToken(), '', $permissiontoadd);
+			// }
 
 			// Modify
 			print dolGetButtonAction('', $langs->trans('Modify'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=edit&token='.newToken(), '', $permissiontoadd);
 
 			// Validate
-			if ($object->status == $object::STATUS_DRAFT) {
-				if (empty($object->table_element_line) || (is_array($object->lines) && count($object->lines) > 0)) {
-					print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', $permissiontoadd);
-				} else {
-					$langs->load("errors");
-					print dolGetButtonAction($langs->trans("ErrorAddAtLeastOneLineFirst"), $langs->trans("Validate"), 'default', '#', '', 0);
-				}
-			}
+			// if ($object->status == $object::STATUS_DRAFT) {
+			// 	if (empty($object->table_element_line) || (is_array($object->lines) && count($object->lines) > 0)) {
+			// 		print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', $permissiontoadd);
+			// 	} else {
+			// 		$langs->load("errors");
+			// 		print dolGetButtonAction($langs->trans("ErrorAddAtLeastOneLineFirst"), $langs->trans("Validate"), 'default', '#', '', 0);
+			// 	}
+			// }
 
 			// Clone
-			if ($permissiontoadd) {
-				print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.(!empty($object->socid) ? '&socid='.$object->socid : '').'&action=clone&token='.newToken(), '', $permissiontoadd);
-			}
+			// if ($permissiontoadd) {
+			// 	print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.(!empty($object->socid) ? '&socid='.$object->socid : '').'&action=clone&token='.newToken(), '', $permissiontoadd);
+			// }
 
 			/*
 			// Disable / Enable
@@ -588,6 +633,8 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		print '</div>'."\n";
 	}
 
+
+	print $langs->trans("automatiqueStepRedirectBroken").$display_step_error;
 
 	// Select mail models is same action as presend
 	if (GETPOST('modelselected')) {
@@ -641,7 +688,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	$diroutput = $conf->affaire->dir_output;
 	$trackid = 'affaire'.$object->id;
 
-	include DOL_DOCUMENT_ROOT.'/core/tpl/card_presend.tpl.php';
+	include DOL_DOCUMENT_ROOT.'/core/tpl/card_presend.tpl.php';	
 }
 
 // End of page
