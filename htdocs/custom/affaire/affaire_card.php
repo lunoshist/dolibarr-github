@@ -237,15 +237,20 @@ if (empty($reshook)) {
 						var_dump($currentStep);
 						print(json_encode($currentStep, JSON_PRETTY_PRINT));
 						
-						$path = '/'.strtolower($currentWorkflow->label).'/'.strtolower($currentWorkflow->label).'_'.strtolower($currentStep->label_short).'_stateOfPlay.php';
+						$path = '/'.strtolower($currentWorkflow->label).'/'.strtolower($currentWorkflow->label).'_'.strtolower($currentStep->label_short).'_stateOfPlay.php?affaire='.$object->id;
 						$card_page = dol_buildpath($path, 1);
 						var_dump($card_page);
 						print($card_page);
 						
-						header("Location: " . $card_page);
-						exit;
+						try {
+							header("Location: " . $card_page);
+							exit;
+						} catch (Exception $e) {
+							echo 'Exception reçue : ',  $e->getMessage(), "\n";
+							$display_step_error = "File : $card_page not found on this server";
+						}
 						
-						$display_step_error = "File : $card_page not found on this server";
+
 					} else {
 						setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 						$display_step_error = $langs->trans("NoSuchStepInThisWorkflow");
