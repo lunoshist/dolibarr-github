@@ -5670,7 +5670,7 @@ function dol_print_error($db = null, $error = '', $errors = null)
 		$out .= "<b>".$langs->trans("MenuManager").":</b> ".(isset($conf->standard_menu) ? dol_htmlentities($conf->standard_menu, ENT_COMPAT) : '')."<br>\n";
 		$out .= "<br>\n";
 		$syslog .= "url=".dol_escape_htmltag($_SERVER["REQUEST_URI"]);
-		$syslog .= ", query_string=".dol_escape_htmltag($_SERVER["QUERY_STRING"]);
+		$syslog .= ", query_string=".dol_escape_htmltag($_SERVER["QUERY_STRING"] ?? '');
 	} else { // Mode CLI
 		$out .= '> '.$langs->transnoentities("ErrorInternalErrorDetected").":\n".$argv[0]."\n";
 		$syslog .= "pid=".dol_getmypid();

@@ -126,15 +126,3 @@ function dol_workflow_tabs($workflow_type) {
 	$modAffaire = new $modLabel;
 	dol_tabs($modAffaire);
 }
-
-/**
- * Return the list of linked objects of an object (where type of objects returned can be specified)
- *
- * @param object $object			
- * @param string $linkedObjectType	String to spécify the type of objects returned ('propal', 'order' ...)
- * @return array
- */
-function getLinkedObject($object, $linkedObjectType) {
-	// TODO The entiere function
-	return $linkedObjectArray;
-}

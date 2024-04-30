@@ -120,8 +120,10 @@ if ($affaireID > 0) {
 	}
 }
 
-if (empty($propalID) && empty($action)) {
-	$propal_array = getLinkedObject($affaire, 'propal');
+if (empty($id) && $action != "create" && $action != "add") {
+	// $propal_array = getLinkedObject($affaire, 'propal');
+	$affaire->fetchObjectLinked($affaire->id, $affaire->element, null, 'Propal');
+	var_dump($object->linkedObjects);
 
 	if (is_array($propal_array)) {
 		if (count($propal_array) == 1) {
@@ -129,17 +131,20 @@ if (empty($propalID) && empty($action)) {
 		} else if (count($propal_array) > 1) {
 			// TODO print the list of the propal linked
 			// for each $propal_array {}
+		} else if (count($propal_array) == 0) {
+			// $action = 'create';
 		}
 	} else {
-		print '<div class="tabsAction">';
-		$parameters = array();
-		$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
-		// modified by hook
-		if (empty($reshook)) {
-			print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=create&token='.newToken().'">'.$langs->trans('Create').'</a>';
-			print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=changeStatus&token='.newToken().'">'.$langs->trans('ChangeStatus').'</a>';
-		}		
-		print '</div>';
+		$action = "create";
+		// 	print '<div class="tabsAction">';
+		// 	$parameters = array();
+		// 	$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
+		// 	// modified by hook
+		// 	if (empty($reshook)) {
+		// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=create&token='.newToken().'">'.$langs->trans('Create').'</a>';
+		// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=changeStatus&token='.newToken().'">'.$langs->trans('ChangeStatus').'</a>';
+		// 	}		
+		// 	print '</div>';
 	}
 }
 
@@ -721,6 +726,19 @@ if (empty($reshook)) {
 				}
 
 				if ($id > 0) {
+					// Link to affaire
+					if ($affaire) {
+						$result = $object->add_object_linked($affaire->element, $affaire->id);
+						if ($result == 1) {
+							// TODO log it instead of a message
+							setEventMessage("La proposition à bien été lié à l'affaire", 'mesgs');
+						} else {
+							$error_message = $db->lasterror();
+							setEventMessage("IMPOSSIBLE DE LIER LA PROPOSITION À L4AFFAIRE : $error_message", 'errors');
+							// TODO log it
+						}
+					}
+
 					// Insert default contacts if defined
 					if (GETPOST('contactid') > 0) {
 						$result = $object->add_contact(GETPOST('contactid'), 'CUSTOMER', 'external');
@@ -764,7 +782,10 @@ if (empty($reshook)) {
 							}
 						}
 
-						header('Location: '.$_SERVER["PHP_SELF"].'?id='.$id);
+						$path = $_SERVER["PHP_SELF"].'?id='.$id;
+						$path .= $affaireID ? "&affaire=$affaireID" : '';
+						header('Location: '.$path);
+						// header('Location: '.$_SERVER["PHP_SELF"].'?id='.$id);
 						exit();
 					} else {
 						$db->rollback();
@@ -1949,6 +1970,9 @@ if ($action == 'create') {
 	print '<input type="hidden" name="action" value="add">';
 	print '<input type="hidden" name="changecompany" value="0">';	// will be set to 1 by javascript so we know post is done after a company change
 	print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
+	if ($affaireID) {
+		print '<input type="hidden" name="affaire" value="'.$affaireID.'">'; 
+	}
 	if ($origin != 'project' && $originid) {
 		print '<input type="hidden" name="origin" value="'.$origin.'">';
 		print '<input type="hidden" name="originid" value="'.$originid.'">';
@@ -1957,8 +1981,6 @@ if ($action == 'create') {
 	}
 
 	print dol_get_fiche_head();
-
-	
 
 	// Call Hook tabContentCreateProposal
 	$parameters = array();
@@ -3250,7 +3272,7 @@ if ($action == 'create') {
 
 		$compatibleImportElementsList = false;
 		if ($user->hasRight('propal', 'creer') && $object->statut == Propal::STATUS_DRAFT) {
-			$compatibleImportElementsList = array('commande', 'propal', 'facture'); // import from linked elements
+			$compatibleImportElementsList = array('commande', 'propal', 'facture', 'affaire'); // import from linked elements
 		}
 		$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem, $compatibleImportElementsList);
 
