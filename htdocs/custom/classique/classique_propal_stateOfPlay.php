@@ -108,9 +108,11 @@ if ($affaireID > 0) {
 	$res = $affaire->fetch($affaireID);
 	if ($res > 0) {
 		$res = $affaire->fetch_thirdparty();
+		/* TODO the associated function
 		dol_tabs($affaire);
 		dol_banner($affaire);
 		dol_workflow_tabs($affaire->fk_workflow_type);
+		*/
 	}
 	if ($res <= 0) {
 		setEventMessages($affaire->error, $affaire->errors, 'errors');
@@ -541,6 +543,7 @@ if (empty($reshook)) {
 				$object->ref_client = GETPOST('ref_client');
 				$object->datep = $datep;
 				$object->date = $datep;
+				$object->date_relaunch = $date_relaunch;
 				$object->delivery_date = $date_delivery;
 				$object->availability_id = GETPOSTINT('availability_id');
 				$object->demand_reason_id = GETPOSTINT('demand_reason_id');
@@ -2035,9 +2038,18 @@ if ($action == 'create') {
 		print '</td></tr>';
 		
 		// Date relaunch
-		print '<tr class="field_date_relaunch"><td class="titlefieldcreate fieldrequired">'.$langs->trans('DateRelaunch').'</td><td class="valuefieldcreate">';
+		print '<tr class="field_date_relaunch"><td class="titlefieldcreate">'.$langs->trans("DateRelaunch").'</td>';
+		print '<td class="valuefieldcreate">';
 		print img_picto('', 'action', 'class="pictofixedwidth"');
-		print $form->selectDate('', '', 0, 0, 0, "date_relaunch", 1, 1);
+		if (is_numeric(getDolGlobalString('TIME_BETWEEN_RELAUNCH'))) {	// If value set to 0 or a num, not empty
+			$tmpdte = time() + (getDolGlobalInt('TIME_BETWEEN_RELAUNCH') * 24 * 60 * 60);
+			$syear = date("Y", $tmpdte);
+			$smonth = date("m", $tmpdte);
+			$sday = date("d", $tmpdte);
+			print $form->selectDate($syear."-".$smonth."-".$sday, 'date_relaunch', 0, 0, 0, "addprop", 1, 1);
+		} else {
+			print $form->selectDate(-1, 'date_relaunch', 0, 0, 0, "addprop", 1, 1);
+		}
 		print '</td></tr>';
 
 		// Validaty duration
