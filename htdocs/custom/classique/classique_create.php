@@ -81,7 +81,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formprojet.class.php';
 dol_include_once('/affaire/class/affaire.class.php');
-dol_include_once('/affaire/lib/affaire_affaire.lib.php');
+dol_include_once('/affaire/lib/affaire.lib.php');
 
 // Load translation files required by the page
 $langs->loadLangs(array("affaire@affaire", "other"));
@@ -100,12 +100,14 @@ $backtopageforcancel = GETPOST('backtopageforcancel', 'alpha');	// if not set, $
 $backtopagejsfields = GETPOST('backtopagejsfields', 'alpha');
 $dol_openinpopup = GETPOST('dol_openinpopup', 'aZ09');
 
+$workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
 // TODO get the good value from a database request 
 // sql = 
-// $workflow = array ("type"=>$resql->type, "fisrtStep"=>$resql->fisrtStep, "fisrtStepDefaultStatus"=>$resql->fisrtStepDefaultStatus)
-$fk_workflow_type = $workflow->type ?? 2;
-$fk_step = $workflow->fisrtStep ?? 1;
-$fk_status = $workflow->fisrtStepDefaultStatus ?? 1;
+// $workflow = array ("rowid"=>2, "label"=>'classique', "fisrtStep"=>$resql->fisrtStep, "affaireCreationStatus"=>$resql->affaireCreationStatus)
+
+$fk_workflow_type = $workflow->rowid;
+$fk_step = $workflow->firstStep;
+$fk_status = $workflow->affaireCreationStatus;
 
 
 if (!empty($backtopagejsfields)) {
@@ -326,6 +328,12 @@ if (empty($reshook)) {
 			$result = $object->create($user);
 			if ($result > 0) {
 				// Creation OK
+				$sql = "INSERT INTO `llx_affaire_affaire_status` (`rowid`, `fk_affaire`)";
+				$sql .= " VALUES (NULL, $object->id);";
+				$resql = $db->query($sql);
+				change_status($object, 1, $condition='', $step='affaire', $previousStatus='', $workflow);
+
+
 				if (isModEnabled('category') && method_exists($object, 'setCategories')) {
 					$categories = GETPOST('categories', 'array:int');
 					$object->setCategories($categories);

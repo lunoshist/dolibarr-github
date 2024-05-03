@@ -126,3 +126,191 @@ function dol_workflow_tabs($workflow_type) {
 	$modAffaire = new $modLabel;
 	dol_tabs($modAffaire);
 }
+
+/**
+ * Change the status of a step of an affaire, 
+ * then look for automating (like another status change induced), 
+ * finally update affaire status and step
+ *
+ * @param Affaire $affaire		object affaire to deal with
+ * @param int $newStatus		rowid of the new status
+ * @param string $condition		a status changement might need to match some condition espacially for automation
+ * @param string $step 			step can be precised for optimisation
+ * @param int $previousStatus 	previousStatus can be precised for optimisation
+ * @param object $workflow 		workflow can be precised for optimisation
+ * @return void
+ */
+function change_status($affaire, $newStatus, $condition='', $step='', $previousStatus='', $workflow='') {
+	global $db;
+	
+	/** TODO : hook 'changeStatus'
+	* Maybe if someone want to personnalyzed comportement of change_status function
+	*
+	* $parameters = array($newStatus, $condition);
+	* $reshook = $hookmanager->executeHooks('changeStatus', $parameters, $affaire, 'changeStatus'); // Note that $action and $object may have been modified by some hooks
+	* if ($reshook < 0) {
+	* 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+	* }
+	*
+	* if (empty($reshook)) {
+	*/
+
+	// CHECK CONDITIONS
+	if (!empty($condition)) {
+		// TODO 
+
+		if ($invalid_codition) {
+			return ;
+		}
+	}
+
+	// GET INFO
+	if (empty($workflow)){
+		// TODO sql query based on $affaire->fk_workflow_type
+	}
+
+	if ($step != 'affaire') {
+		// GET INFO
+		if (empty($step)){
+			// TODO sql query based on $newStatus
+		}
+		if (empty($previousStatus)){
+			// TODO sql query based on $affaire
+		}
+
+		//CHANGE STATUS
+		$sql = "UPDATE llx_affaire_affaire_status SET fk_status_$step = $newStatus WHERE fk_affaire = $affaire->id";
+		$resql = $db->query($sql);
+		if ($resql) {
+			setEventMessages("Nouveau statut :$newStatus", null, 'mesgs');
+		} else {
+			dol_print_error($db);
+		}
+
+		// PREPARE UPDATE AFFAIRE STEP & STATUS
+		$newAffaireStep = '';
+		$newAffaireStatus = '';
+		$affaireStatus = array();
+
+		// 1- Fetch steps in good order
+		$sql = "SELECT rowid, label_short FROM llx_c_affaire_steps WHERE fk_workflow_type = $workflow->rowid ORDER BY position";
+		$resql = $db->query($sql);
+		if ($resql) {
+			// 2- For each step (starting by the first step) ...
+			while (empty($newAffaireStatus)) {
+				$rstep = $db->fetch_object($resql);
+				$rstepLabel = strtolower($rstep->label_short);
+				$rstepRowid = strtolower($rstep->rowid);
+
+				// ... fetch step status ...
+				$sql = "SELECT fk_status_$rstepLabel FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
+				$resql = $db->query($sql);
+				if ($resql) {
+					$obj = $db->fetch_object($resql);
+					$rstepStatus = $obj->{"fk_status_$rstepLabel"};
+				}
+
+				// ... then fetch status type code ...
+				$sql = "SELECT fk_type FROM llx_c_affaire_status WHERE rowid = $rstepStatus";
+				$resql = $db->query($sql);
+				if ($resql) {
+					$obj = $db->fetch_object($resql);
+					$code = $obj->fk_type;
+				}
+
+				// 3- Stock it
+				$affaireStatus[$rstepLabel] = array("rowid"=>$rstepRowid, "label"=>$rstepLabel, "status"=> $rstepStatus, "code"=> $code);
+
+				// 4- Look for a open code
+				if (99 < $code && $code < 200) {
+					$newAffaireStep = $rstepRowid;
+					$newAffaireStatus = $rstepStatus;
+				}
+			}
+
+			// 5- If no open code were found : look for the last step with a status
+			if (empty($newAffaireStatus)) {
+				$reversed = array_reverse($affaireStatus);
+				while (empty($newAffaireStatus)) {
+					$rstep = array_shift($reversed);
+
+					$newAffaireStep = $rstep["rowid"];
+					$newAffaireStatus = $rstep["status"];
+				}
+			}
+		} else {
+			dol_print_error($db);
+		}
+	} else {
+		$newAffaireStep = '';
+		$newAffaireStatus = $newStatus;
+	}
+
+	// UPDATE AFFAIRE STEP & STATUS
+	$sql = "UPDATE llx_affaire_affaire SET fk_status = $newAffaireStatus ";
+	if (!empty($newAffaireStep)) { $sql .= ", fk_step = '$newAffaireStep' "; }
+	$sql .= "WHERE rowid = $affaire->id";
+	$resql = $db->query($sql);
+	if ($resql) {
+		setEventMessages("Nouveau statut de l'affaire :$newAffaireStatus", null, 'mesgs');
+	} else {
+		dol_print_error($db);
+	}
+
+	// LOOK FOR AUTOMATING
+	look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step);
+}
+
+/**
+ * Chage Status function is separated in two part for better readability
+ *
+ * @param Affaire $affaire
+ * @param int $newStatus
+ * @param int $previousStatus
+ * @param object $workflow
+ * @param string $step
+ * @return void
+ */
+function look_for_automating($affaire,$newStatus, $previousStatus, $workflow, $step) {
+	global $db;
+
+	/** TODO : hook 'automating'
+	* This where it became possible to make great automating with Zapier for exemple
+	*
+	* $parameters = array($newStatus, $previousStatus, $workflow, $step);
+	* $reshook = $hookmanager->executeHooks('automating', $parameters, $affaire, 'automation'); // Note that $action and $object may have been modified by some hooks
+	* if ($reshook < 0) {
+	* 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+	* }
+	*
+	* if (empty($reshook)) {
+	*/
+
+	$Iwant = false;
+	// Create object action
+	if ($Iwant) {
+		if (getDolGlobalInt('CREATE_ORDER_ON_PROPAL_SIGNATURE_FOR_'.$workflow->label) && $step = 'propal' && 199 < $newStatus->fk_type && $newStatus->fk_type < 300) {
+			// TODO
+		}
+		if (getDolGlobalInt('CLOSE_OTHER_PROPAL_ON_SIGNATURE_FOR_'.$workflow->label) && $step = 'propal' && 199 < $newStatus->fk_type && $newStatus->fk_type < 300) {
+			// TODO
+		}
+		if (getDolGlobalInt('CREATE_XX_FOR_'.$workflow->label) && $step = 'XX' && 000 < $newStatus->fk_type && $newStatus->fk_type < 000) {
+			// TODO
+		}
+		if (getDolGlobalInt('CREATE_XX_FOR_'.$workflow->label) && $step = 'XX' && 000 < $newStatus->fk_type && $newStatus->fk_type < 000) {
+			// TODO
+		}
+	}
+
+	if ($Iwant) {
+		// Other status changement induced
+		$sql = "SELECT fk_status_has_changed, condition, fk_status_to_change FROM llx_c_affaire_automation WHERE fk_status_has_changed = $newStatus";
+		$resql = $db->query($sql);
+		if ($resql > 0) {
+			while ($r = $db->fetch_object($resql)) {
+				change_status($affaire, $r->fk_status_to_change, $r->condition);
+			}
+		}
+	}
+}
