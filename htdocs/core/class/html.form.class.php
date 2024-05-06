@@ -9151,6 +9151,7 @@ class Form
 	 */
 	public function showLinkedObjectBlock($object, $morehtmlright = '', $compatibleImportElementsList = array(), $title = 'RelatedObjects')
 	{
+		// SEREM
 		global $conf, $langs, $hookmanager;
 		global $bc, $action;
 
@@ -9259,6 +9260,11 @@ class Form
 				} elseif ($objecttype == 'mo') {
 					$tplpath = 'mrp';
 					if (!isModEnabled('mrp')) {
+						continue; // Do not show if module disabled
+					}
+				} elseif ($objecttype == 'affaire') {
+					$tplpath = 'custom/affaire';
+					if (!isModEnabled('affaire')) {
 						continue; // Do not show if module disabled
 					}
 				}
