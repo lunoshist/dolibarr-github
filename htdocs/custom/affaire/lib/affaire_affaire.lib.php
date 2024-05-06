@@ -108,3 +108,57 @@ function affairePrepareHead($object)
 
 	return $head;
 }
+
+/**
+ * Show a form to select a project
+ *
+ * @param 	int 		$page 				Page
+ * @param 	int 		$socid 				Id third party (-1=all, 0=only projects not linked to a third party, id=projects not linked or linked to third party id)
+ * @param 	string 		$selected 			Id preselected project
+ * @param 	string 		$htmlname 			Name of select field
+ * @param 	int 		$discard_closed 	Discard closed projects (0=Keep,1=hide completely except $selected,2=Disable)
+ * @param 	int 		$maxlength 			Max length
+ * @param 	int 		$forcefocus 		Force focus on field (works with javascript only)
+ * @param 	int 		$nooutput 			No print is done. String is returned.
+ * @param 	string 		$textifnoproject 	Text to show if no project
+ * @param 	string 		$morecss 			More CSS
+ * @return	string                      	Return html content
+ */
+function form_affaire($page, $socid, $selected = '', $htmlname = 'projectid', $discard_closed = 0, $maxlength = 20, $forcefocus = 0, $nooutput = 0, $textifnoproject = '', $morecss = '')
+{
+	// phpcs:enable
+	global $langs, $db;
+
+	require_once dol_buildpath('/core/lib/project.lib.php');
+	require_once dol_buildpath('/affaire/class/htlm.formaffaire.class.php');
+
+	$out = '';
+
+	$formproject = new FormAffaires($db);
+
+	$langs->load("project");
+	if ($htmlname != "none") {
+		$out .= '<form method="post" action="' . $page . '">';
+		$out .= '<input type="hidden" name="action" value="classin">';
+		$out .= '<input type="hidden" name="token" value="' . newToken() . '">';
+		$out .= $formproject->select_affaires($socid, $selected, $htmlname, $maxlength, 0, 1, $discard_closed, $forcefocus, 0, 0, '', 1, 0, $morecss);
+		$out .= '<input type="submit" class="button smallpaddingimp" value="' . $langs->trans("Modify") . '">';
+		$out .= '</form>';
+	} else {
+		$out .= '<span class="project_head_block">';
+		if ($selected) {
+			$projet = new Affaire($db);
+			$projet->fetch($selected);
+			$out .= $projet->getNomUrl(0, '', 1);
+		} else {
+			$out .= '<span class="opacitymedium">' . $textifnoproject . '</span>';
+		}
+		$out .= '</span>';
+	}
+
+	if (empty($nooutput)) {
+		print $out;
+		return '';
+	}
+	return $out;
+}

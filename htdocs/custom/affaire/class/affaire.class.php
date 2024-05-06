@@ -1207,6 +1207,99 @@ class Affaire extends CommonObject
 
 		return $error;
 	}
+
+	/**
+	 * Return array of affaires a user has permission on, is affected to, or all affaires
+	 *
+	 * @param 	User	$user			User object
+	 * @param 	int		$mode			0=All affaire I have permission on (assigned to me or public), 1=Affaires assigned to me only, 2=Will return list of all affaires with no test on contacts
+	 * @param 	int		$list			0=Return array, 1=Return string list
+	 * @param	int		$socid			0=No filter on third party, id of third party
+	 * @param	string	$filter			additional filter on affaire (statut, ref, ...)
+	 * @return 	array|string			Array of affaires id, or string with affaires id separated with "," if list is 1
+	 */
+	public function getAffairesAuthorizedForUser($user, $mode = 0, $list = 0, $socid = 0, $filter = '')
+	{
+		$affaires = array();
+		$temp = array();
+
+		$sql = "SELECT ".(($mode == 0 || $mode == 1) ? "DISTINCT " : "")."p.rowid, p.ref";
+		$sql .= " FROM ".MAIN_DB_PREFIX."affaire_affaire as p";
+		if ($mode == 0) {
+			$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."element_contact as ec ON ec.element_id = p.rowid";
+		} elseif ($mode == 1) {
+			$sql .= ", ".MAIN_DB_PREFIX."element_contact as ec";
+		} elseif ($mode == 2) {
+			// No filter. Use this if user has permission to see all affaire
+		}
+		// $sql .= " WHERE p.entity IN (".getEntity('affaire').")";
+		// Internal users must see affaire he is contact to even if affaire linked to a third party he can't see.
+		//if ($socid || ! $user->rights->societe->client->voir)	$sql.= " AND (p.fk_soc IS NULL OR p.fk_soc = 0 OR p.fk_soc = ".((int) $socid).")";
+		if ($socid > 0) {
+			$sql .= " AND (p.fk_soc IS NULL OR p.fk_soc = 0 OR p.fk_soc = ".((int) $socid).")";
+		}
+
+		// Get id of types of contacts for affaires (This list never contains a lot of elements)
+		$listofaffairecontacttype = array();
+		$sql2 = "SELECT ctc.rowid, ctc.code FROM ".MAIN_DB_PREFIX."c_type_contact as ctc";
+		$sql2 .= " WHERE ctc.element = '".$this->db->escape($this->element)."'";
+		$sql2 .= " AND ctc.source = 'internal'";
+		$resql = $this->db->query($sql2);
+		if ($resql) {
+			while ($obj = $this->db->fetch_object($resql)) {
+				$listofaffairecontacttype[$obj->rowid] = $obj->code;
+			}
+		} else {
+			dol_print_error($this->db);
+		}
+		if (count($listofaffairecontacttype) == 0) {
+			$listofaffairecontacttype[0] = '0'; // To avoid syntax error if not found
+		}
+
+		if ($mode == 0) {
+			$sql .= " AND ( p.public = 1";
+			$sql .= " OR ( ec.fk_c_type_contact IN (".$this->db->sanitize(implode(',', array_keys($listofaffairecontacttype))).")";
+			$sql .= " AND ec.fk_socpeople = ".((int) $user->id).")";
+			$sql .= " )";
+		} elseif ($mode == 1) {
+			$sql .= " AND ec.element_id = p.rowid";
+			$sql .= " AND (";
+			$sql .= "  ( ec.fk_c_type_contact IN (".$this->db->sanitize(implode(',', array_keys($listofaffairecontacttype))).")";
+			$sql .= " AND ec.fk_socpeople = ".((int) $user->id).")";
+			$sql .= " )";
+		} elseif ($mode == 2) {
+			// No filter. Use this if user has permission to see all affaire
+		}
+
+		$sql .= $filter;
+		//print $sql;
+
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			$num = $this->db->num_rows($resql);
+			$i = 0;
+			while ($i < $num) {
+				$row = $this->db->fetch_row($resql);
+				$affaires[$row[0]] = $row[1];
+				$temp[] = $row[0];
+				$i++;
+			}
+
+			$this->db->free($resql);
+
+			if ($list) {
+				if (empty($temp)) {
+					return '0';
+				}
+				$result = implode(',', $temp);
+				return $result;
+			}
+		} else {
+			dol_print_error($this->db);
+		}
+
+		return $affaires;
+	}
 }
 
 
