@@ -96,175 +96,245 @@ $hidedetails = (GETPOSTINT('hidedetails') ? GETPOSTINT('hidedetails') : (getDolG
 $hidedesc = (GETPOSTINT('hidedesc') ? GETPOSTINT('hidedesc') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_DESC') ? 1 : 0));
 $hideref = (GETPOSTINT('hideref') ? GETPOSTINT('hideref') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_REF') ? 1 : 0));
 
+
 // AFFAIRE
-$workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
-$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
+if (isModEnabled('affaire')) {
+	$langs->load('affaire');
 
-if (empty($affaireID) && !empty($id)) {
-	$affaireID = getLinkedAff($id);
-}
 
-// Load affaire
-if ($affaireID > 0) {
-	$affaire = new Affaire($db);
-	$res = $affaire->fetch($affaireID);
-	if ($res > 0) {
-		/* TODO the associated function
-		dol_tabs($affaire);
-		dol_banner($affaire);
-		dol_workflow_tabs($affaire->fk_workflow_type);
-		*/
+	// Workflow
+	$workflow_array = array();
+	// $workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
+	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$res = $db->fetch_object($resql);
+		$workflow_array["rowid"] = $res->rowid;
+		$workflow_array["label"] = $res->label;
+		$workflow = (object)$workflow_array;
 	} else {
-		setEventMessages($affaire->error, $affaire->errors, 'errors');
-		$action = '';
+		dol_print_error($db);
 	}
-}
+	print "Workflow : $workflow->rowid - $workflow->label | ";
 
-print "Affaire : $affaire->id | ";
-
-
-if (empty($id) && $action != "create" && $action != "add") {
-	$affaire->fetchObjectLinked($affaire->id, $affaire->element, null, 'Propal');
-	// var_dump($affaire->linkedObjects);
-	if (isset($affaire->linkedObjects["propal"])) {
-		$propal_array = $affaire->linkedObjects["propal"];
-		print "Count :".count($affaire->linkedObjects["propal"])." | ";
-		if (count($propal_array) == 1) {
-			reset($propal_array);
-			$key = key($propal_array);
-			$id = $propal_array[$key]->id;
-		} else if (count($propal_array) > 1) {
-			// TODO print the list of the propal linked
-			// for each $propal_array {}
-		} else if (count($propal_array) == 0) {
-			$action = 'create';
-		}
-	} else {
-		print "Count : No propal | ";
-		$action = "create";
-		// 	print '<div class="tabsAction">';
-		// 	$parameters = array();
-		// 	$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
-		// 	// modified by hook
-		// 	if (empty($reshook)) {
-		// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=create&token='.newToken().'">'.$langs->trans('Create').'</a>';
-		// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=changeStatus&token='.newToken().'">'.$langs->trans('ChangeStatus').'</a>';
-		// 	}		
-		// 	print '</div>';
+	// Get affaire
+	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
+	if (empty($affaireID) && !empty($id)) {
+		$affaireID = getLinkedAff($id);
 	}
-}
+	
+	// Load affaire
+	if ($affaireID > 0) {
+		$affaire = new Affaire($db);
+		$res = $affaire->fetch($affaireID);
+		if ($res > 0) {
+			if ($affaire->fk_workflow_type != $workflow->rowid) {
+				// TODO fetch good workflow
+				$path = dol_buildpath('')."?aiffaire=$affaireID";
+				header('Location: '.$path);
+				exit();
+			}
 
-
-$object = new Propal($db);
-$extrafields = new ExtraFields($db);
-
-// fetch optionals attributes and labels
-$extrafields->fetch_name_optionals_label($object->table_element);
-
-// Load object
-if ($id > 0 || !empty($ref)) {
-	$ret = $object->fetch($id, $ref);
-	if ($ret > 0) {
-		$ret = $object->fetch_thirdparty();
-		if ($ret > 0 && isset($object->fk_project)) {
-			$ret = $object->fetch_project();
+			/* TODO the associated function
+			dol_tabs($affaire);
+			dol_banner($affaire);
+			dol_workflow_tabs($affaire->fk_workflow_type);
+			*/
+		} else {
+			setEventMessages($affaire->error, $affaire->errors, 'errors');
+			$action = '';
 		}
 	}
-	if ($ret <= 0) {
-		setEventMessages($object->error, $object->errors, 'errors');
-		$action = '';
-	}
-}
+	print "Affaire : $affaire->id | ";
+	
 
-print "Id : $id | ";
-print "Propal : $object->id | ";
-
-
-// Print useful info (temporary)
-$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE rowid = ".$affaire->fk_workflow_type;
-$resql = $db->query($sql);
-if ($resql) {
-	if ($resql->num_rows > 0) {
-		$affaireWorkflow = $db->fetch_object($resql);
-		// var_dump($affaireWorkflow);
-		// print(json_encode($affaireWorkflow, JSON_PRETTY_PRINT));
-		print "Workflow : $affaireWorkflow->label | ";
-		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStep = $db->fetch_object($resql);
-				// var_dump($affaireStep);
-				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				print "Affaire Step : $affaireStep->label | ";		
-				
-				$defaultStepStatus = $affaireStep->fk_default_status;
-				print "Affaire Step Default Status : $defaultStepStatus | ";		
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+	// Get the propal linked to the affaire 
+	if (empty($id) && $action != "create" && $action != "add") {
+		$affaire->fetchObjectLinked($affaire->id, $affaire->element, null, 'Propal');
+		if (isset($affaire->linkedObjects["propal"])) {
+			$propal_array = $affaire->linkedObjects["propal"];
+			print "Count :".count($affaire->linkedObjects["propal"])." | ";
+			// If only one linked propal : $id = this propal
+			if (count($propal_array) == 1) {
+				reset($propal_array);
+				$key = key($propal_array);
+				$id = $propal_array[$key]->id;
+			// If many propal : display a list
+			} else if (count($propal_array) > 1) {
+				// TODO print the list of the propal linked
+				// for each $propal_array {}
+			} else if (count($propal_array) == 0) {
+				$action = 'create';
 			}
 		} else {
-			dol_print_error($db);
-		}			
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatus = $db->fetch_object($resql);
-				// var_dump($affaireStatus);
-				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				print "Affaire Status : $affaireStatus->label | ";			
-
-			} else {
-				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				print "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
-			}
-		} else {
-			dol_print_error($db);
+			// If no propal linked, let's create one 
+			print "Count : No propal | ";
+			$action = "create";
+			// 	print '<div class="tabsAction">';
+			// 	$parameters = array();
+			// 	$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
+			// 	// modified by hook
+			// 	if (empty($reshook)) {
+			// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=create&token='.newToken().'">'.$langs->trans('Create').'</a>';
+			// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=changeStatus&token='.newToken().'">'.$langs->trans('ChangeStatus').'</a>';
+			// 	}		
+			// 	print '</div>';
 		}
+	}
+	
 
-		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatusbyStep = $db->fetch_object($resql);
-				$currentStepStatus = isset($affaireStatusbyStep->fk_status_propal) ? $affaireStatusbyStep->fk_status_propal : "' '";
-				// var_dump($currentStepStatus);
-				// print(json_encode($currentStepStatus, JSON_PRETTY_PRINT));
-
-				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE ";
-				if (isset($currentStepStatus)) {$sql .= "rowid = $currentStepStatus AND ";}
-				$sql .= "(fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
-				$resql = $db->query($sql);
-				if ($resql) {
-					if ($resql->num_rows > 0) {
-						$affaireStatus = $db->fetch_object($resql);
-						// var_dump($affaireStatus);
-						// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-						print "Propal Status : $currentStepStatus - $affaireStatus->label| ";
-
-					} else {
-						setEventMessages($langs->trans("BeleBele"), null, 'errors');
-					}
-				} else {
-					dol_print_error($db);
-				}
+	// load propal
+	$object = new Propal($db);
+	$extrafields = new ExtraFields($db);
+	$extrafields->fetch_name_optionals_label($object->table_element);
+	
+	if ($id > 0 || !empty($ref)) {
+		$ret = $object->fetch($id, $ref);
+		if ($ret > 0) {
+			$ret = $object->fetch_thirdparty();
+			if ($ret > 0 && isset($object->fk_project)) {
+				$ret = $object->fetch_project();
+			}
+		}
+		if ($ret <= 0) {
+			setEventMessages($object->error, $object->errors, 'errors');
+			$action = '';
+		}
+	}
+	print "Id : $id | ";
+	print "Propal : $object->id | ";
 
 
-			} else {
-				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
-				print "Propal Status : WAAHH | ";
+	// Fetch step of affaire
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$affaireStep = $db->fetch_object($resql);
+			// var_dump($affaireStep);
+			// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
+			print "Affaire Step : $affaireStep->label | ";		
+			
+			$defaultStepStatus = $affaireStep->fk_default_status;
+			print "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
+		} else {
+			setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+		}
+	} else {
+		dol_print_error($db);
+	}
+
+	// Fetch status of affaire
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$affaireStatus = $db->fetch_object($resql);
+			// var_dump($affaireStatus);
+			// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
+			print "Affaire Status : $affaireStatus->label | ";			
+
+		} else {
+			setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
+			print "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
+		}
+	} else {
+		dol_print_error($db);
+	}
+
+
+	// Fetch affaire status of each step
+	$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$affaireStatusbyStep = $db->fetch_object($resql);
+		} else {
+			setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
+		}
+	} else {
+		dol_print_error($db);
+	}
+
+
+	// Fetch this step
+	$thisStepName = 'Propal'; // <-- this has to be modofied when dictionnary change
+
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$thisStep = $db->fetch_object($resql);
+			// var_dump($thisStep);
+			// print(json_encode($thisStep, JSON_PRETTY_PRINT));
+			print "This Step : $thisStep->label | ";		
+			
+			$defaultStepStatus = $thisStep->fk_default_status;
+			print "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
+		} else {
+			setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+		}
+	} else {
+		dol_print_error($db);
+	}
+	
+	// Fetch all status of this step : propal
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$thisStatusArray = array();
+		if ($resql->num_rows > 0) {
+			while ($res = $db->fetch_object($resql)) {
+				$thisStatusArray[$res->rowid] = $res;
 			}
 		} else {
-			dol_print_error($db);
-		}		
+			setEventMessages($langs->trans("BeleBele"), null, 'errors');
+		}
 	} else {
-		setEventMessages($langs->trans("NoSuchWorkflowType"), null, 'errors');
+		dol_print_error($db);
+	}
+
+
+	// Fetch status of affaire for this step
+	$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
+	$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
+	
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$thisStatus = $db->fetch_object($resql);
+			// var_dump($thisStatus);
+			// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
+			print "Propal Status : $thisStatusRowid - $thisStatus->label| ";
+
+		} else {
+			setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
+		}
+	} else {
+		dol_print_error($db);
 	}
 } else {
-	dol_print_error($db);
+	// load propal
+	$object = new Propal($db);
+	$extrafields = new ExtraFields($db);
+	$extrafields->fetch_name_optionals_label($object->table_element);
+	
+	if ($id > 0 || !empty($ref)) {
+		$ret = $object->fetch($id, $ref);
+		if ($ret > 0) {
+			$ret = $object->fetch_thirdparty();
+			if ($ret > 0 && isset($object->fk_project)) {
+				$ret = $object->fetch_project();
+			}
+		}
+		if ($ret <= 0) {
+			setEventMessages($object->error, $object->errors, 'errors');
+			$action = '';
+		}
+	}
+	print "Id : $id | ";
+	print "Propal : $object->id | ";
 }
 
 
