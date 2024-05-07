@@ -37,9 +37,10 @@ CREATE TABLE llx_c_affaire_steps(
 --
 
 INSERT INTO `llx_c_affaire_steps` (`rowid`, `label`, `label_short`, `fk_workflow_type`, `fk_default_status`, `position`, `added`, `active`) VALUES
-(1, 'Proposition Commerciale', 'Propal', 1, 2, 1, 0, 1),
-(2, 'Commande Client', 'Cmde', 1, 8, 2, 0, 1),
-(3, 'Production', 'Prod', 1, 12, 3, 0, 1),
-(4, 'Post-production', 'Post-Prod', 1, 20, 4, 0, 1),
-(5, 'Expédition', 'Expe', 1, 9, 5, 0, 1),
-(6, 'Facturation', 'Facture', 1, 34, 6, 0, 1);
+(1, 'Affaire', 'Affaire', 1, 1, null, 0, 1),
+(2, 'Proposition Commerciale', 'Propal', 1, 8, 1, 0, 1),
+(3, 'Commande Client', 'Cmde', 1, 10, 2, 0, 1),
+(4, 'Production', 'Prod', 1, 14, 3, 0, 1),
+(5, 'Post-production', 'Post-Prod', 1, 22, 4, 0, 1),
+(6, 'Expédition', 'Expe', 1, 31, 5, 0, 1),
+(7, 'Facturation', 'Facture', 1, 36, 6, 0, 1);

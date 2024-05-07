@@ -288,7 +288,7 @@ if (isModEnabled('affaire')) {
 				$thisStatusArray[$res->rowid] = $res;
 			}
 		} else {
-			setEventMessages($langs->trans("BeleBele"), null, 'errors');
+			setEventMessages($langs->trans("BeleBele"), null, 'mesg');
 		}
 	} else {
 		dol_print_error($db);
@@ -309,7 +309,11 @@ if (isModEnabled('affaire')) {
 			print "Propal Status : $thisStatusRowid - $thisStatus->label| ";
 
 		} else {
-			setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
+			if ($action == ('add' || 'create')) {
+				setEventMessages($langs->trans("PropalNotCreated - NoStatus"), null, 'mesgs');
+			} else {
+				setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
+			}
 		}
 	} else {
 		dol_print_error($db);
@@ -410,7 +414,7 @@ if (empty($reshook)) {
 	// Affaire action
 	if ($action == 'changeStatus') {
 		$newStatus = GETPOSTINT('newStatus');
-		change_status($affaire, $newStatus, $condition='', $step='Propal', $previousStatus=$currentStepStatus, $workflow);
+		change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow);
 
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
 		$path .= $affaireID ? "&affaire=$affaireID" : '';
@@ -915,26 +919,8 @@ if (empty($reshook)) {
 							setEventMessage("IMPOSSIBLE DE LIER LA PROPOSITION À L4AFFAIRE : $error_message", 'errors');
 							// TODO log it
 						}
-
-						// Fetch default status for propal on creation
-						$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE label_short = 'Propal' AND fk_workflow_type = $affaire->fk_workflow_type";
-						$resql = $db->query($sql);
-						if ($resql) {
-							if ($resql->num_rows > 0) {
-								$currentStep = $db->fetch_object($resql);
-								// var_dump($currentStep);
-								// print(json_encode($currentStep, JSON_PRETTY_PRINT));
-								print "Current Step : $currentStep->label | ";		
-								
-								$defaultCurrentStepStatus = $currentStep->fk_default_status;
-								print "Current Step Default Status : $defaultCurrentStepStatus | ";		
-							} else {
-								setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-							}
-						} else {
-							dol_print_error($db);
-						}	
-						change_status($affaire, $defaultCurrentStepStatus, $condition='', $step='propal', $previousStatus='', $affaireWorkflow);
+	
+						change_status($affaire, $defaultStepStatus, $condition='', $thisStep, $previousStatus='', $workflow);
 					}
 
 					// Insert default contacts if defined
@@ -2825,7 +2811,7 @@ if ($action == 'create') {
 		$langs->load("affaire");
 		$morehtmlref .= '<br>';
 		if ($usercancreate) {
-j			$morehtmlref .= img_picto($langs->trans("Affaire"), 'affaire.png@affaire', 'class="pictofixedwidth"');
+			$morehtmlref .= img_picto($langs->trans("Affaire"), 'affaire.png@affaire', 'class="pictofixedwidth"');
 			if ($action != 'classify') {
 				$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetAffaire')).'</a> ';
 			}
@@ -3459,12 +3445,10 @@ j			$morehtmlref .= img_picto($langs->trans("Affaire"), 'affaire.png@affaire', '
 
 				// Change status
 				if (isModEnabled('affaire')) {
-					$currentStep = 7;
-
 					$arrayforbutaction = array();
 
 					// Fetch all status for this step
-					$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = $currentStep AND fk_workflow_type = $affaire->fk_workflow_type";
+					$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = $thisStep->rowid AND fk_workflow_type = $affaire->fk_workflow_type";
 					$resql = $db->query($sql);
 					if ($resql) {
 						while ($rstatus = $db->fetch_object($resql)) {

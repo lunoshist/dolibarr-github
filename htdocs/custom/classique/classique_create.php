@@ -100,7 +100,7 @@ $backtopageforcancel = GETPOST('backtopageforcancel', 'alpha');	// if not set, $
 $backtopagejsfields = GETPOST('backtopagejsfields', 'alpha');
 $dol_openinpopup = GETPOST('dol_openinpopup', 'aZ09');
 
-$workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
+$workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>8, "affaireCreationStatus"=>1);
 // TODO get the good value from a database request 
 // sql = 
 // $workflow = array ("rowid"=>2, "label"=>'classique', "fisrtStep"=>$resql->fisrtStep, "affaireCreationStatus"=>$resql->affaireCreationStatus)
@@ -331,7 +331,7 @@ if (empty($reshook)) {
 				$sql = "INSERT INTO `llx_affaire_affaire_status` (`rowid`, `fk_affaire`)";
 				$sql .= " VALUES (NULL, $object->id);";
 				$resql = $db->query($sql);
-				change_status($object, 1, $condition='', $step='affaire', $previousStatus='', $workflow);
+				change_status($object, 43, $condition='', $step='Affaire', $previousStatus='', $workflow);
 
 
 				if (isModEnabled('category') && method_exists($object, 'setCategories')) {
@@ -339,15 +339,37 @@ if (empty($reshook)) {
 					$object->setCategories($categories);
 				}
 
-				$urltogo = $backtopage ? str_replace('__ID__', $result, $backtopage) : $backurlforlist;
-				$urltogo = preg_replace('/--IDFORBACKTOPAGE--/', (string) $object->id, $urltogo); // New method to autoselect project after a New on another form object creation
-
 				$db->commit();
 
-				if (empty($noback)) {
-					header("Location: " . $urltogo);
-					exit;
+
+				// Redirect to the first step page
+				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE position = 1 AND fk_workflow_type = $workflow->rowid";
+				$resql = $db->query($sql);
+				if ($resql) {
+					if ($resql->num_rows > 0) {
+						$firstStep = $db->fetch_object($resql);
+
+						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($firstStep->label_short).'_stateOfPlay.php?affaire='.$object->id;
+						$card_page = dol_buildpath($path, 1);
+						
+						try {
+							header("Location: " . $card_page);
+							exit;
+						} catch (Exception $e) {
+							echo 'Exception reçue : ',  $e->getMessage(), "\n";
+							$display_step_error = "File : $card_page not found on this server";
+						}
+						
+
+					} else {
+						setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+						$display_step_error = $langs->trans("NoSuchStepInThisWorkflow");
+					}
+				} else {
+					dol_print_error($db);
+					$display_step_error = $db->lasterror;
 				}
+
 			} else {
 				$db->rollback();
 				$error++;

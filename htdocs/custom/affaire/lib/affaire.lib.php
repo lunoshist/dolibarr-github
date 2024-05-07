@@ -132,16 +132,16 @@ function dol_workflow_tabs($workflow_type) {
  * then look for automating (like another status change induced), 
  * finally update affaire status and step
  *
- * @param Affaire $affaire		object affaire to deal with
- * @param int $newStatus		rowid of the new status
- * @param string $condition		a status changement might need to match some condition espacially for automation
- * @param string $step 			step can be precised for optimisation
- * @param int $previousStatus 	previousStatus can be precised for optimisation
- * @param object $workflow 		workflow can be precised for optimisation
+ * @param Affaire $affaire						object affaire to deal with
+ * @param object|int $newStatus					rowid, label or obj(rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active) of the new status
+ * @param string $condition						a status changement might need to match some condition espacially for automation
+ * @param object|int|string $step 				step can be precised for optimisation
+ * @param object|int|string $previousStatus 	previousStatus can be precised for optimisation
+ * @param object $workflow 						workflow can be precised for optimisation
  * @return void
  */
 function change_status($affaire, $newStatus, $condition='', $step='', $previousStatus='', $workflow='') {
-	global $db;
+	global $db, $langs;
 	
 	/** TODO : hook 'changeStatus'
 	* Maybe if someone want to personnalyzed comportement of change_status function
@@ -165,24 +165,78 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	}
 
 	// GET INFO
-	if (empty($workflow)){
-		// TODO sql query based on $affaire->fk_workflow_type
-	}
-
-	if ($step != 'affaire') {
-		// GET INFO
-		if (empty($step)){
-			// TODO sql query based on $newStatus
-		}
-		if (empty($previousStatus)){
-			// TODO sql query based on $affaire
-		}
-
-		//CHANGE STATUS
-		$sql = "UPDATE llx_affaire_affaire_status SET fk_status_$step = $newStatus WHERE fk_affaire = $affaire->id";
+	// --------------------------------- //
+	// Workflow
+	if (!is_object($workflow)){
+		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE rowid = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
-			setEventMessages("Nouveau statut :$newStatus", null, 'mesgs');
+			$workflow = $db->fetch_object($resql);
+		} else {
+			dol_print_error($db);
+		}
+	}
+	// Status
+	if (!is_object($newStatus) && is_numeric($newStatus)) {
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $newStatus AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$newStatus = $db->fetch_object($resql);	
+
+			} else {
+				setEventMessages($langs->trans("NoSuchStatus"), null, 'errors');
+				return;
+			}
+		} else {
+			dol_print_error($db);
+			return;
+		}
+	} else {
+		setEventMessages($langs->trans("InvalidStatusProviden"), null, 'errors');
+		return;
+	}
+	// Step 
+	if (!is_object($step)) {
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE ";
+		if (is_numeric($step)) { 
+			$sql .= "rowid = $step "; 
+		} else if (is_string($step)) {
+			$sql .= "label_short = '$step' ";
+		} else if (empty($step)) {
+			$sql .= "rowid = '$newStatus->fk_step' ";
+		} else {
+			setEventMessages($langs->trans("InvalidStepProviden"), null, 'errors');
+			return;
+		}
+		$sql .= "AND fk_workflow_type = $affaire->fk_workflow_type";
+
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$step = $db->fetch_object($resql);	
+
+			} else {
+				setEventMessages($langs->trans("NoSuchStatus"), null, 'errors');
+				return;
+			}
+		} else {
+			dol_print_error($db);
+			return;
+		}
+	}
+	if (empty($previousStatus)){
+		// TODO sql query based on $affaire
+	}
+
+
+
+	if ($step->label_short != 'Affaire') {
+		//CHANGE STATUS
+		$sql = "UPDATE llx_affaire_affaire_status SET fk_status_$step->label_short = $newStatus->rowid WHERE fk_affaire = $affaire->id";
+		$resql = $db->query($sql);
+		if ($resql) {
+			setEventMessages("Nouveau statut :$newStatus->label", null, 'mesgs');
 		} else {
 			dol_print_error($db);
 		}
@@ -193,12 +247,13 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		$affaireStatus = array();
 
 		// 1- Fetch steps in good order
-		$sql = "SELECT rowid, label_short FROM llx_c_affaire_steps WHERE fk_workflow_type = $workflow->rowid ORDER BY position";
+		$sql = "SELECT rowid, label_short FROM llx_c_affaire_steps WHERE fk_workflow_type = $workflow->rowid AND position IS NOT NULL ORDER BY position";
 		$resql = $db->query($sql);
 		if ($resql) {
 			// 2- For each step (starting by the first step) ...
 			while (empty($newAffaireStatus)) {
 				$rstep = $db->fetch_object($resql);
+				if (is_null($rstep)) break;
 				$rstepLabel = strtolower($rstep->label_short);
 				$rstepRowid = strtolower($rstep->rowid);
 
@@ -242,8 +297,8 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			dol_print_error($db);
 		}
 	} else {
-		$newAffaireStep = '';
-		$newAffaireStatus = $newStatus;
+		$newAffaireStep = $newStatus->fk_step;
+		$newAffaireStatus = $newStatus->rowid;
 	}
 
 	// UPDATE AFFAIRE STEP & STATUS
@@ -265,51 +320,50 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
  * Chage Status function is separated in two part for better readability
  *
  * @param Affaire $affaire
- * @param int $newStatus
- * @param int $previousStatus
+ * @param object $newStatus
+ * @param object $previousStatus
  * @param object $workflow
- * @param string $step
+ * @param object $step
  * @return void
  */
-function look_for_automating($affaire,$newStatus, $previousStatus, $workflow, $step) {
+function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step) {
 	global $db;
 
-	/** TODO : hook 'automating'
-	* This where it became possible to make great automating with Zapier for exemple
-	*
-	* $parameters = array($newStatus, $previousStatus, $workflow, $step);
-	* $reshook = $hookmanager->executeHooks('automating', $parameters, $affaire, 'automation'); // Note that $action and $object may have been modified by some hooks
-	* if ($reshook < 0) {
-	* 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
-	* }
-	*
-	* if (empty($reshook)) {
-	*/
+	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = $newStatus->fk_type)";
+	$resql = $db->query($sql);
+	if ($resql) {
+		while ($r = $db->fetch_object($resql)) {
+			// CHECK CONDITIONS
+			if (!empty($r->conditions)) {
+				// TODO 
 
-	$Iwant = false;
-	// Create object action
-	if ($Iwant) {
-		if (getDolGlobalInt('CREATE_ORDER_ON_PROPAL_SIGNATURE_FOR_'.$workflow->label) && $step = 'propal' && 199 < $newStatus->fk_type && $newStatus->fk_type < 300) {
-			// TODO
-		}
-		if (getDolGlobalInt('CLOSE_OTHER_PROPAL_ON_SIGNATURE_FOR_'.$workflow->label) && $step = 'propal' && 199 < $newStatus->fk_type && $newStatus->fk_type < 300) {
-			// TODO
-		}
-		if (getDolGlobalInt('CREATE_XX_FOR_'.$workflow->label) && $step = 'XX' && 000 < $newStatus->fk_type && $newStatus->fk_type < 000) {
-			// TODO
-		}
-		if (getDolGlobalInt('CREATE_XX_FOR_'.$workflow->label) && $step = 'XX' && 000 < $newStatus->fk_type && $newStatus->fk_type < 000) {
-			// TODO
-		}
-	}
-
-	if ($Iwant) {
-		// Other status changement induced
-		$sql = "SELECT fk_status_has_changed, condition, fk_status_to_change FROM llx_c_affaire_automation WHERE fk_status_has_changed = $newStatus";
-		$resql = $db->query($sql);
-		if ($resql > 0) {
-			while ($r = $db->fetch_object($resql)) {
+				if ($invalid_codition) {
+					continue;
+				}
+			}
+			
+			/** TODO : hook 'automating'
+			* This is where it became possible to make great automating with Zapier or Make for exemple
+			* By adding a line in llx_affaire_automation with automation_type = 'Zapier' or 'Personnalized' and an hook with an if statement
+			*
+			* $parameters = array($newStatus, $previousStatus, $workflow, $step);
+			* $reshook = $hookmanager->executeHooks('automating', $parameters, $affaire, 'automation'); // Note that $action and $object may have been modified by some hooks
+			* if ($reshook < 0) {
+			* 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+			* }
+			*
+			* if (empty($reshook)) {
+			*/
+			
+			if ($r->automation_type == 'changeStatus') {
 				change_status($affaire, $r->fk_status_to_change, $r->condition);
+			} else if ($r->automation_type == 'System') {
+				// TODO
+				if ($r->new_step == 'createOrder') {
+					$path = dol_buildpath("classique/classique_cmde_stateOfPlay?&affaire=$affaire->id");
+					header('Location: '.$path);
+					exit();
+				}
 			}
 		}
 	}
