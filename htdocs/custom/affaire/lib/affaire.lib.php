@@ -78,12 +78,21 @@ function affaireAdminPrepareHead()
 /**
  * Get the id of the linked affaire if there is one
  *
- * @param int $id 	id of the object 
- * @return int 		id of the linked affaire if exist
+ * @param object|Propal $object		
+ * @return int 						id of the linked affaire if exist
  */
-function getLinkedAff($id) {
-	// TODO The entiere function
-	$AffID = 1;
+function getLinkedAff($object) {
+	$AffID = 0;
+
+	$object->fetchObjectLinked($object->id, $object->element, $object->id, $object->element);
+
+	if (isset($object->linkedObjects["affaire"])) {
+		$affaire_array = $object->linkedObjects["affaire"];
+		reset($affaire_array);
+		$key = key($affaire_array);
+		$AffID = $affaire_array[$key]->id;
+	}
+
 	return $AffID;
 }
 
@@ -138,9 +147,10 @@ function dol_workflow_tabs($workflow_type) {
  * @param object|int|string $step 				step can be precised for optimisation
  * @param object|int|string $previousStatus 	previousStatus can be precised for optimisation
  * @param object $workflow 						workflow can be precised for optimisation
+ * @param object $object 						optional param for an object (Ex: a propal, cmde or project... )
  * @return void
  */
-function change_status($affaire, $newStatus, $condition='', $step='', $previousStatus='', $workflow='') {
+function change_status($affaire, $newStatus, $condition='', $step='', $previousStatus='', $workflow='', $object='') {
 	global $db, $langs;
 	
 	/** TODO : hook 'changeStatus'
@@ -313,7 +323,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	}
 
 	// LOOK FOR AUTOMATING
-	look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step);
+	look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
 }
 
 /**
@@ -324,9 +334,10 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
  * @param object $previousStatus
  * @param object $workflow
  * @param object $step
+ * @param object $object
  * @return void
  */
-function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step) {
+function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object) {
 	global $db;
 
 	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = $newStatus->fk_type)";
@@ -360,9 +371,28 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			} else if ($r->automation_type == 'System') {
 				// TODO
 				if ($r->new_step == 'createOrder') {
-					$path = dol_buildpath("classique/classique_cmde_stateOfPlay?&affaire=$affaire->id");
-					header('Location: '.$path);
-					exit();
+					$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_cmde_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid=&'.$object->socid.'token='.newToken();
+					// $path = "classique/classique_cmde_stateOfPlay?affaire=$affaire->id&action=create&origin=$object->element&originid=$object->id&socid=$object->socid&token=".newToken();
+					$cmde_page = dol_buildpath($path, 1);
+					try {
+						header("Location: " . $cmde_page);
+						exit;
+					} catch (Exception $e) {
+						echo 'Exception reçue : ',  $e->getMessage(), "\n";
+						$display_step_error = "File : $cmde_page not found on this server";
+					}
+				}
+				if ($r->new_step == 'STRING') {
+					// Do domething
+				}
+				if ($r->new_step == 'STRING') {
+					// Do domething
+				}
+				if ($r->new_step == 'STRING') {
+					// Do domething
+				}
+				if ($r->new_step == 'STRING') {
+					// Do domething
 				}
 			}
 		}
