@@ -324,11 +324,11 @@ if (isModEnabled('affaire')) {
 		}
 	}
 } else {
-	// load propal
 	$object = new Propal($db);
 	$extrafields = new ExtraFields($db);
 	$extrafields->fetch_name_optionals_label($object->table_element);
 	
+	// Load propal
 	if ($id > 0 || !empty($ref)) {
 		$ret = $object->fetch($id, $ref);
 		if ($ret > 0) {
@@ -462,7 +462,7 @@ if (empty($reshook)) {
 							}
 						}
 						// VALIDATED
-						if ((($object->statut == Propal::STATUS_DRAFT && $object->total_ttc >= 0 && count($object->lines) > 0)
+						else if ((($object->statut == Propal::STATUS_DRAFT && $object->total_ttc >= 0 && count($object->lines) > 0)
 						|| ($object->statut == Propal::STATUS_DRAFT && getDolGlobalString('PROPAL_ENABLE_NEGATIVE') && count($object->lines) > 0)) && $usercanvalidate) {
 							$error = 0;
 
