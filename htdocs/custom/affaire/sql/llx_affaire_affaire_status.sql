@@ -18,10 +18,10 @@ CREATE TABLE llx_affaire_affaire_status(
 	rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL, 
 	fk_affaire integer,
 	fk_status_propal integer,
-	fk_status_order integer,
-	fk_status_fab integer,
-	fk_status_post_prod integer,
-	fk_status_shipment integer,
-	fk_status_invoice integer,
+	fk_status_cmde integer,
+	fk_status_prod integer,
+	fk_status_post-prod integer,
+	fk_status_expe integer,
+	fk_status_facture integer,
 	fk_status_admin integer
 ) ENGINE=innodb;

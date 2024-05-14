@@ -148,11 +148,12 @@ function dol_workflow_tabs($workflow_type) {
  * @param object|int|string $previousStatus 	previousStatus can be precised for optimisation
  * @param object $workflow 						workflow can be precised for optimisation
  * @param object $object 						optional param for an object (Ex: a propal, cmde or project... )
- * @return void
+ * @return integer|string 						0 if OK, 1 or $error if not OK
  */
 function change_status($affaire, $newStatus, $condition='', $step='', $previousStatus='', $workflow='', $object='') {
 	global $db, $langs;
-	
+	$error = 0;
+
 	/** TODO : hook 'changeStatus'
 	* Maybe if someone want to personnalyzed comportement of change_status function
 	*
@@ -170,7 +171,8 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		// TODO 
 
 		if ($invalid_codition) {
-			return ;
+			$db->rollback();
+			return "INVALID_CONDITION";
 		}
 	}
 
@@ -183,11 +185,12 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		if ($resql) {
 			$workflow = $db->fetch_object($resql);
 		} else {
+			$error++;
 			dol_print_error($db);
 		}
 	}
 	// Status
-	if (!is_object($newStatus) && is_numeric($newStatus)) {
+	if (!is_object($newStatus) && is_numeric($newStatus) && !$error) {
 		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $newStatus AND fk_workflow_type = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
@@ -195,19 +198,19 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 				$newStatus = $db->fetch_object($resql);	
 
 			} else {
+				$error++;
 				setEventMessages($langs->trans("NoSuchStatus"), null, 'errors');
-				return;
 			}
 		} else {
+			$error++;
 			dol_print_error($db);
-			return;
 		}
 	} else {
+		$error++;
 		setEventMessages($langs->trans("InvalidStatusProviden"), null, 'errors');
-		return;
 	}
 	// Step 
-	if (!is_object($step)) {
+	if (!is_object($step) && !$error) {
 		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE ";
 		if (is_numeric($step)) { 
 			$sql .= "rowid = $step "; 
@@ -216,8 +219,8 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		} else if (empty($step)) {
 			$sql .= "rowid = '$newStatus->fk_step' ";
 		} else {
+			$error++;
 			setEventMessages($langs->trans("InvalidStepProviden"), null, 'errors');
-			return;
 		}
 		$sql .= "AND fk_workflow_type = $affaire->fk_workflow_type";
 
@@ -225,30 +228,34 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		if ($resql) {
 			if ($resql->num_rows > 0) {
 				$step = $db->fetch_object($resql);	
-
 			} else {
+				$error++;
 				setEventMessages($langs->trans("NoSuchStatus"), null, 'errors');
-				return;
 			}
 		} else {
+			$error++;
 			dol_print_error($db);
-			return;
 		}
 	}
-	if (empty($previousStatus)){
+	if (empty($previousStatus) && !$error){
 		// TODO sql query based on $affaire
 	}
 
-
+	if ($error) {
+		return $error;
+	}
+	$db->commit();
 
 	if ($step->label_short != 'Affaire') {
 		//CHANGE STATUS
-		$sql = "UPDATE llx_affaire_affaire_status SET fk_status_$step->label_short = $newStatus->rowid WHERE fk_affaire = $affaire->id";
+		$sql = "UPDATE llx_affaire_affaire_status SET fk_status_".strtolower($step->label_short)." = $newStatus->rowid WHERE fk_affaire = $affaire->id";
 		$resql = $db->query($sql);
 		if ($resql) {
 			setEventMessages("Nouveau statut :$newStatus->label", null, 'mesgs');
 		} else {
 			dol_print_error($db);
+			$db->rollback();
+			return $error++;
 		}
 
 		// PREPARE UPDATE AFFAIRE STEP & STATUS
@@ -304,11 +311,18 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 				}
 			}
 		} else {
+			$error++;
 			dol_print_error($db);
 		}
 	} else {
 		$newAffaireStep = $newStatus->fk_step;
 		$newAffaireStatus = $newStatus->rowid;
+	}
+
+
+	if ($error){
+		$db->rollback();
+		return $error;
 	}
 
 	// UPDATE AFFAIRE STEP & STATUS
@@ -319,11 +333,20 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	if ($resql) {
 		setEventMessages("Nouveau statut de l'affaire :$newAffaireStatus", null, 'mesgs');
 	} else {
+		$error++;
 		dol_print_error($db);
 	}
 
 	// LOOK FOR AUTOMATING
-	look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
+	$error = look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
+
+	if (!$error) {
+		$db->commit();
+		return 0;
+	} else {
+		$db->rollback();
+		return $error;
+	}
 }
 
 /**
@@ -335,10 +358,11 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
  * @param object $workflow
  * @param object $step
  * @param object $object
- * @return void
+ * @return integer|string			0 if OK, 1 or $error if not OK
  */
 function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object) {
 	global $db;
+	$error = 0;
 
 	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = $newStatus->fk_type)";
 	$resql = $db->query($sql);
@@ -367,7 +391,8 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			*/
 			
 			if ($r->automation_type == 'changeStatus') {
-				change_status($affaire, $r->fk_status_to_change, $r->condition);
+				$error = change_status($affaire, $r->fk_status_to_change, $r->condition);
+				if ($error) return $error;
 			} else if ($r->automation_type == 'System') {
 				// TODO
 				if ($r->new_step == 'createOrder') {
@@ -396,5 +421,9 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 				}
 			}
 		}
+
+		return 0;
+	} else {
+		return $error++;
 	}
 }

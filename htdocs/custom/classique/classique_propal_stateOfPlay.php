@@ -98,6 +98,7 @@ $hideref = (GETPOSTINT('hideref') ? GETPOSTINT('hideref') : (getDolGlobalString(
 
 
 // AFFAIRE
+$INFO = '';
 if (isModEnabled('affaire')) {
 	$langs->load('affaire');
 
@@ -115,7 +116,7 @@ if (isModEnabled('affaire')) {
 	} else {
 		dol_print_error($db);
 	}
-	print "Workflow : $workflow->rowid - $workflow->label | ";
+	$INFO .= "Workflow : $workflow->rowid - $workflow->label | ";
 
 	// Get affaire
 	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
@@ -148,7 +149,7 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	print "Affaire : $affaire->id | ";
+	$INFO .= "Affaire : $affaire->id | ";
 	
 
 	// Get the propal linked to the affaire 
@@ -156,7 +157,7 @@ if (isModEnabled('affaire')) {
 		$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
 		if (isset($affaire->linkedObjects["propal"])) {
 			$propal_array = $affaire->linkedObjects["propal"];
-			print "Count :".count($affaire->linkedObjects["propal"])." | ";
+			$INFO .= "Count :".count($affaire->linkedObjects["propal"])." | ";
 			// If only one linked propal : $id = this propal
 			if (count($propal_array) == 1) {
 				reset($propal_array);
@@ -164,14 +165,13 @@ if (isModEnabled('affaire')) {
 				$id = $propal_array[$key]->id;
 			// If many propal : display a list
 			} else if (count($propal_array) > 1) {
-				// TODO print the list of the propal linked
-				// for each $propal_array {}
+				$action = 'several_propal';
 			} else if (count($propal_array) == 0) {
 				$action = 'create';
 			}
 		} else {
 			// If no propal linked, let's create one 
-			print "Count : No propal | ";
+			$INFO .= "Count : No propal | ";
 			$action = "create";
 			// 	print '<div class="tabsAction">';
 			// 	$parameters = array();
@@ -204,8 +204,8 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	print "Id : $id | ";
-	print "Propal : $object->id | ";
+	$INFO .= "Id : $id | ";
+	$INFO .= "Propal : $object->id | ";
 
 
 	if ($affaire) {
@@ -217,10 +217,10 @@ if (isModEnabled('affaire')) {
 				$affaireStep = $db->fetch_object($resql);
 				// var_dump($affaireStep);
 				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				print "Affaire Step : $affaireStep->label | ";		
+				$INFO .= "Affaire Step : $affaireStep->label | ";		
 				
 				$defaultStepStatus = $affaireStep->fk_default_status;
-				print "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
+				$INFO .= "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
 			} else {
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 			}
@@ -236,11 +236,11 @@ if (isModEnabled('affaire')) {
 				$affaireStatus = $db->fetch_object($resql);
 				// var_dump($affaireStatus);
 				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				print "Affaire Status : $affaireStatus->label | ";			
+				$INFO .= "Affaire Status : $affaireStatus->label | ";			
 
 			} else {
 				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				print "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
+				$INFO .= "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
 			}
 		} else {
 			dol_print_error($db);
@@ -271,10 +271,10 @@ if (isModEnabled('affaire')) {
 				$thisStep = $db->fetch_object($resql);
 				// var_dump($thisStep);
 				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				print "This Step : $thisStep->label | ";		
+				$INFO .= "This Step : $thisStep->label | ";		
 				
 				$defaultStepStatus = $thisStep->fk_default_status;
-				print "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
+				$INFO .= "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
 			} else {
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 			}
@@ -310,7 +310,7 @@ if (isModEnabled('affaire')) {
 				$thisStatus = $db->fetch_object($resql);
 				// var_dump($thisStatus);
 				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				print "Propal Status : $thisStatusRowid - $thisStatus->label| ";
+				$INFO .= "Propal Status : $thisStatusRowid - $thisStatus->label | ";
 
 			} else {
 				if ($action == ('add' || 'create')) {
@@ -342,8 +342,8 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	print "Id : $id | ";
-	print "Propal : $object->id | ";
+	$INFO .= "Id : $id | ";
+	$INFO .= "Propal : $object->id | ";
 }
 
 
@@ -652,7 +652,10 @@ if (empty($reshook)) {
 		}
 
 		if (empty($error)) {
-			change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
+			$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
+			if ($result) {
+				if (is_string($result)) setEventMessages($result, null, 'errors');
+			}
 		} else {
 			setEventMessages($error, null, 'errors');
 		}
@@ -1394,7 +1397,8 @@ if (empty($reshook)) {
 						}
 				
 						if (empty($error)) {
-							change_status($affaire, $defaultStepStatus, $condition='', $thisStep, $previousStatus='', $workflow);
+							$error = change_status($affaire, $defaultStepStatus, $condition='', $thisStep, $previousStatus='', $workflow);
+							if ($error) return $error;
 						} else {
 							setEventMessages($error, null, 'errors');
 						}
@@ -2506,6 +2510,8 @@ llxHeader('', $title, $help_url);
 
 $now = dol_now();
 
+print $INFO;
+
 // Add new proposal
 if ($action == 'create') {
 	$currency_code = $conf->currency;
@@ -2997,6 +3003,14 @@ if ($action == 'create') {
 		print '</table>';
 		print '</div>';
 	}
+} else if ($action == 'several_propal') {
+	/**
+	 * TODO
+	 * print the list of the propal linked
+	 * for each $propal_array {}
+	 */
+
+	print "<br><br>WE HAVE MANY PROPAL";
 } elseif ($object->id > 0) {
 	/*
 	 * Show object in view mode

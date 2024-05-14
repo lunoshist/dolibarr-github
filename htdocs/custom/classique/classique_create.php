@@ -327,12 +327,18 @@ if (empty($reshook)) {
 
 			$result = $object->create($user);
 			if ($result > 0) {
-				// Creation OK
 				$sql = "INSERT INTO `llx_affaire_affaire_status` (`rowid`, `fk_affaire`)";
 				$sql .= " VALUES (NULL, $object->id);";
 				$resql = $db->query($sql);
-				change_status($object, 43, $condition='', $step='Affaire', $previousStatus='', $workflow);
+				if ($resql) {
+					$error = change_status($object, 43, $condition='', $step='Affaire', $previousStatus='', $workflow);
+				} else {
+					$error = 1;
+				}
+			}
 
+			if ($result > 0 && !$error) {
+				// Creation OK
 
 				if (isModEnabled('category') && method_exists($object, 'setCategories')) {
 					$categories = GETPOST('categories', 'array:int');

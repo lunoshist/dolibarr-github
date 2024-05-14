@@ -64,6 +64,9 @@ if (isModEnabled('variants')) {
 	require_once DOL_DOCUMENT_ROOT.'/variants/class/ProductCombination.class.php';
 }
 
+dol_include_once('/affaire/class/affaire.class.php');
+dol_include_once('/affaire/lib/affaire_affaire.lib.php');
+dol_include_once('/affaire/lib/affaire.lib.php');
 
 // Load translation files required by the page
 $langs->loadLangs(array('orders', 'sendings', 'companies', 'bills', 'propal', 'deliveries', 'products', 'other'));
@@ -109,11 +112,219 @@ $hookmanager->initHooks(array('ordercard', 'globalcard'));
 
 $result = restrictedArea($user, 'commande', $id);
 
-$object = new Commande($db);
-$extrafields = new ExtraFields($db);
+// AFFAIRE
+$INFO = '';
+if (isModEnabled('affaire')) {
+	$langs->load('affaire');
 
-// fetch optionals attributes and labels
-$extrafields->fetch_name_optionals_label($object->table_element);
+
+	// Workflow
+	$workflow_array = array();
+	// $workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
+	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$res = $db->fetch_object($resql);
+		$workflow_array["rowid"] = $res->rowid;
+		$workflow_array["label"] = $res->label;
+		$workflow = (object)$workflow_array;
+	} else {
+		dol_print_error($db);
+	}
+	$INFO .= "Workflow : $workflow->rowid - $workflow->label | ";
+
+	// Get affaire
+	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
+	if (empty($affaireID) && !empty($id)) {
+		$object = new Commande($db);
+		$ret = $object->fetch($id);
+
+		$affaireID = getLinkedAff($object);
+	}
+	
+	// Load affaire
+	if ($affaireID > 0) {
+		$affaire = new Affaire($db);
+		$res = $affaire->fetch($affaireID);
+		if ($res > 0) {
+			if ($affaire->fk_workflow_type != $workflow->rowid) {
+				// TODO fetch good workflow
+				$path = dol_buildpath('')."?aiffaire=$affaireID";
+				header('Location: '.$path);
+				exit();
+			}
+
+			/* TODO the associated function
+			dol_tabs($affaire);
+			dol_banner($affaire);
+			dol_workflow_tabs($affaire->fk_workflow_type);
+			*/
+		} else {
+			setEventMessages($affaire->error, $affaire->errors, 'errors');
+			$action = '';
+		}
+	}
+	$INFO .= "Affaire : $affaire->id | ";
+	
+
+	// Get the command linked to the affaire 
+	if (empty($id) && $action != "create" && $action != "add") {
+		$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+		if (isset($affaire->linkedObjects["comande"])) {
+			$cmde_array = $affaire->linkedObjects["propal"];
+			$INFO .= "Count :".count($affaire->linkedObjects["propal"])." | ";
+			// If only one linked propal : $id = this propal
+			if (count($cmde_array) == 1) {
+				reset($cmde_array);
+				$key = key($cmde_array);
+				$id = $cmde_array[$key]->id;
+			// If many propal : display a list
+			} else if (count($cmde_array) > 1) {
+				setEventMessages("tooManyCmde, an affaire correspond to one cmde and only one cmde.\nyou can either add line to the other commande, either create a new affaire", $affaire->errors, 'errors');
+				$action = 'too_many_cmde';
+			} else if (count($cmde_array) == 0) {
+				$action = 'create';
+			}
+		} else {
+			// If no propal linked, let's create one 
+			$INFO .= "Count : No cmde | ";
+			$action = "create";
+		}
+	}
+	
+
+	// load propal
+	$object = new Commande($db);
+	$extrafields = new ExtraFields($db);
+	$extrafields->fetch_name_optionals_label($object->table_element);
+	
+	$INFO .= "Id : $id | ";
+	$INFO .= "Cmde : $object->id | ";
+
+
+	if ($affaire) {
+		// Fetch step of affaire
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStep = $db->fetch_object($resql);
+				// var_dump($affaireStep);
+				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
+				$INFO .= "Affaire Step : $affaireStep->label | ";		
+				
+				$defaultStepStatus = $affaireStep->fk_default_status;
+				$INFO .= "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
+			} else {
+				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+		// Fetch status of affaire
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStatus = $db->fetch_object($resql);
+				// var_dump($affaireStatus);
+				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
+				$INFO .= "Affaire Status : $affaireStatus->label | ";			
+
+			} else {
+				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
+				$INFO .= "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+
+		// Fetch affaire status of each step
+		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStatusbyStep = $db->fetch_object($resql);
+			} else {
+				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+
+		// Fetch this step
+		$thisStepName = 'Cmde'; // <-- this has to be modified when dictionnary change
+
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$thisStep = $db->fetch_object($resql);
+				// var_dump($thisStep);
+				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
+				$INFO .= "This Step : $thisStep->label | ";		
+				
+				$defaultStepStatus = $thisStep->fk_default_status;
+				$INFO .= "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
+			} else {
+				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+		
+		// Fetch all status of this step : cmde
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			$thisStatusArray = array();
+			if ($resql->num_rows > 0) {
+				while ($res = $db->fetch_object($resql)) {
+					$thisStatusArray[$res->rowid] = $res;
+				}
+			} else {
+				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+
+		// Fetch status of affaire for this step
+		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
+		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
+		
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$thisStatus = $db->fetch_object($resql);
+				// var_dump($thisStatus);
+				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
+				$INFO .= "Cmde Status : $thisStatusRowid - $thisStatus->label | ";
+
+			} else {
+				if ($action == ('add' || 'create')) {
+					setEventMessages($langs->trans("CmdeNotCreated - NoStatus"), null, 'mesgs');
+				} else {
+					setEventMessages($langs->trans("CmdeHasNoStatus"), null, 'errors');
+				}
+			}
+		} else {
+			dol_print_error($db);
+		}
+	}
+} else {
+	$object = new Commande($db);
+	$extrafields = new ExtraFields($db);
+	$extrafields->fetch_name_optionals_label($object->table_element);
+	
+	$INFO .= "Id : $id | ";
+	$INFO .= "Cmde : $object->id | ";
+}
 
 // Load object
 include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';     // Must be include, not include_once
@@ -185,6 +396,76 @@ if (empty($reshook)) {
 	include DOL_DOCUMENT_ROOT.'/core/actions_dellink.inc.php';     // Must be include, not include_once
 
 	include DOL_DOCUMENT_ROOT.'/core/actions_lineupdown.inc.php';  // Must be include, not include_once
+
+	// Affaire action
+	if ($action == 'changeStatus') {
+		$newStatus = GETPOSTINT('newStatus');
+
+		$error = 0;
+
+		// Change Commande::STATUS
+		$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
+		$resql = $db->query($sql);
+		if ($resql) {
+			$obj = $db->fetch_object($resql);
+			$code = $obj->fk_type;
+			
+			if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('COMMANDE_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
+				switch ($code) {
+					case ($code < 0):
+						// CANCELED
+						break;
+					case (0 <= $code && $code <= 99):
+						// DRAFT
+						break;
+					case (100 <= $code && $code <= 199):
+						// REOPEN
+						// VALIDATED
+						if (1 == 1) {
+
+						} else {
+							$error = "Impossible mettre le status à $obj->label (System status : Commande::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
+						}
+						break;
+					case (200 <= $code && $code <= 299):
+						// SIGNED
+						if (1 == 1) {
+
+						} else {
+							$error = "Impossible mettre le status à $obj->label (System status : Commande::STATUS_SIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
+						}
+						break;
+					case (300 <= $code && $code <= 349):
+						// BILLED
+						break;
+					case (350 <= $code && $code <= 399):
+						// NOTSIGNED
+						if (1 == 1) {
+
+						} else {
+							$error = "Impossible mettre le status à $obj->label (System status : Commande::STATUS_NOTSIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
+						}
+						break;
+				}
+			}
+		} else {
+			$error = $langs->trans("StatusNotFound");
+		}
+
+		if (empty($error)) {
+			$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
+			if ($result) {
+				if (is_string($result)) setEventMessages($result, null, 'errors');
+			}
+		} else {
+			setEventMessages($error, null, 'errors');
+		}
+
+
+		$path = $_SERVER["PHP_SELF"].'?id='.$id;
+		$path .= $affaireID ? "&affaire=$affaireID" : '';
+		header('Location: '.$path);
+	}
 
 	// Action clone object
 	if ($action == 'confirm_clone' && $confirm == 'yes' && $usercancreate) {
@@ -519,6 +800,49 @@ if (empty($reshook)) {
 				}
 			}
 
+			// Link to affaire
+			if ($object_id > 0 && $affaire) {
+				$result = $object->add_object_linked($affaire->element, $affaire->id);
+				if ($result == 1) {
+					// TODO log it instead of a message
+					setEventMessage("La commande à bien été lié à l'affaire", 'mesgs');
+				} else {
+					$error_message = $db->lasterror();
+					setEventMessage("IMPOSSIBLE DE LIER LA COMMANDE À L4AFFAIRE : $error_message", 'errors');
+					// TODO log it
+				}
+
+				$error = 0;
+
+				// Change Commande::STATUS
+				$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $defaultStepStatus";
+				$resql = $db->query($sql);
+				if ($resql) {
+					$obj = $db->fetch_object($resql);
+					$code = $obj->fk_type;
+					
+					if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('COMMANDE_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
+						switch ($code) {
+							default:
+								break;
+						}
+					}
+				} else {
+					$error = $langs->trans("StatusNotFound");
+				}
+		
+				if (empty($error)) {
+					$result = change_status($affaire, $defaultStepStatus, $condition='', $thisStep, $previousStatus='', $workflow);
+					if ($result) {
+						if (is_string($result)) setEventMessages($result, null, 'errors');
+						$error++;
+					}
+				} else {
+					setEventMessages($error, null, 'errors');
+				}
+		
+			}
+
 			// Insert default contacts if defined
 			if ($object_id > 0) {
 				if (GETPOSTINT('contactid')) {
@@ -536,7 +860,10 @@ if (empty($reshook)) {
 			// End of object creation, we show it
 			if ($object_id > 0 && !$error) {
 				$db->commit();
-				header('Location: '.$_SERVER["PHP_SELF"].'?id='.$object_id);
+				// header('Location: '.$_SERVER["PHP_SELF"].'?id='.$object_id);
+				$path = $_SERVER["PHP_SELF"].'?id='.$object_id;
+				$path .= $affaireID ? "&affaire=$affaireID" : '';
+				header('Location: '.$path);
 				exit();
 			} else {
 				$db->rollback();
@@ -1666,6 +1993,8 @@ $help_url = 'EN:Customers_Orders|FR:Commandes_Clients|ES:Pedidos de clientes|DE:
 
 llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-order page-card');
 
+print $INFO;
+
 $form = new Form($db);
 $formfile = new FormFile($db);
 $formorder = new FormOrder($db);
@@ -1838,6 +2167,9 @@ if ($action == 'create' && $usercancreate) {
 	print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
 	if (!empty($currency_tx)) {
 		print '<input type="hidden" name="originmulticurrency_tx" value="'.$currency_tx.'">';
+	}
+	if ($affaireID) {
+		print '<input type="hidden" name="affaire" value="'.$affaireID.'">'; 
 	}
 
 	print dol_get_fiche_head('');
@@ -2150,6 +2482,13 @@ if ($action == 'create' && $usercancreate) {
 	}
 
 	print '</form>';
+} else if ($action == 'too_many_cmde') {
+	/**
+	 * TODO
+	 * a table with each cmde
+	 * button fusion
+	 * button create new affaire
+	 */
 } else {
 	// Mode view
 	$now = dol_now();
@@ -2462,23 +2801,43 @@ if ($action == 'create' && $usercancreate) {
 		if (!getDolGlobalString('MAIN_DISABLE_OTHER_LINK') && $object->thirdparty->id > 0) {
 			$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/commande/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherOrders").'</a>)';
 		}
-		// Project
-		if (isModEnabled('project')) {
-			$langs->load("projects");
+
+		// // Project
+		// if (isModEnabled('project')) {
+		// 	$langs->load("projects");
+		// 	$morehtmlref .= '<br>';
+		// 	if ($usercancreate) {
+		// 		$morehtmlref .= img_picto($langs->trans("Project"), 'project', 'class="pictofixedwidth"');
+		// 		if ($action != 'classify') {
+		// 			$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetProject')).'</a> ';
+		// 		}
+		// 		$morehtmlref .= $form->form_project($_SERVER['PHP_SELF'].'?id='.$object->id, $object->socid, $object->fk_project, ($action == 'classify' ? 'projectid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
+		// 	} else {
+		// 		if (!empty($object->fk_project)) {
+		// 			$proj = new Project($db);
+		// 			$proj->fetch($object->fk_project);
+		// 			$morehtmlref .= $proj->getNomUrl(1);
+		// 			if ($proj->title) {
+		// 				$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($proj->title).'</span>';
+		// 			}
+		// 		}
+		// 	}
+		// }
+		// Affaire
+		if (isModEnabled('affaire')) {
+			$langs->load("affaire");
 			$morehtmlref .= '<br>';
 			if ($usercancreate) {
-				$morehtmlref .= img_picto($langs->trans("Project"), 'project', 'class="pictofixedwidth"');
+				$morehtmlref .= img_picto($langs->trans("Affaire"), 'affaire.png@affaire', 'class="pictofixedwidth"');
 				if ($action != 'classify') {
-					$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetProject')).'</a> ';
+					$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetAffaire')).'</a> ';
 				}
-				$morehtmlref .= $form->form_project($_SERVER['PHP_SELF'].'?id='.$object->id, $object->socid, $object->fk_project, ($action == 'classify' ? 'projectid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
+				$morehtmlref .= form_affaire($_SERVER['PHP_SELF'].'?id='.$object->id, $object->socid, $affaire->id, ($action == 'classify' ? 'affaireid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
 			} else {
-				if (!empty($object->fk_project)) {
-					$proj = new Project($db);
-					$proj->fetch($object->fk_project);
-					$morehtmlref .= $proj->getNomUrl(1);
-					if ($proj->title) {
-						$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($proj->title).'</span>';
+				if (!empty($affaire)) {
+					$morehtmlref .= $affaire->getNomUrl(1);
+					if ($affaire->title) {
+						$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->title).'</span>';
 					}
 				}
 			}
@@ -3069,6 +3428,26 @@ if ($action == 'create' && $usercancreate) {
 				if ($object->statut == Commande::STATUS_VALIDATED && !empty($usercancancel)) {
 					print '<a class="butActionDelete" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=cancel&token='.newToken().'">'.$langs->trans("CancelOrder").'</a>';
 				}
+								
+				// Change status
+				if (isModEnabled('affaire')) {
+					$arrayforbutaction = array();
+
+					// Fetch all status for this step
+					$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = $thisStep->rowid AND fk_workflow_type = $affaire->fk_workflow_type";
+					$resql = $db->query($sql);
+					if ($resql) {
+						while ($rstatus = $db->fetch_object($resql)) {
+							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&token='.newToken());
+						}
+					} else {
+						dol_print_error($db);
+					}
+
+					$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
+
+					print dolGetButtonAction('', $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
+				}
 
 				// Delete order
 				if ($usercandelete) {
@@ -3106,7 +3485,7 @@ if ($action == 'create' && $usercancreate) {
 			$compatibleImportElementsList = false;
 			if ($usercancreate
 				&& $object->statut == Commande::STATUS_DRAFT) {
-				$compatibleImportElementsList = array('commande', 'propal', 'facture'); // import from linked elements
+				$compatibleImportElementsList = array('commande', 'propal', 'facture', 'affaire'); // import from linked elements
 			}
 			$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem, $compatibleImportElementsList);
 
