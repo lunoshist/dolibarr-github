@@ -20,7 +20,7 @@ CREATE TABLE llx_affaire_affaire_status(
 	fk_status_propal integer,
 	fk_status_cmde integer,
 	fk_status_prod integer,
-	fk_status_post-prod integer,
+	fk_status_post_prod integer,
 	fk_status_expe integer,
 	fk_status_facture integer,
 	fk_status_admin integer

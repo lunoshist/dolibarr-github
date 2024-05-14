@@ -204,8 +204,7 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	$INFO .= "Id : $id | ";
-	$INFO .= "Propal : $object->id | ";
+	$INFO .= "Propal - ID : $object->id - $id | ";
 
 
 	if ($affaire) {
@@ -217,7 +216,7 @@ if (isModEnabled('affaire')) {
 				$affaireStep = $db->fetch_object($resql);
 				// var_dump($affaireStep);
 				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				$INFO .= "Affaire Step : $affaireStep->label | ";		
+				$INFO .= "Affaire Step : $affaireStep->label_short | ";		
 				
 				$defaultStepStatus = $affaireStep->fk_default_status;
 				$INFO .= "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
@@ -236,7 +235,7 @@ if (isModEnabled('affaire')) {
 				$affaireStatus = $db->fetch_object($resql);
 				// var_dump($affaireStatus);
 				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				$INFO .= "Affaire Status : $affaireStatus->label | ";			
+				$INFO .= "Affaire Status : $affaireStatus->rowid - $affaireStatus->label | ";			
 
 			} else {
 				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
@@ -271,7 +270,7 @@ if (isModEnabled('affaire')) {
 				$thisStep = $db->fetch_object($resql);
 				// var_dump($thisStep);
 				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				$INFO .= "This Step : $thisStep->label | ";		
+				$INFO .= "This Step : $thisStep->label_short | ";		
 				
 				$defaultStepStatus = $thisStep->fk_default_status;
 				$INFO .= "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
@@ -528,7 +527,7 @@ if (empty($reshook)) {
 									setEventMessages($langs->trans($object->error), null, 'errors');
 								}
 							}
-						} else {
+						} else if ($object->statut != Propal::STATUS_VALIDATED) {
 							$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
 						}
 						break;
@@ -595,7 +594,7 @@ if (empty($reshook)) {
 								$db->rollback();
 								$action = '';
 							}
-						} else {
+						} else if ($object->statut != Propal::STATUS_SIGNED) {
 							$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_SIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
 						}
 						break;
@@ -641,7 +640,7 @@ if (empty($reshook)) {
 								$db->rollback();
 								$action = '';
 							}
-						} else {
+						} else if ($object->statut != Propal::STATUS_VALIDATED) if ($object->statut != Propal::STATUS_NOTSIGNED) {
 							$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_NOTSIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
 						}
 						break;
