@@ -125,15 +125,18 @@ function dol_banner($object) {
  * @return void
  */
 function dol_workflow_tabs($workflow_type) {
+	global $langs, $conf, $db;
 	// TODO review the entiere function
 	$sql = 'SELECT label from llx_c_affaire_workflow_types WHERE rowid='.$workflow_type;
-	$res= $db->query($sql);
+	$resql= $db->query($sql);
+	$res = $db->fetch_object($resql);
 	$label = $res->label;
 	// $res = @include dol_buildpath($reldir . '/' . $tplname . '.tpl.php');
 	dol_include_once("/$label/core/modules/mod$label.class.php");
 	$modLabel = "mod$label";
 	$modAffaire = new $modLabel;
 	dol_tabs($modAffaire);
+	$db->free($resql);
 }
 
 /**
@@ -169,6 +172,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	// CHECK CONDITIONS
 	if (!empty($condition)) {
 		// TODO 
+		$invalid_codition = 0;
 
 		if ($invalid_codition) {
 			$db->rollback();
@@ -188,6 +192,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			$error++;
 			dol_print_error($db);
 		}
+		$db->free($resql);
 	}
 	// Status
 	if (!is_object($newStatus) && is_numeric($newStatus) && !$error) {
@@ -205,6 +210,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			$error++;
 			dol_print_error($db);
 		}
+		$db->free($resql);
 	} else {
 		$error++;
 		setEventMessages($langs->trans("InvalidStatusProviden"), null, 'errors');
@@ -236,6 +242,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			$error++;
 			dol_print_error($db);
 		}
+		$db->free($resql);
 	}
 	if (empty($previousStatus) && !$error){
 		// TODO sql query based on $affaire
@@ -257,6 +264,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			$db->rollback();
 			return $error++;
 		}
+		$db->free($resql);
 
 		// PREPARE UPDATE AFFAIRE STEP & STATUS
 		$newAffaireStep = '';
@@ -265,11 +273,11 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 
 		// 1- Fetch steps in good order
 		$sql = "SELECT rowid, label_short FROM llx_c_affaire_steps WHERE fk_workflow_type = $workflow->rowid AND position IS NOT NULL ORDER BY position";
-		$resql = $db->query($sql);
-		if ($resql) {
+		$result = $db->query($sql);
+		if ($result) {
 			// 2- For each step (starting by the first step) ...
 			while (empty($newAffaireStatus)) {
-				$rstep = $db->fetch_object($resql);
+				$rstep = $db->fetch_object($result);
 				if (is_null($rstep)) break;
 				$rstepLabel = strtolower($rstep->label_short);
 				$rstepRowid = strtolower($rstep->rowid);
@@ -281,6 +289,9 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 					$obj = $db->fetch_object($resql);
 					$rstepStatus = $obj->{"fk_status_$rstepLabel"};
 				}
+				$db->free($resql);
+
+				if (is_null($rstepStatus)) continue;
 
 				// ... then fetch status type code ...
 				$sql = "SELECT fk_type FROM llx_c_affaire_status WHERE rowid = $rstepStatus";
@@ -289,12 +300,13 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 					$obj = $db->fetch_object($resql);
 					$code = $obj->fk_type;
 				}
+				$db->free($resql);
 
 				// 3- Stock it
 				$affaireStatus[$rstepLabel] = array("rowid"=>$rstepRowid, "label"=>$rstepLabel, "status"=> $rstepStatus, "code"=> $code);
 
 				// 4- Look for a open code
-				if (99 < $code && $code < 200) {
+				if (100 <= $code && $code <= 199) {
 					$newAffaireStep = $rstepRowid;
 					$newAffaireStatus = $rstepStatus;
 				}
@@ -336,6 +348,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		$error++;
 		dol_print_error($db);
 	}
+	$db->free($resql);
 
 	// LOOK FOR AUTOMATING
 	$error = look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
@@ -371,6 +384,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			// CHECK CONDITIONS
 			if (!empty($r->conditions)) {
 				// TODO 
+				$invalid_codition = 0;
 
 				if ($invalid_codition) {
 					continue;
@@ -407,7 +421,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 						$display_step_error = "File : $cmde_page not found on this server";
 					}
 				}
-				if ($r->new_step == 'STRING') {
+				if ($r->new_step == 'createProd') {
 					// Do domething
 				}
 				if ($r->new_step == 'STRING') {
