@@ -441,3 +441,128 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 		return $error++;
 	}
 }
+
+/**
+ * function to create a project as production for a given propal or commande
+ *
+ * @param int $id					$id of the origin object
+ * @param string $element			'propal' or 'commande'
+ * @param Propal|Commande $object	origin object (optional for optimization)
+ * @return integer|string			0 if OK, 1 or $error if not OK
+ */
+function generateProject($id, $element, $object='') {
+	global $db, $user, $langs, $conf;
+	$error = 0;
+
+	// Fetch object
+	if (!$object) {
+		if ($element == 'propal') $object = new Propal($db);
+		if ($element == 'commande') $object = new Commande($db);
+		$object->fetch($id);
+	}
+
+	// Check delivery date
+	if (getDolGlobalInt("CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE") && !$object->delivery_date)
+	{
+		setEventMessage("IMPOSSIBLE DE CREER LE PROJET : La date livraison est vide dans la commande ou proposition.",'errors');
+		return $error++; 
+	}
+
+	$Projet = new Project($db);
+
+	// REF
+	if (getDolGlobalInt("USE_CMDE_REF_FOR_PROJECT_REF")) {
+		$CmdeRef=explode("-",$object->ref);
+		$Projet->ref = 'P_' . $CmdeRef[0];
+	} else {
+		//Generate next ref
+		$defaultref = '';
+		$obj = !getDolGlobalString('PROJECT_ADDON') ? 'mod_project_simple' : $conf->global->PROJECT_ADDON;
+		// Search template files
+		$file = '';
+		$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
+		foreach ($dirmodels as $reldir) {
+			$file = dol_buildpath($reldir."core/modules/project/".$obj.'.php', 0);
+			if (file_exists($file)) {
+				dol_include_once($reldir."core/modules/project/".$obj.'.php');
+				$modProject = new $obj();
+				$defaultref = $modProject->getNextValue(is_object($object->fk_soc) ? $object->fk_soc : null, '');
+				break;
+			}
+		}
+		if (is_numeric($defaultref) && $defaultref <= 0) {
+			$defaultref = '';
+		}
+
+		$Projet->ref = $defaultref;
+	}
+	
+	// Delivery date
+	$Projet->date_end = $object->delivery_date;
+
+	// Title
+	if (getDolGlobalInt("USE_PRODUCT_FOR_PROJECT_TITLE")) {
+		$object->fetch_thirdparty();
+		$soc = $object->thirdparty;
+		$Projet->title = trim(substr ($object->name,0,7)); // commence par le nom de la societe
+		$Projet->fk_soc = $object->fk_soc; // commence par le nom de la societe
+
+		// recherche des produits
+		if ($object->element == 'commande'){
+    		$sql2 = "SELECT cmdep.rowid, cmdep.fk_commande, cmdep.fk_product, cmdep.description ";
+    		$sql2.= 'FROM '.MAIN_DB_PREFIX.'commandedet AS cmdep ';
+    		$sql2.= 'WHERE cmdep.fk_commande='.$object->rowid;
+		} else if ($object->element == 'propal') {
+		    $sql2 = "SELECT propaldet.rowid, propaldet.fk_propal, propaldet.fk_product, propaldet.description ";
+		    $sql2.= 'FROM '.MAIN_DB_PREFIX.'propaldet AS propaldet ';
+		    $sql2.= 'WHERE propaldet.fk_propal='.$object->rowid;
+		    
+		}
+		
+		$resql2 = $db->query($sql2);
+		
+		if ($resql2)
+		{
+			$num = $db->num_rows($resql2);
+				
+			// on boucle sur les comde non enregistree en projet
+			$i = 0;
+			while ($i < $num)
+			{
+				$obj2 = $db->fetch_object($resql2);
+		
+				if ($obj2->fk_product != NULL)
+				{
+					// si produit on recherche ref du produit
+					$sql3 = "SELECT p.rowid, p.ref ";
+					$sql3.= 'FROM '.MAIN_DB_PREFIX.'product AS p ';
+					$sql3.= 'WHERE p.rowid='.$obj2->fk_product;
+			
+					$resql3 = $db->query($sql3);
+					if ($resql3)
+					{
+						$obj3 = $db->fetch_object($resql3);
+						$Projet->title.= '-'.trim(substr ($obj3->ref,0,4));
+					}
+				}
+				else 
+				{
+					// Si pas de ref on prend la descrition libre
+					$Projet->title.= '-'.trim(substr ($obj2->description,0,4));
+				}
+				$i++;
+			}
+				
+				
+		}
+		$db->free($resql2);
+				
+		$Projet->title = trim(substr ($Projet->title,0,20));
+	} 
+	// Else reuse affaire title
+	if (!$Projet->title){
+		// TODO 
+	}
+
+
+}
