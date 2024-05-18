@@ -421,6 +421,8 @@ if (empty($reshook)) {
 	// Affaire action
 	if ($action == 'changeStatus') {
 		$newStatus = GETPOSTINT('newStatus');
+		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
+		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
 
 		$error = 0;
 

@@ -419,7 +419,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 					if (is_string($result) || (is_numeric($result) && $result <= 0)) {
 						$error = $result;
 					} else if (is_object($result)) {
-						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_prod_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&token='.newToken();
+						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_prod_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&action=changeStatus&newStatus=defaultStatus&token='.newToken();
 						$prod_page = dol_buildpath($path, 1);
 
 						addUrlToOpen($prod_page);
@@ -473,9 +473,10 @@ function injectOpenUrlsScript() {
  * @param int $id					$id of the origin object
  * @param string $element			'propal' or 'commande'
  * @param Propal|Commande $object	origin object (optional for optimization)
+ * @param Affaire $affaire			affaire to link
  * @return integer|string|Project	$Project if OK, 1 or $error if not OK
  */
-function generateProject($id, $element, $object='') {
+function generateProject($id, $element, $object='', $affaire=false) {
 	global $db, $user, $langs, $conf;
 	require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 	require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
@@ -593,6 +594,7 @@ function generateProject($id, $element, $object='') {
 		$ProjetRowid = $object->fk_project;
 	} else {
 		$res = $ProjetRowid = $Projet->create($user);
+		if ($res > 0 && $affaire) $res = $Projet->add_object_linked($affaire->element, $affaire->id);
 	}
 	if ($res <= 0 || $ProjetRowid <= 0) {
 		$error_message = $db->lasterror();

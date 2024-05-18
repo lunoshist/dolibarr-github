@@ -39,6 +39,10 @@ require_once DOL_DOCUMENT_ROOT.'/core/modules/project/modules_project.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 
+dol_include_once('/affaire/class/affaire.class.php');
+dol_include_once('/affaire/lib/affaire_affaire.lib.php');
+dol_include_once('/affaire/lib/affaire.lib.php');
+
 // Load translation files required by the page
 $langsLoad = array('projects', 'companies');
 if (isModEnabled('eventorganization')) {
@@ -81,19 +85,253 @@ $mine = GETPOST('mode') == 'mine' ? 1 : 0;
 // Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
 $hookmanager->initHooks(array('projectcard', 'globalcard'));
 
-$object = new Project($db);
-$extrafields = new ExtraFields($db);
 
-// Load object
-//include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';  // Can't use generic include because when creating a project, ref is defined and we don't want error if fetch fails from ref.
-if ($id > 0 || !empty($ref)) {
-	$ret = $object->fetch($id, $ref); // If we create project, ref may be defined into POST but record does not yet exists into database
-	if ($ret > 0) {
-		$object->fetch_thirdparty();
-		if (getDolGlobalString('PROJECT_ALLOW_COMMENT_ON_PROJECT') && method_exists($object, 'fetchComments') && empty($object->comments)) {
-			$object->fetchComments();
+
+// AFFAIRE
+$INFO = '';
+global $urlsToOpen;
+$urlsToOpen = $urlsToOpen ?? [];
+
+if (isModEnabled('affaire')) {
+	$langs->load('affaire');
+
+
+	// Workflow
+	$workflow_array = array();
+	// $workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
+	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$res = $db->fetch_object($resql);
+		$workflow_array["rowid"] = $res->rowid;
+		$workflow_array["label"] = $res->label;
+		$workflow = (object)$workflow_array;
+	} else {
+		dol_print_error($db);
+	}
+	$INFO .= "Workflow : $workflow->rowid - $workflow->label | ";
+
+	// Get affaire
+	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
+	if (empty($affaireID) && !empty($id)) {
+		$object = new Project($db);
+		$ret = $object->fetch($id);
+
+		$affaireID = getLinkedAff($object);
+	}
+	
+	// Load affaire
+	if ($affaireID > 0) {
+		$affaire = new Affaire($db);
+		$res = $affaire->fetch($affaireID);
+		if ($res > 0) {
+			if ($affaire->fk_workflow_type != $workflow->rowid) {
+				// TODO fetch good workflow
+				$path = dol_buildpath('')."?aiffaire=$affaireID";
+				header('Location: '.$path);
+				exit();
+			}
+
+			/* TODO the associated function
+			dol_tabs($affaire);
+			dol_banner($affaire);
+			dol_workflow_tabs($affaire->fk_workflow_type);
+			*/
+		} else {
+			setEventMessages($affaire->error, $affaire->errors, 'errors');
+			$action = '';
 		}
-		$id = $object->id;
+	}
+	$INFO .= "Affaire : $affaire->id | ";
+	
+
+	// Get the project linked to the affaire 
+	if (empty($id) && $action != "create" && $action != "add") {
+		$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+		if (isset($affaire->linkedObjects["projet"])) {
+			$project_array = $affaire->linkedObjects["projet"];
+			$INFO .= "Count :".count($affaire->linkedObjects["projet"])." | ";
+			// If only one linked project : $id = this project
+			if (count($project_array) == 1) {
+				reset($project_array);
+				$key = key($project_array);
+				$id = $project_array[$key]->id;
+			// If many project : display a list
+			} else if (count($project_array) > 1) {
+				$action = 'several_project';
+			} else if (count($project_array) == 0) {
+				$action = 'create';
+			}
+		} else {
+			// If no project linked, let's create one 
+			$INFO .= "Count : No project | ";
+			$action = "create";
+			// 	print '<div class="tabsAction">';
+			// 	$parameters = array();
+			// 	$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
+			// 	// modified by hook
+			// 	if (empty($reshook)) {
+			// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=create&token='.newToken().'">'.$langs->trans('Create').'</a>';
+			// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=changeStatus&token='.newToken().'">'.$langs->trans('ChangeStatus').'</a>';
+			// 	}		
+			// 	print '</div>';
+		}
+	}
+	
+
+	// load project
+	$object = new Project($db);
+	$extrafields = new ExtraFields($db);
+
+	// Load object
+	//include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';  // Can't use generic include because when creating a project, ref is defined and we don't want error if fetch fails from ref.
+	if ($id > 0 || !empty($ref)) {
+		$ret = $object->fetch($id, $ref); // If we create project, ref may be defined into POST but record does not yet exists into database
+		if ($ret > 0) {
+			$object->fetch_thirdparty();
+			if (getDolGlobalString('PROJECT_ALLOW_COMMENT_ON_PROJECT') && method_exists($object, 'fetchComments') && empty($object->comments)) {
+				$object->fetchComments();
+			}
+			$id = $object->id;
+		}
+		if ($ret <= 0) {
+			setEventMessages($object->error, $object->errors, 'errors');
+			$action = '';
+		}
+	}
+	$INFO .= "Project - ID : $object->id - $id | ";
+
+
+	if ($affaire) {
+		// Fetch step of affaire
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStep = $db->fetch_object($resql);
+				// var_dump($affaireStep);
+				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
+				$INFO .= "Affaire Step : $affaireStep->label_short | ";		
+				
+				$defaultStepStatus = $affaireStep->fk_default_status;
+				$INFO .= "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
+			} else {
+				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+		// Fetch status of affaire
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStatus = $db->fetch_object($resql);
+				// var_dump($affaireStatus);
+				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
+				$INFO .= "Affaire Status : $affaireStatus->rowid - $affaireStatus->label | ";			
+
+			} else {
+				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
+				$INFO .= "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+
+		// Fetch affaire status of each step
+		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStatusbyStep = $db->fetch_object($resql);
+			} else {
+				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+
+		// Fetch this step
+		$thisStepName = 'Prod'; // <-- this has to be modofied when dictionnary change
+
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$thisStep = $db->fetch_object($resql);
+				// var_dump($thisStep);
+				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
+				$INFO .= "This Step : $thisStep->label_short | ";		
+				
+				$defaultStepStatus = $thisStep->fk_default_status;
+				$INFO .= "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
+			} else {
+				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+		
+		// Fetch all status of this step : prod
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			$thisStatusArray = array();
+			if ($resql->num_rows > 0) {
+				while ($res = $db->fetch_object($resql)) {
+					$thisStatusArray[$res->rowid] = $res;
+				}
+			} else {
+				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
+			}
+		} else {
+			dol_print_error($db);
+		}
+
+
+		// Fetch status of affaire for this step
+		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
+		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
+		
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$thisStatus = $db->fetch_object($resql);
+				// var_dump($thisStatus);
+				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
+				$INFO .= "Project Status : $thisStatusRowid - $thisStatus->label | ";
+
+			} else {
+				if ($action == ('add' || 'create')) {
+					setEventMessages($langs->trans("ProjectNotCreated - NoStatus"), null, 'mesgs');
+				} else {
+					setEventMessages($langs->trans("ProjectHasNoStatus"), null, 'errors');
+				}
+			}
+		} else {
+			dol_print_error($db);
+		}
+	}
+} else {
+	$object = new Project($db);
+	$extrafields = new ExtraFields($db);
+
+	// Load object
+	//include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';  // Can't use generic include because when creating a project, ref is defined and we don't want error if fetch fails from ref.
+	if ($id > 0 || !empty($ref)) {
+		$ret = $object->fetch($id, $ref); // If we create project, ref may be defined into POST but record does not yet exists into database
+		if ($ret > 0) {
+			$object->fetch_thirdparty();
+			if (getDolGlobalString('PROJECT_ALLOW_COMMENT_ON_PROJECT') && method_exists($object, 'fetchComments') && empty($object->comments)) {
+				$object->fetchComments();
+			}
+			$id = $object->id;
+		}
 	}
 }
 
@@ -113,7 +351,7 @@ $permissiontoadd = $user->hasRight('projet', 'creer');
 $permissiontodelete = $user->hasRight('projet', 'supprimer');
 $permissiondellink = $user->hasRight('projet', 'creer');	// Used by the include of actions_dellink.inc.php
 
-
+// ACTION
 /*
  * Actions
  */
@@ -163,6 +401,266 @@ if (empty($reshook)) {
 	}
 
 	include DOL_DOCUMENT_ROOT.'/core/actions_dellink.inc.php';		// Must be include, not include_once
+
+
+	// Affaire action
+	if ($action == 'changeStatus') {
+		$newStatus = GETPOSTINT('newStatus');
+		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
+		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
+
+		$error = 0;
+
+		// // Change Propal::STATUS
+		// $sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
+		// $resql = $db->query($sql);
+		// if ($resql) {
+		// 	$obj = $db->fetch_object($resql);
+		// 	$code = $obj->fk_type;
+		// 	$soc= $object->thirdparty;
+			
+		// 	if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('PROPAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
+		// 		switch (true) {
+		// 			case ($code < 0):
+		// 				// CANCELED
+		// 				break;
+		// 			case (0 <= $code && $code <= 99):
+		// 				// DRAFT
+		// 				break;
+		// 			case (100 <= $code && $code <= 199):
+		// 				// REOPEN
+		// 				if (((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED))) && $usercanclose) {
+		// 					// prevent browser refresh from reopening proposal several times
+		// 					if ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED) {
+		// 						$db->begin();
+
+		// 						$newstatus = (getDolGlobalInt('PROPAL_SKIP_ACCEPT_REFUSE') ? Propal::STATUS_DRAFT : Propal::STATUS_VALIDATED);
+		// 						$result = $object->reopen($user, $newstatus);
+		// 						if ($result < 0) {
+		// 							setEventMessages($object->error, $object->errors, 'errors');
+		// 							$error++;
+		// 						} else {
+		// 							$object->statut = $newstatus;
+		// 							$object->status = $newstatus;
+		// 						}
+
+		// 						if (!$error) {
+		// 							$db->commit();
+		// 						} else {
+		// 							$db->rollback();
+		// 						}
+		// 					}
+		// 				}
+		// 				// VALIDATED
+		// 				else if ((($object->statut == Propal::STATUS_DRAFT && $object->total_ttc >= 0 && count($object->lines) > 0)
+		// 				|| ($object->statut == Propal::STATUS_DRAFT && getDolGlobalString('PROPAL_ENABLE_NEGATIVE') && count($object->lines) > 0)) && $usercanvalidate) {
+		// 					$error = 0;
+
+		// 					// We verify whether the object is provisionally numbering
+		// 					$ref = substr($object->ref, 1, 4);
+		// 					if ($ref == 'PROV' || $ref == '') {
+		// 						$numref = $object->getNextNumRef($soc);
+		// 						if (empty($numref)) {
+		// 							$error++;
+		// 							setEventMessages($object->error, $object->errors, 'errors');
+		// 						}
+		// 					} else {
+		// 						$numref = $object->ref;
+		// 					}
+					
+		// 					// mandatoryPeriod
+		// 					$nbMandated = 0;
+		// 					foreach ($object->lines as $line) {
+		// 						$res = $line->fetch_product();
+		// 						if ($res  > 0) {
+		// 							if ($line->product->isService() && $line->product->isMandatoryPeriod() && (empty($line->date_start) || empty($line->date_end))) {
+		// 								$nbMandated++;
+		// 								break;
+		// 							}
+		// 						}
+		// 					}
+		// 					if ($nbMandated > 0) {
+		// 						setEventMessages($langs->trans("mandatoryPeriodNeedTobeSetMsgValidate"), null, 'errors');
+		// 					}
+
+		// 					$idwarehouse = GETPOSTINT('idwarehouse');
+		// 					$result = $object->valid($user);
+		// 					if ($result > 0 && getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE')) {
+		// 						$result = $object->closeProposal($user, $object::STATUS_SIGNED);
+		// 					}
+		// 					if ($result >= 0) {
+		// 						if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+		// 							$outputlangs = $langs;
+		// 							$newlang = '';
+		// 							if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
+		// 								$newlang = GETPOST('lang_id', 'aZ09');
+		// 							}
+		// 							if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
+		// 								$newlang = $object->thirdparty->default_lang;
+		// 							}
+		// 							if (!empty($newlang)) {
+		// 								$outputlangs = new Translate("", $conf);
+		// 								$outputlangs->setDefaultLang($newlang);
+		// 							}
+		// 							$model = $object->model_pdf;
+		// 							$ret = $object->fetch($id); // Reload to get new records
+		// 							if ($ret > 0) {
+		// 								$object->fetch_thirdparty();
+		// 							}
+
+		// 							$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
+		// 						}
+		// 					} else {
+		// 						$langs->load("errors");
+		// 						if (count($object->errors) > 0) {
+		// 							setEventMessages($object->error, $object->errors, 'errors');
+		// 						} else {
+		// 							setEventMessages($langs->trans($object->error), null, 'errors');
+		// 						}
+		// 					}
+		// 				} else if (count($object->lines) > 0) {
+		// 					$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) car elle ne contient pas de ligne ";
+		// 				} else if ($object->statut != Propal::STATUS_VALIDATED) {
+		// 					$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
+		// 				}
+		// 				break;
+		// 			case (200 <= $code && $code <= 299):
+		// 				// SIGNED
+		// 				// prevent browser refresh from closing proposal several times
+		// 				if ($object->statut == $object::STATUS_VALIDATED || $object->statut == $object::STATUS_NOTSIGNED || (getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') && $object->statut == $object::STATUS_DRAFT)) {
+		// 					$db->begin();
+			
+		// 					$result = $object->closeProposal($user, Propal::STATUS_SIGNED);
+		// 					if ($result < 0) {
+		// 						setEventMessages($object->error, $object->errors, 'errors');
+		// 						$error++;
+		// 					}
+			
+		// 					$deposit = null;
+			
+		// 					$deposit_percent_from_payment_terms = getDictionaryValue('c_payment_term', 'deposit_percent', $object->cond_reglement_id);
+			
+		// 					if (
+		// 						!$error && GETPOSTINT('statut') == $object::STATUS_SIGNED && GETPOSTINT('generate_deposit') == 'on'
+		// 						&& !empty($deposit_percent_from_payment_terms) && isModEnabled('invoice') && $user->hasRight('facture', 'creer')
+		// 					) {
+		// 						require_once DOL_DOCUMENT_ROOT . '/compta/facture/class/facture.class.php';
+			
+		// 						$date = dol_mktime(0, 0, 0, GETPOSTINT('datefmonth'), GETPOSTINT('datefday'), GETPOSTINT('datefyear'));
+		// 						$forceFields = array();
+			
+		// 						if (GETPOSTISSET('date_pointoftax')) {
+		// 							$forceFields['date_pointoftax'] = dol_mktime(0, 0, 0, GETPOSTINT('date_pointoftaxmonth'), GETPOSTINT('date_pointoftaxday'), GETPOSTINT('date_pointoftaxyear'));
+		// 						}
+			
+		// 						$deposit = Facture::createDepositFromOrigin($object, $date, GETPOSTINT('cond_reglement_id'), $user, 0, GETPOSTINT('validate_generated_deposit') == 'on', $forceFields);
+			
+		// 						if ($deposit) {
+		// 							setEventMessage('DepositGenerated');
+		// 							$locationTarget = DOL_URL_ROOT . '/compta/facture/card.php?id=' . $deposit->id;
+		// 						} else {
+		// 							$error++;
+		// 							setEventMessages($object->error, $object->errors, 'errors');
+		// 						}
+		// 					}
+			
+		// 					if (!$error) {
+		// 						$db->commit();
+			
+		// 						if ($deposit && !getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+		// 							$ret = $deposit->fetch($deposit->id); // Reload to get new records
+		// 							$outputlangs = $langs;
+			
+		// 							if (getDolGlobalInt('MAIN_MULTILANGS')) {
+		// 								$outputlangs = new Translate('', $conf);
+		// 								$outputlangs->setDefaultLang($deposit->thirdparty->default_lang);
+		// 								$outputlangs->load('products');
+		// 							}
+			
+		// 							$result = $deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
+			
+		// 							if ($result < 0) {
+		// 								setEventMessages($deposit->error, $deposit->errors, 'errors');
+		// 							}
+		// 						}
+		// 					} else {
+		// 						$db->rollback();
+		// 						$action = '';
+		// 					}
+		// 				} else if ($object->statut != Propal::STATUS_SIGNED) {
+		// 					$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_SIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
+		// 				}
+		// 				break;
+		// 			case (300 <= $code && $code <= 349):
+		// 				// BILLED
+		// 				break;
+		// 			case (350 <= $code && $code <= 399):
+		// 				// NOTSIGNED
+		// 				// prevent browser refresh from closing proposal several times
+		// 				if ($object->statut == $object::STATUS_VALIDATED || (getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') && $object->statut == $object::STATUS_DRAFT)) {
+		// 					$db->begin();
+			
+		// 					$result = $object->closeProposal($user, Propal::STATUS_NOTSIGNED);
+		// 					if ($result < 0) {
+		// 						setEventMessages($object->error, $object->errors, 'errors');
+		// 						$error++;
+		// 					}
+			
+		// 					$deposit = null;
+			
+		// 					$deposit_percent_from_payment_terms = getDictionaryValue('c_payment_term', 'deposit_percent', $object->cond_reglement_id);
+
+		// 					if (!$error) {
+		// 						$db->commit();
+			
+		// 						if ($deposit && !getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+		// 							$ret = $deposit->fetch($deposit->id); // Reload to get new records
+		// 							$outputlangs = $langs;
+			
+		// 							if (getDolGlobalInt('MAIN_MULTILANGS')) {
+		// 								$outputlangs = new Translate('', $conf);
+		// 								$outputlangs->setDefaultLang($deposit->thirdparty->default_lang);
+		// 								$outputlangs->load('products');
+		// 							}
+			
+		// 							$result = $deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
+			
+		// 							if ($result < 0) {
+		// 								setEventMessages($deposit->error, $deposit->errors, 'errors');
+		// 							}
+		// 						}
+		// 					} else {
+		// 						$db->rollback();
+		// 						$action = '';
+		// 					}
+		// 				} else if ($object->statut != Propal::STATUS_VALIDATED) if ($object->statut != Propal::STATUS_NOTSIGNED) {
+		// 					$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_NOTSIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
+		// 				}
+		// 				break;
+		// 		}
+		// 	}
+		// } else {
+		// 	$error = $langs->trans("StatusNotFound");
+		// }
+
+		if (empty($error)) {
+			$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
+			if ($result) {
+				setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
+				if (is_string($result)) setEventMessages($result, null, 'errors');
+			}
+		} else {
+			setEventMessages($error, null, 'errors');
+		}
+
+
+		$_SESSION['urlsToOpen'] = $urlsToOpen;
+
+		$path = $_SERVER["PHP_SELF"].'?id='.$id;
+		$path .= $affaireID ? "&affaire=$affaireID" : '';
+		header('Location: '.$path);
+		exit;
+	}
 
 	// Action setdraft object
 	if ($action == 'confirm_setdraft' && $confirm == 'yes' && $permissiontoadd) {
@@ -558,7 +1056,7 @@ if (empty($reshook)) {
 	include DOL_DOCUMENT_ROOT.'/core/actions_sendmails.inc.php';
 }
 
-
+// VIEW
 /*
  *	View
  */
@@ -576,6 +1074,9 @@ if (getDolGlobalString('MAIN_HTML_TITLE') && preg_match('/projectnameonly/', get
 $help_url = "EN:Module_Projects|FR:Module_Projets|ES:M&oacute;dulo_Proyectos|DE:Modul_Projekte";
 
 llxHeader("", $title, $help_url);
+
+print $INFO;
+injectOpenUrlsScript();
 
 $titleboth = $langs->trans("LeadsOrProjects");
 $titlenew = $langs->trans("NewLeadOrProject"); // Leads and opportunities by default
@@ -937,6 +1438,14 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
         	});
         });
         </script>';
+} else if ($action == 'several_projet') {
+	/**
+	 * TODO
+	 * print the list of the project linked
+	 * for each $project_array {}
+	 */
+
+	print "<br><br>WE HAVE MANY PROJET";
 } elseif ($object->id > 0) {
 	/*
 	 * Show or edit
@@ -1315,6 +1824,19 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 		if (!empty($object->thirdparty->id) && $object->thirdparty->id > 0) {
 			$morehtmlref .= $object->thirdparty->getNomUrl(1, 'project');
 		}
+
+		// Affaire
+		if (isModEnabled('affaire')) {
+			$langs->load("affaire");
+			$morehtmlref .= '<br>';
+			if ($affaire) {
+				$morehtmlref .= $affaire->getNomUrl(1);
+				if ($affaire->title) {
+					$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->title).'</span>';
+				}
+			}
+		}
+
 		// Parent
 		if (getDolGlobalInt('PROJECT_ENABLE_SUB_PROJECT')) {
 			if (!empty($object->fk_project) && $object->fk_project) {
@@ -1557,7 +2079,7 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
         </script>';
 	}
 
-
+	// ACTION BUTTON
 	/*
 	 * Actions Buttons
 	 */
@@ -1670,6 +2192,26 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 				} else {
 					print dolGetButtonAction($langs->trans('NotOwnerOfProject'), $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 				}
+			}
+
+			// Change status
+			if (isModEnabled('affaire')) {
+				$arrayforbutaction = array();
+
+				// Fetch all status for this step
+				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = $thisStep->rowid AND fk_workflow_type = $affaire->fk_workflow_type";
+				$resql = $db->query($sql);
+				if ($resql) {
+					while ($rstatus = $db->fetch_object($resql)) {
+						$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&token='.newToken());
+					}
+				} else {
+					dol_print_error($db);
+				}
+
+				$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
+
+				print dolGetButtonAction('', $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 			}
 
 			// Delete
