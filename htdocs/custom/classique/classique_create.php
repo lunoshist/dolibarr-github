@@ -100,10 +100,30 @@ $backtopageforcancel = GETPOST('backtopageforcancel', 'alpha');	// if not set, $
 $backtopagejsfields = GETPOST('backtopagejsfields', 'alpha');
 $dol_openinpopup = GETPOST('dol_openinpopup', 'aZ09');
 
-$workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>8, "affaireCreationStatus"=>1);
-// TODO get the good value from a database request 
-// sql = 
-// $workflow = array ("rowid"=>2, "label"=>'classique', "fisrtStep"=>$resql->fisrtStep, "affaireCreationStatus"=>$resql->affaireCreationStatus)
+
+$workflow_label = 'Classique';
+// $workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>8, "affaireCreationStatus"=>1);
+$sql = "
+SELECT 
+    w.rowid, 
+    w.label, 
+    s.rowid AS firstStep, 
+    s.fk_default_status AS affaireCreationStatus
+FROM 
+    llx_c_affaire_workflow_types w
+LEFT JOIN 
+    llx_c_affaire_steps s ON s.fk_workflow_type = w.rowid
+WHERE 
+    w.label = '$workflow_label' 
+ORDER BY 
+    s.position ASC 
+LIMIT 1";
+$resql = $db->query($sql);
+if ($resql) {
+	$workflow = $db->fetch_object($resql);
+} else {
+	dol_print_error($db);
+}
 
 $fk_workflow_type = $workflow->rowid;
 $fk_step = $workflow->firstStep;
@@ -331,7 +351,7 @@ if (empty($reshook)) {
 				$sql .= " VALUES (NULL, $object->id);";
 				$resql = $db->query($sql);
 				if ($resql) {
-					$error = change_status($object, 43, $condition='', $step='Affaire', $previousStatus='', $workflow);
+					$error = change_status($object, $workflow->affaireCreationStatus, $condition='', $step=$workflow->firstStep, $previousStatus='', $workflow);
 				} else {
 					$error = 1;
 				}

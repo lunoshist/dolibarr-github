@@ -236,7 +236,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 				$step = $db->fetch_object($resql);	
 			} else {
 				$error--;
-				setEventMessages($langs->trans("NoSuchStatus"), null, 'errors');
+				setEventMessages($langs->trans("NoSuchStep"), null, 'errors');
 			}
 		} else {
 			$error--;
