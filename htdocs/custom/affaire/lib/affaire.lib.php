@@ -921,3 +921,274 @@ function SeremTaskNaming ($objdet, $obj2) {
 
 	return $NewTaskName;
 }
+
+/**
+ * Return HTML string to put an input field into a page
+ * Code very similar with showInputField of common object
+ *
+ * @param  Extrafields	 $extra            		$extrafields
+ * @param  string        $key            		Key of attribute
+ * @param  string|array  $value 			    Preselected value to show (for date type it must be in timestamp format, for amount or price it must be a php numeric value); for dates in filter mode, a range array('start'=><timestamp>, 'end'=><timestamp>) should be provided
+ * @param  string        $moreparam      		To add more parameters on html input tag
+ * @param  string        $keysuffix      		Prefix string to add after name and id of field (can be used to avoid duplicate names)
+ * @param  string        $keyprefix      		Suffix string to add before name and id of field (can be used to avoid duplicate names)
+ * @param  string        $morecss        		More css (to defined size of field. Old behaviour: may also be a numeric)
+ * @param  int           $objectid       		Current object id
+ * @param  string        $extrafieldsobjectkey	The key to use to store retrieved data (commonly $object->table_element)
+ * @param  int	         $mode                  1=Used for search filters
+ * @param  object		 $Step					Step
+ * @return string
+ */
+function aff_show_input_field($extra, $key, $value, $moreparam = '', $keysuffix = '', $keyprefix = '', $morecss = '', $objectid = 0, $extrafieldsobjectkey = '', $mode = 0, $Step)
+{
+	global $conf, $langs, $form;
+
+	if (!is_object($form)) {
+		require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
+		$form = new Form($extra->db);
+	}
+
+	$out = '';
+
+	if (!preg_match('/options_$/', $keyprefix)) {	// Because we work on extrafields, we add 'options_' to prefix if not already added
+		$keyprefix = $keyprefix.'options_';
+	}
+
+	if (empty($extrafieldsobjectkey)) {
+		dol_syslog(get_class($extra).'::showInputField extrafieldsobjectkey required', LOG_ERR);
+		return 'BadValueForParamExtraFieldsObjectKey';
+	}
+
+	$label = $extra->attributes[$extrafieldsobjectkey]['label'][$key];
+	$type = $extra->attributes[$extrafieldsobjectkey]['type'][$key];
+	$size = $extra->attributes[$extrafieldsobjectkey]['size'][$key];
+	$default = $extra->attributes[$extrafieldsobjectkey]['default'][$key];
+	$computed = $extra->attributes[$extrafieldsobjectkey]['computed'][$key];
+	$unique = $extra->attributes[$extrafieldsobjectkey]['unique'][$key];
+	$required = $extra->attributes[$extrafieldsobjectkey]['required'][$key];
+	$param = $extra->attributes[$extrafieldsobjectkey]['param'][$key];
+	$perms = (int) dol_eval($extra->attributes[$extrafieldsobjectkey]['perms'][$key], 1, 1, '2');
+	$langfile = $extra->attributes[$extrafieldsobjectkey]['langfile'][$key];
+	$list = (string) dol_eval($extra->attributes[$extrafieldsobjectkey]['list'][$key], 1, 1, '2');
+	$totalizable = $extra->attributes[$extrafieldsobjectkey]['totalizable'][$key];
+	$help = $extra->attributes[$extrafieldsobjectkey]['help'][$key];
+	$hidden = (empty($list) ? 1 : 0); // If empty, we are sure it is hidden, otherwise we show. If it depends on mode (view/create/edit form or list, this must be filtered by caller)
+
+	//var_dump('key='.$key.' '.$value.' '.$moreparam.' '.$keysuffix.' '.$keyprefix.' '.$objectid.' '.$extrafieldsobjectkey.' '.$mode);
+	//var_dump('label='.$label.' type='.$type.' param='.var_export($param, 1));
+
+	if ($computed) {
+		if (!preg_match('/^search_/', $keyprefix)) {
+			return '<span class="opacitymedium">'.$langs->trans("AutomaticallyCalculated").'</span>';
+		} else {
+			return '';
+		}
+	}
+
+	//
+	// 'css' is used in creation and update. 'cssview' is used in view mode. 'csslist' is used for columns in lists. For example: 'css'=>'minwidth300 maxwidth500 widthcentpercentminusx', 'cssview'=>'wordbreak', 'csslist'=>'tdoverflowmax200'
+	if (empty($morecss)) {
+		// Add automatic css
+		if ($type == 'date') {
+			$morecss = 'minwidth100imp';
+		} elseif ($type == 'datetime' || $type == 'datetimegmt' || $type == 'link') {
+			$morecss = 'minwidth200imp';
+		} elseif (in_array($type, array('int', 'integer', 'double', 'price'))) {
+			$morecss = 'maxwidth75';
+		} elseif ($type == 'password') {
+			$morecss = 'maxwidth100';
+		} elseif ($type == 'url') {
+			$morecss = 'minwidth400';
+		} elseif ($type == 'boolean') {
+			$morecss = '';
+		} elseif ($type == 'radio') {
+			$morecss = 'width25';
+		} else {
+			if (empty($size) || round((float) $size) < 12) {
+				$morecss = 'minwidth100';
+			} elseif (round((float) $size) <= 48) {
+				$morecss = 'minwidth200';
+			} else {
+				$morecss = 'minwidth400';
+			}
+		}
+		// If css forced in attribute, we use this one
+		if (!empty($extra->attributes[$extrafieldsobjectkey]['css'][$key])) {
+			$morecss = $extra->attributes[$extrafieldsobjectkey]['css'][$key];
+		}
+	}
+
+	if ($type == 'sellist') {
+		$out = '';  // @phan-suppress-current-line PhanPluginRedundantAssignment
+		if (!empty($conf->use_javascript_ajax) && !getDolGlobalString('MAIN_EXTRAFIELDS_DISABLE_SELECT2')) {
+			include_once DOL_DOCUMENT_ROOT.'/core/lib/ajax.lib.php';
+			$out .= ajax_combobox($keyprefix.$key.$keysuffix, array(), 0);
+		}
+
+		$out .= '<select class="flat '.$morecss.' maxwidthonsmartphone" name="'.$keyprefix.$key.$keysuffix.'" id="'.$keyprefix.$key.$keysuffix.'" '.($moreparam ? $moreparam : '').'>';
+		if (is_array($param['options'])) {
+			$param_list = array_keys($param['options']);
+			$InfoFieldList = explode(":", $param_list[0]);
+			$parentName = '';
+			$parentField = '';
+			// 0 : tableName
+			// 1 : label field name
+			// 2 : key fields name (if differ of rowid)
+			// 3 : key field parent (for dependent lists)
+			// 4 : where clause filter on column or table extrafield, syntax field='value' or extra.field=value
+			// 5 : id category type
+			// 6 : ids categories list separated by comma for category root
+			// 7 : sort by (to be close to common object)
+			$keyList = (empty($InfoFieldList[2]) ? 'rowid' : $InfoFieldList[2].' as rowid');
+
+
+			if (count($InfoFieldList) > 4 && !empty($InfoFieldList[4])) {
+				if (strpos($InfoFieldList[4], 'extra.') !== false) {
+					$keyList = 'main.'.$InfoFieldList[2].' as rowid';
+				} else {
+					$keyList = $InfoFieldList[2].' as rowid';
+				}
+			}
+			if (count($InfoFieldList) > 3 && !empty($InfoFieldList[3])) {
+				list($parentName, $parentField) = explode('|', $InfoFieldList[3]);
+				$keyList .= ', '.$parentField;
+			}
+
+			$filter_categorie = false;
+			if (count($InfoFieldList) > 5) {
+				if ($InfoFieldList[0] == 'categorie') {
+					$filter_categorie = true;
+				}
+			}
+
+			if ($filter_categorie === false) {
+				$fields_label = explode('|', $InfoFieldList[1]);
+				if (is_array($fields_label)) {
+					$keyList .= ', ';
+					$keyList .= implode(', ', $fields_label);
+				}
+
+				// serem
+				// $sqlwhere = '';
+				// $sql = "SELECT ".$keyList;
+				// $sql .= ' FROM '.$extra->db->prefix().$InfoFieldList[0];
+				// if (!empty($InfoFieldList[4])) {
+				// 	// can use current entity filter
+				// 	if (strpos($InfoFieldList[4], '$ENTITY$') !== false) {
+				// 		$InfoFieldList[4] = str_replace('$ENTITY$', (string) $conf->entity, $InfoFieldList[4]);
+				// 	}
+				// 	// can use SELECT request
+				// 	if (strpos($InfoFieldList[4], '$SEL$') !== false) {
+				// 		$InfoFieldList[4] = str_replace('$SEL$', 'SELECT', $InfoFieldList[4]);
+				// 	}
+
+				// 	// current object id can be use into filter
+				// 	if (strpos($InfoFieldList[4], '$ID$') !== false && !empty($objectid)) {
+				// 		$InfoFieldList[4] = str_replace('$ID$', (string) $objectid, $InfoFieldList[4]);
+				// 	} else {
+				// 		$InfoFieldList[4] = str_replace('$ID$', '0', $InfoFieldList[4]);
+				// 	}
+				// 	//We have to join on extrafield table
+				// 	if (strpos($InfoFieldList[4], 'extra.') !== false) {
+				// 		$sql .= ' as main, '.$extra->db->prefix().$InfoFieldList[0].'_extrafields as extra';
+				// 		$sqlwhere .= " WHERE extra.fk_object=main.".$InfoFieldList[2]." AND ".$InfoFieldList[4];
+				// 	} else {
+				// 		$sqlwhere .= " WHERE ".$InfoFieldList[4];
+				// 	}
+				// } else {
+				// 	$sqlwhere .= ' WHERE 1=1';
+				// }
+				// // Some tables may have field, some other not. For the moment we disable it.
+				// if (in_array($InfoFieldList[0], array('tablewithentity'))) {
+				// 	$sqlwhere .= ' AND entity = '.((int) $conf->entity);
+				// }
+				// $sql .= $sqlwhere;
+				// //print $sql;
+
+				// $sql .= ' ORDER BY '.implode(', ', $fields_label);
+
+				$sql = "SELECT rowid as rowid, label FROM llx_c_affaire_status WHERE fk_step=$Step AND active=1 ORDER BY fk_type";
+				// END SEREM
+
+				dol_syslog(get_class($extra).'::showInputField type=sellist', LOG_DEBUG);
+				$resql = $extra->db->query($sql);
+				if ($resql) {
+					$out .= '<option value="0">&nbsp;</option>';
+					$num = $extra->db->num_rows($resql);
+					$i = 0;
+					while ($i < $num) {
+						$labeltoshow = '';
+						$obj = $extra->db->fetch_object($resql);
+
+						// Several field into label (eq table:code|label:rowid)
+						$notrans = false;
+						$fields_label = explode('|', $InfoFieldList[1]);
+						if (is_array($fields_label) && count($fields_label) > 1) {
+							$notrans = true;
+							foreach ($fields_label as $field_toshow) {
+								$labeltoshow .= $obj->$field_toshow.' ';
+							}
+						} else {
+							$labeltoshow = $obj->{$InfoFieldList[1]};
+						}
+
+						if ($value == $obj->rowid) {
+							if (!$notrans) {
+								foreach ($fields_label as $field_toshow) {
+									$translabel = $langs->trans($obj->$field_toshow);
+									$labeltoshow = $translabel.' ';
+								}
+							}
+							$out .= '<option value="'.$obj->rowid.'" selected>'.$labeltoshow.'</option>';
+						} else {
+							if (!$notrans) {
+								$translabel = $langs->trans($obj->{$InfoFieldList[1]});
+								$labeltoshow = $translabel;
+							}
+							if (empty($labeltoshow)) {
+								$labeltoshow = '(not defined)';
+							}
+
+							if (!empty($InfoFieldList[3]) && $parentField) {
+								$parent = $parentName.':'.$obj->{$parentField};
+							}
+
+							$out .= '<option value="'.$obj->rowid.'"';
+							$out .= ($value == $obj->rowid ? ' selected' : '');
+							$out .= (!empty($parent) ? ' parent="'.$parent.'"' : '');
+							$out .= '>'.$labeltoshow.'</option>';
+						}
+
+						$i++;
+					}
+					$extra->db->free($resql);
+				} else {
+					print 'Error in request '.$sql.' '.$extra->db->lasterror().'. Check setup of extra parameters.<br>';
+				}
+			} else {
+				require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+				$data = $form->select_all_categories(Categorie::$MAP_ID_TO_CODE[$InfoFieldList[5]], '', 'parent', 64, $InfoFieldList[6], 1, 1);
+				$out .= '<option value="0">&nbsp;</option>';
+				if (is_array($data)) {
+					foreach ($data as $data_key => $data_value) {
+						$out .= '<option value="'.$data_key.'"';
+						$out .= ($value == $data_key ? ' selected' : '');
+						$out .= '>'.$data_value.'</option>';
+					}
+				}
+			}
+		}
+		$out .= '</select>';
+	}
+	if (!empty($hidden)) {
+		$out = '<input type="hidden" value="'.$value.'" name="'.$keyprefix.$key.$keysuffix.'" id="'.$keyprefix.$key.$keysuffix.'"/>';
+	}
+	/* Add comments
+		if ($type == 'date') $out.=' (YYYY-MM-DD)';
+		elseif ($type == 'datetime') $out.=' (YYYY-MM-DD HH:MM:SS)';
+		*/
+	/*if (!empty($help) && $keyprefix != 'search_options_') {
+		$out .= $form->textwithpicto('', $help, 1, 'help', '', 0, 3);
+	}*/
+	return $out;
+}

@@ -288,7 +288,7 @@ if (isModEnabled('affaire')) {
 		}
 		
 		// Fetch all status of this step : propal
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
 		$resql = $db->query($sql);
 		if ($resql) {
 			$thisStatusArray = array();
@@ -429,7 +429,7 @@ if (empty($reshook)) {
 
 		$error = 0;
 
-		// Change $propal->aff_status & Propal::STATUS
+		// Change object status ($propal->aff_status & Propal::STATUS)
 		if ($status_for == 'both' || $status_for == 'object') {
 			$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
 			$resql = $db->query($sql);
@@ -537,7 +537,7 @@ if (empty($reshook)) {
 										setEventMessages($langs->trans($object->error), null, 'errors');
 									}
 								}
-							} else if ($object->total_ttc >= 0 || count($object->lines) < 0) {
+							} else if ($object->total_ttc <= 0 || count($object->lines) < 0) {
 								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) car elle ne contient pas de ligne ";
 							} else if ($object->statut != Propal::STATUS_VALIDATED) {
 								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
@@ -671,7 +671,7 @@ if (empty($reshook)) {
 			}
 		}
 
-
+		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire) 
 		if (empty($error)) {
 			$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
 			if ($result) {
@@ -3445,7 +3445,12 @@ if ($action == 'create') {
 		}
 
 		// Other attributes
-		include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
+		// change tpl to handle aff_status
+		// include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
+		include DOL_DOCUMENT_ROOT.'/custom/affaire/tpl/extrafields_view.tpl.php';
+		// this is a copy of htdocs/core/tpl/extrafields_view.tpl.php
+		// just to rewrite code for aff_status
+		// each code change will be indicated by // serem // END SEREM
 
 		print '</table>';
 
@@ -3723,10 +3728,12 @@ if ($action == 'create') {
 					$arrayforbutaction = array();
 
 					foreach ($thisStatusArray as $key => $rstatus) {
+						$labeltoshow = $rstatus->label;
+						if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
 						if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
-							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label." | ".$rstatus->status_for, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 						} else {
-							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label." | ".$rstatus->status_for, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 						}
 					}
 	
