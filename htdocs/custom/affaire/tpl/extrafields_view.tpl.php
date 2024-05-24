@@ -251,15 +251,18 @@ if (empty($reshook) && !empty($object->table_element) && isset($extrafields->att
 				if ($object->table_element == 'societe') {
 					$fieldid = 'socid';
 				}
+				// serem
 				print '<form enctype="multipart/form-data" action="'.$_SERVER["PHP_SELF"] . '?' . $fieldid . '=' . $object->id . '" method="post" name="formextra">';
-				print '<input type="hidden" name="action" value="update_extras">';
 				print '<input type="hidden" name="attribute" value="'.$tmpkeyextra.'">';
 				print '<input type="hidden" name="token" value="'.newToken().'">';
 				print '<input type="hidden" name="'.$fieldid.'" value="'.$object->id.'">';
-				// serem
 				if ($tmpkeyextra == 'aff_status') {
+					// print '<input type="hidden" name="action" value="update_extras">';
+					print '<input type="hidden" name="action" value="changeStatus">';
+					print '<input type="hidden" name="status_for" value="object">';
 					print aff_show_input_field($extrafields, $tmpkeyextra, $value, '', '', '', 0, $object->id, $object->table_element, 0, $thisStep->rowid);
 				} else {
+					print '<input type="hidden" name="action" value="update_extras">';
 					print $extrafields->showInputField($tmpkeyextra, $value, '', '', '', 0, $object->id, $object->table_element);
 				}
 				// END SEREM

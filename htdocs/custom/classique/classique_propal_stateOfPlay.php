@@ -421,7 +421,7 @@ if (empty($reshook)) {
 
 	// Affaire action
 	if ($id && $action == 'changeStatus') {
-		$newStatus = GETPOSTINT('newStatus');
+		$newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
 		$close_window = GETPOSTINT('close_window');
 		$status_for = GETPOST('status_for', 'aZ09');
 		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
@@ -660,7 +660,18 @@ if (empty($reshook)) {
 				}
 
 				if (empty($error)) {
-					// TODO change the extrafield of this propal
+					$object->oldcopy = dol_clone($object, 2);
+					$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
+
+					$object->array_options["options_".$attribute_name] = $newStatus;
+					$result = $object->updateExtraField($attribute_name, 'PROPAL_MODIFY');
+					if ($result < 0) {
+						setEventMessages($object->error, $object->errors, 'errors');
+						$error--;
+					}
+					if ($error) {
+						$action = 'edit_extras';
+					}
 				}
 			} else {
 				$error = $langs->trans("StatusNotFound");
@@ -671,15 +682,17 @@ if (empty($reshook)) {
 			}
 		}
 
-		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire) 
-		if (empty($error)) {
-			$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
-			if ($result) {
-				setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
-				if (is_string($result)) setEventMessages($result, null, 'errors');
+		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
+		if ($status_for == 'both' || $status_for == 'step') {
+			if (empty($error)) {
+				$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
+				if ($result) {
+					setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
+					if (is_string($result)) setEventMessages($result, null, 'errors');
+				}
+			} else {
+				setEventMessages($error, null, 'errors');
 			}
-		} else {
-			setEventMessages($error, null, 'errors');
 		}
 
 
@@ -687,6 +700,7 @@ if (empty($reshook)) {
 
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
 		$path .= $affaireID ? "&affaire=$affaireID" : '';
+		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
 		header('Location: '.$path);
 		exit;
 	} else if ($action == 'changeStatus') {
