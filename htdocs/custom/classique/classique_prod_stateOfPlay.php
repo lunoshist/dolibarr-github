@@ -436,7 +436,7 @@ if (empty($reshook)) {
 
 		$error = 0;
 
-		// Change Propal::STATUS
+		// Change Project::STATUS
 		$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
 		$resql = $db->query($sql);
 		if ($resql) {
@@ -755,6 +755,12 @@ if (empty($reshook)) {
 			$status = Project::STATUS_VALIDATED;
 		}
 
+		// Extrafields for affaire
+		if ($affaire) {
+			$object->array_options["options_fk_affaire"] = $affaire->id;
+			$object->array_options["options_aff_status"] = $defaultStepStatus;
+		}
+
 		if (!$error) {
 			$error = 0;
 
@@ -822,6 +828,19 @@ if (empty($reshook)) {
 					setEventMessages($object->error, $object->errors, 'errors');
 					$error++;
 				}
+			}
+
+			// Link to affaire
+			if ($affaire) {
+				$result = $object->add_object_linked($affaire->element, $affaire->id);
+				if ($result == 1) {
+					// TODO log it instead of a message
+					setEventMessage("le projet à bien été lié à l'affaire", 'mesgs');
+				} else {
+					$error_message = $db->lasterror();
+					setEventMessage("IMPOSSIBLE DE LIER LE PROJET À L4AFFAIRE : $error_message", 'errors');
+					// TODO log it
+				}				
 			}
 
 			if (!$error) {
@@ -2167,7 +2186,94 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 	$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
 	// modified by hook
 	if (empty($reshook)) {
-		if ($action != "edit" && $action != 'presend') {
+		if ($action != "edit" && $action != 'presend' && $affaire) {
+
+			// Send
+			if (empty($user->socid)) {
+				if ($object->statut != Project::STATUS_CLOSED) {
+					print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER["PHP_SELF"].'?action=presend&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
+				}
+			}
+
+			// Back to draft
+			if (!getDolGlobalString('MAIN_DISABLEDRAFTSTATUS') && !getDolGlobalString('MAIN_DISABLEDRAFTSTATUS_PROJECT')) {
+				if ($object->statut != Project::STATUS_DRAFT && $user->hasRight('projet', 'creer')) {
+					if ($userWrite > 0) {
+						print dolGetButtonAction('', $langs->trans('SetToDraft'), 'default', $_SERVER["PHP_SELF"].'?action=confirm_setdraft&amp;confirm=yes&amp;token='.newToken().'&amp;id='.$object->id, '');
+					} else {
+						print dolGetButtonAction($langs->trans('NotOwnerOfProject'), $langs->trans('SetToDraft'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+					}
+				}
+			}
+
+			// Modify
+			if ($object->statut != Project::STATUS_CLOSED && $user->hasRight('projet', 'creer')) {
+				if ($userWrite > 0) {
+					print dolGetButtonAction('', $langs->trans('Modify'), 'default', $_SERVER["PHP_SELF"].'?action=edit&token='.newToken().'&id='.$object->id, '');
+				} else {
+					print dolGetButtonAction($langs->trans('NotOwnerOfProject'), $langs->trans('Modify'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+				}
+			}
+
+			// Buttons Create
+			if (!getDolGlobalString('PROJECT_HIDE_CREATE_OBJECT_BUTTON')) {
+				$arrayforbutaction = array(
+					//10 => array('lang' => 'propal', 'enabled' => isModEnabled("propal"), 'perm' => $user->hasRight('propal', 'creer'), 'label' => 'AddProp', 'url' => '/comm/propal/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					//20 => array('lang' => 'orders', 'enabled' => isModEnabled("order"), 'perm' => $user->hasRight('commande', 'creer'), 'label' => 'CreateOrder', 'url' => '/commande/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					//30 => array('lang' => 'bills', 'enabled' => isModEnabled("invoice"), 'perm' => $user->hasRight('facture', 'creer'), 'label' => 'CreateBill', 'url' => '/compta/facture/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					40 => array('lang' => 'supplier_proposal', 'enabled' => isModEnabled("supplier_proposal"), 'perm' => $user->hasRight('supplier_proposal', 'creer'), 'label' => 'AddSupplierProposal', 'url' => '/supplier_proposal/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					50 => array('lang' => 'suppliers', 'enabled' => isModEnabled("supplier_order"), 'perm' => $user->hasRight('fournisseur', 'commande', 'creer'), 'label' => 'AddSupplierOrder', 'url' => '/fourn/commande/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					60 => array('lang' => 'suppliers', 'enabled' => isModEnabled("supplier_invoice"), 'perm' => $user->hasRight('fournisseur', 'facture', 'creer'), 'label' => 'AddSupplierInvoice', 'url' => '/fourn/facture/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					70 => array('lang' => 'interventions', 'enabled' => isModEnabled("intervention"), 'perm' => $user->hasRight('fichinter', 'creer'), 'label' => 'AddIntervention', 'url' => '/fichinter/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					80 => array('lang' => 'contracts', 'enabled' => isModEnabled("contract"), 'perm' => $user->hasRight('contrat', 'creer'), 'label' => 'AddContract', 'url' => '/contrat/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+					90 => array('lang' => 'trips', 'enabled' => isModEnabled("expensereport"), 'perm' => $user->hasRight('expensereport', 'creer'), 'label' => 'AddTrip', 'url' => '/expensereport/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+				   100 => array('lang' => 'donations', 'enabled' => isModEnabled("don"), 'perm' => $user->hasRight('don', 'creer'), 'label' => 'AddDonation', 'url' => '/don/card.php?action=create&amp;projectid='.$object->id.'&amp;socid='.$object->socid),
+				);
+
+				$params = array('backtopage' => $_SERVER["PHP_SELF"].'?id='.$object->id, 'areDropdownButtons' => false);
+
+				print dolGetButtonAction('', $langs->trans("Create"), 'default', $arrayforbutaction, '', 1, $params);
+			}
+
+			// Clone
+			if ($user->hasRight('projet', 'creer')) {
+				if ($userWrite > 0) {
+					print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER["PHP_SELF"].'?action=clone&amp;token='.newToken().'&amp;id='.$object->id, '');
+				} else {
+					print dolGetButtonAction($langs->trans('NotOwnerOfProject'), $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+				}
+			}
+
+			// Change status
+			if (isModEnabled('affaire')) {
+				$arrayofstatusforbutaction = array();
+
+				// Fetch all status for this step
+				foreach ($thisStatusArray as $key => $rstatus) {
+					$labeltoshow = $rstatus->label;
+					if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
+					if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
+						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+					} else {
+						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+					}
+				}
+
+				$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
+
+				$infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: commande $object->ref");
+				print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayofstatusforbutaction, 'changeStatusButton', 1, $params);
+			}
+
+			// Delete
+			if ($user->hasRight('projet', 'supprimer') || ($object->statut == Project::STATUS_DRAFT && $user->hasRight('projet', 'creer'))) {
+				if ($userDelete > 0 || ($object->statut == Project::STATUS_DRAFT && $user->hasRight('projet', 'creer'))) {
+					print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');
+				} else {
+					print dolGetButtonAction($langs->trans('NotOwnerOfProject'), $langs->trans('Delete'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+				}
+			}
+		} else if ($action != "edit" && $action != 'presend') {
 			// Create event
 			/*if (isModEnabled('agenda') && !empty($conf->global->MAIN_ADD_EVENT_ON_ELEMENT_CARD)) 				// Add hidden condition because this is not a
 				// "workflow" action so should appears somewhere else on
@@ -2270,27 +2376,6 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 				} else {
 					print dolGetButtonAction($langs->trans('NotOwnerOfProject'), $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 				}
-			}
-
-			// Change status
-			if (isModEnabled('affaire')) {
-				$arrayforbutaction = array();
-
-				// Fetch all status for this step
-				foreach ($thisStatusArray as $key => $rstatus) {
-					$labeltoshow = $rstatus->label;
-					if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
-					if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
-						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
-					} else {
-						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
-					}
-				}
-
-				$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
-
-				$infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: commande $object->ref");
-				print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 			}
 
 			// Delete

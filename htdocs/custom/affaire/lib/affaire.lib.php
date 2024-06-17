@@ -405,7 +405,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			 */
 			
 			if ($r->automation_type == 'changeStatus') {
-				$error = change_status($affaire, $r->new_status, $r->condition ?? '', $r->step);
+				$error = change_status($affaire, $r->new_status, $r->condition ?? '', $r->new_step);
 			} else if ($r->automation_type == 'System') {
 				// TODO
 				if ($r->new_step == 'createOrder') {
