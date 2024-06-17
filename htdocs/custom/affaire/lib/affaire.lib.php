@@ -405,7 +405,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			 */
 			
 			if ($r->automation_type == 'changeStatus') {
-				$error = change_status($affaire, $r->fk_status_to_change, $r->condition);
+				$error = change_status($affaire, $r->new_status, $r->condition ?? '', $r->step);
 			} else if ($r->automation_type == 'System') {
 				// TODO
 				if ($r->new_step == 'createOrder') {
@@ -415,7 +415,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 					addUrlToOpen($cmde_page);
 				}
 				if ($r->new_step == 'generateProd') {
-					$result = generateProject($object->id, $object->element, $object);
+					$result = generateProject($object->id, $object->element, $object, $affaire, $r->new_status);
 					if (is_string($result) || (is_numeric($result) && $result <= 0)) {
 						$error = $result;
 					} else if (is_object($result)) {
@@ -470,13 +470,14 @@ function injectOpenUrlsScript() {
 /**
  * function to create a project as production for a given propal or commande
  *
- * @param int $id					$id of the origin object
- * @param string $element			'propal' or 'commande'
- * @param Propal|Commande $object	origin object (optional for optimization)
- * @param Affaire $affaire			affaire to link
- * @return integer|string|Project	$Project if OK, 1 or $error if not OK
+ * @param int $id							$id of the origin object
+ * @param string $element					'propal' or 'commande'
+ * @param Propal|Commande $object			origin object (optional for optimization)
+ * @param Affaire $affaire					affaire to link
+ * @param string|int $defaultStepStatus		default status for object projet
+ * @return integer|string|Project			$Project if OK, 1 or $error if not OK
  */
-function generateProject($id, $element, $object='', $affaire=false) {
+function generateProject($id, $element, $object='', $affaire=false, $defaultStepStatus='') {
 	global $db, $user, $langs, $conf;
 	require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 	require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
@@ -593,7 +594,14 @@ function generateProject($id, $element, $object='', $affaire=false) {
 		$res = $Projet->update($user);
 		$ProjetRowid = $object->fk_project;
 	} else {
+		// Extrafields for affaire
+		if ($affaire) {
+			$Projet->array_options["options_fk_affaire"] = $affaire->id;
+			$Projet->array_options["options_aff_status"] = $defaultStepStatus;
+		}
+
 		$res = $ProjetRowid = $Projet->create($user);
+
 		if ($res > 0 && $affaire) $res = $Projet->add_object_linked($affaire->element, $affaire->id);
 	}
 	if ($res <= 0 || $ProjetRowid <= 0) {
@@ -720,7 +728,7 @@ function generateProject($id, $element, $object='', $affaire=false) {
 			
 			// Mise a jour du status a  des extrafiels existants
 			$sqlupdate='UPDATE '.MAIN_DB_PREFIX.'projet_task_extrafields AS Extra, '.MAIN_DB_PREFIX.'projet_task AS Tache';
-			$sqlupdate.= ' SET Extra.statut_fab=0 ,Extra.statut_adm=0';
+			$sqlupdate.= ' SET Extra.statut_fab=0 ';
 			$sqlupdate.= ' WHERE Extra.fk_object=Tache.rowid AND Tache.note_private='.$objdet->rowid;
 			$resultupdate=$db->query($sqlupdate);
 			$db->free($resultupdate);
@@ -820,13 +828,14 @@ function generateProject($id, $element, $object='', $affaire=false) {
 							$ressqldel=$db->query($sqldel);
 							$db->free($ressqldel);
 							
-							$sqlinsert = 'INSERT INTO '.MAIN_DB_PREFIX.'projet_task_extrafields (fk_object, statut_fab , statut_adm)';
-							$sqlinsert.= ' values ('.$TaskRowid.', 0, 0)';
+							$sqlinsert = 'INSERT INTO '.MAIN_DB_PREFIX.'projet_task_extrafields (fk_object, statut_fab)';
+							$sqlinsert.= ' values ('.$TaskRowid.', 0)';
 							$result=$db->query($sqlinsert);
 							$db->free($result);
 						}
 					}
 					$db->free($resqlexist);
+					$db->free($resqlsearch);
 				}
 				else {
 					$error_message = $db->lasterror();
@@ -834,7 +843,6 @@ function generateProject($id, $element, $object='', $affaire=false) {
 					$db->rollback();
 					return -1;
 				}
-				$db->free($resqlsearch);
 			}
 		}
 	}

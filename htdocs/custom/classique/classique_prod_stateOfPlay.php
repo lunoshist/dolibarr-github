@@ -88,7 +88,12 @@ $hookmanager->initHooks(array('projectcard', 'globalcard'));
 
 
 // AFFAIRE
-$INFO = '';
+$INFO = array(
+	"Workflow" => '<br>Workflow :  ',
+	"Affaire" => '<br><br>Affaire :  ',
+	"Object" => '<br><br>Object ',
+	"Page" => '<br><br><br>This page :  ',
+);
 global $urlsToOpen;
 $urlsToOpen = $urlsToOpen ?? [];
 
@@ -98,7 +103,7 @@ if (isModEnabled('affaire')) {
 
 	// Workflow
 	$workflow_array = array();
-	// $workflow = (object)array("rowid"=>2, "label"=>'classique', "firstStep"=>7, "affaireCreationStatus"=>1);
+	// $workflow = (object)array("rowid"=>2, "label"=>'classique');
 	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
 	$resql = $db->query($sql);
 	if ($resql) {
@@ -109,7 +114,7 @@ if (isModEnabled('affaire')) {
 	} else {
 		dol_print_error($db);
 	}
-	$INFO .= "Workflow : $workflow->rowid - $workflow->label | ";
+	$INFO["Workflow"] .= "<br> > $workflow->label [$workflow->rowid]";
 
 	// Get affaire
 	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
@@ -142,15 +147,15 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	$INFO .= "Affaire : $affaire->id | ";
+	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
 	
 
 	// Get the project linked to the affaire 
+	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
 	if (empty($id) && $action != "create" && $action != "add") {
-		$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
-		if (isset($affaire->linkedObjects["projet"])) {
-			$project_array = $affaire->linkedObjects["projet"];
-			$INFO .= "Count :".count($affaire->linkedObjects["projet"])." | ";
+		if (isset($affaire->linkedObjects["project"])) {
+			$project_array = $affaire->linkedObjects["project"];
+			$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
 			// If only one linked project : $id = this project
 			if (count($project_array) == 1) {
 				reset($project_array);
@@ -164,7 +169,7 @@ if (isModEnabled('affaire')) {
 			}
 		} else {
 			// If no project linked, let's create one 
-			$INFO .= "Count : No project | ";
+			$INFO["Object"] .= "(No project)";
 			$action = "create";
 			// 	print '<div class="tabsAction">';
 			// 	$parameters = array();
@@ -176,6 +181,8 @@ if (isModEnabled('affaire')) {
 			// 	}		
 			// 	print '</div>';
 		}
+	} else if ($id) {
+		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
 	}
 	
 
@@ -199,22 +206,20 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	$INFO .= "Project - ID : $object->id - $id | ";
+	$INFO["Object"] .= "<br> > $object->ref [$id]";
 
 
 	if ($affaire) {
 		// Fetch step of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
 			if ($resql->num_rows > 0) {
 				$affaireStep = $db->fetch_object($resql);
+				$defaultStepStatus = $affaireStep->fk_default_status;
 				// var_dump($affaireStep);
 				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				$INFO .= "Affaire Step : $affaireStep->label_short | ";		
-				
-				$defaultStepStatus = $affaireStep->fk_default_status;
-				$INFO .= "Default Status for $affaireStep->label_short : $defaultStepStatus | ";		
+				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
 			} else {
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 			}
@@ -223,18 +228,18 @@ if (isModEnabled('affaire')) {
 		}
 
 		// Fetch status of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
 		$resql = $db->query($sql);
 		if ($resql) {
 			if ($resql->num_rows > 0) {
 				$affaireStatus = $db->fetch_object($resql);
 				// var_dump($affaireStatus);
 				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				$INFO .= "Affaire Status : $affaireStatus->rowid - $affaireStatus->label | ";			
+				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
 
 			} else {
 				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				$INFO .= "Affaire Status : NoSuchStatusForThisStepInThisWorkflow | ";
+				$INFO["Affaire"] .= "<br> > aff_Status: NoSuchStatusForThisStepInThisWorkflow";
 			}
 		} else {
 			dol_print_error($db);
@@ -258,17 +263,15 @@ if (isModEnabled('affaire')) {
 		// Fetch this step
 		$thisStepName = 'Prod'; // <-- this has to be modofied when dictionnary change
 
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
 			if ($resql->num_rows > 0) {
 				$thisStep = $db->fetch_object($resql);
+				$defaultStepStatus = $thisStep->fk_default_status;
 				// var_dump($thisStep);
 				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				$INFO .= "This Step : $thisStep->label_short | ";		
-				
-				$defaultStepStatus = $thisStep->fk_default_status;
-				$INFO .= "Default Status for $thisStep->label_short : $defaultStepStatus | ";		
+				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
 			} else {
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 			}
@@ -277,7 +280,7 @@ if (isModEnabled('affaire')) {
 		}
 		
 		// Fetch all status of this step : prod
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
 			$thisStatusArray = array();
@@ -297,15 +300,14 @@ if (isModEnabled('affaire')) {
 		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
 		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
 		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
 			if ($resql->num_rows > 0) {
 				$thisStatus = $db->fetch_object($resql);
 				// var_dump($thisStatus);
 				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				$INFO .= "Project Status : $thisStatusRowid - $thisStatus->label | ";
-
+				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
 			} else {
 				if ($action == ('add' || 'create')) {
 					setEventMessages($langs->trans("ProjectNotCreated - NoStatus"), null, 'mesgs');
@@ -315,6 +317,25 @@ if (isModEnabled('affaire')) {
 			}
 		} else {
 			dol_print_error($db);
+		}
+
+		// Fetch status of object project
+		if ($id) {
+			$sql = "SELECT aff_status FROM `llx_projet_extrafields` WHERE fk_object = $id AND fk_affaire = $affaire->id";
+			$resql = $db->query($sql);
+			if ($resql) {
+				if ($resql->num_rows > 0) {
+					$ObjectStatus = $db->fetch_object($resql);
+					$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
+					// var_dump($ObjectStatus);
+					// print(json_encode($ObjectStatus, JSON_PRETTY_PRINT));
+					$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+				} else {
+					$INFO["Object"] .= "<br> > No Status";
+				}
+			} else {
+				dol_print_error($db);
+			}
 		}
 	}
 } else {
@@ -333,6 +354,8 @@ if (isModEnabled('affaire')) {
 			$id = $object->id;
 		}
 	}
+
+	$INFO["Object"] .= "<br> > $object->ref [$id]";
 }
 
 // fetch optionals attributes and labels
@@ -404,20 +427,22 @@ if (empty($reshook)) {
 
 
 	// Affaire action
-	if ($action == 'changeStatus') {
-		$newStatus = GETPOSTINT('newStatus');
+	if ($id && $action == 'changeStatus') {
+		$newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
+		$close_window = GETPOSTINT('close_window');
+		$status_for = GETPOST('status_for', 'aZ09');
 		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
 		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
 
 		$error = 0;
 
-		// // Change Propal::STATUS
-		// $sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
-		// $resql = $db->query($sql);
-		// if ($resql) {
-		// 	$obj = $db->fetch_object($resql);
-		// 	$code = $obj->fk_type;
-		// 	$soc= $object->thirdparty;
+		// Change Propal::STATUS
+		$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
+		$resql = $db->query($sql);
+		if ($resql) {
+			$obj = $db->fetch_object($resql);
+			$code = $obj->fk_type;
+			$soc= $object->thirdparty;
 			
 		// 	if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('PROPAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
 		// 		switch (true) {
@@ -639,27 +664,55 @@ if (empty($reshook)) {
 		// 				break;
 		// 		}
 		// 	}
+
+			if (empty($error)) {
+				$object->oldcopy = dol_clone($object, 2);
+				$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
+
+				$object->array_options["options_".$attribute_name] = $newStatus;
+				$result = $object->updateExtraField($attribute_name, 'PROPAL_MODIFY');
+				if ($result < 0) {
+					setEventMessages($object->error, $object->errors, 'errors');
+					$error--;
+				}
+				if ($error) {
+					$action = 'edit_extras';
+				}
+			} else {
+				setEventMessages($error, null, 'errors');
+			}
 		// } else {
 		// 	$error = $langs->trans("StatusNotFound");
 		// }
 
-		if (empty($error)) {
-			$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
-			if ($result) {
-				setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
-				if (is_string($result)) setEventMessages($result, null, 'errors');
+			if (empty($error) && $close_window) {
+				echo "<script>window.close();</script>";
 			}
-		} else {
-			setEventMessages($error, null, 'errors');
+		}
+
+		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
+		if ($status_for == 'both' || $status_for == 'step') {
+			if (empty($error)) {
+				$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
+				if ($result) {
+					setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
+					if (is_string($result)) setEventMessages($result, null, 'errors');
+				}
+			} else {
+				setEventMessages($error, null, 'errors');
+			}
 		}
 
 
 		$_SESSION['urlsToOpen'] = $urlsToOpen;
 
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
-		$path .= $affaireID ? "&affaire=$affaireID" : '';
+		$path .= $affaire ? "&affaire=$affaire->id" : '';
+		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
 		header('Location: '.$path);
 		exit;
+	} else if ($action == 'changeStatus') {
+		$action = 'confirm_changeStatus';
 	}
 
 	// Action setdraft object
@@ -734,6 +787,11 @@ if (empty($reshook)) {
 			if ($ret < 0) {
 				$error++;
 			}
+			// Extrafields for affaire
+			if ($affaire) {
+				$object->array_options["options_fk_affaire"] = $affaire->id;
+				$object->array_options["options_aff_status"] = $defaultStepStatus;
+			}
 
 			$result = $object->create($user);
 			if (!$error && $result > 0) {
@@ -775,8 +833,11 @@ if (empty($reshook)) {
 					header("Location: ".$backtopage);
 					exit;
 				} else {
-					header("Location:card.php?id=".$object->id);
-					exit;
+					//header("Location:card.php?id=".$object->id);
+					$path = $_SERVER["PHP_SELF"].'?id='.$object_id;
+					$path .= $affaire ? "&affaire=$affaire->id&action=changeStatus&newStatus=$defaultStepStatus&status_for=both" : '';
+					header('Location: '.$path);
+					exit();
 				}
 			} else {
 				$db->rollback();
@@ -1075,7 +1136,7 @@ $help_url = "EN:Module_Projects|FR:Module_Projets|ES:M&oacute;dulo_Proyectos|DE:
 
 llxHeader("", $title, $help_url);
 
-print $INFO;
+print implode("\n", $INFO)."<br><br>";
 injectOpenUrlsScript();
 
 $titleboth = $langs->trans("LeadsOrProjects");
@@ -1108,6 +1169,9 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 	print '<input type="hidden" name="backtopageforcancel" value="'.$backtopageforcancel.'">';
 	print '<input type="hidden" name="backtopagejsfields" value="'.$backtopagejsfields.'">';
 	print '<input type="hidden" name="dol_openinpopup" value="'.$dol_openinpopup.'">';
+	if ($affaire) {
+		print '<input type="hidden" name="affaire" value="'.$affaire->id.'">'; 
+	}
 
 	print dol_get_fiche_head();
 
@@ -1446,6 +1510,15 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 	 */
 
 	print "<br><br>WE HAVE MANY PROJET";
+} else if ($action == 'confirm_changeStatus') {
+	/**
+	 * TODO
+	 * a form to confirm change status 
+	 *  - if no $id then select the cmde !!->should nerver happen
+	 *  - if status_for = 'both' select between both, step or object (this make status simpler to understand, but make add a click each time yo change status)
+	 */
+
+	print "<br><br>Where's the Confirm form which should be here ?";
 } elseif ($object->id > 0) {
 	/*
 	 * Show or edit
@@ -1950,7 +2023,12 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 
 		// Other attributes
 		$cols = 2;
-		include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
+		// change tpl to handle aff_status
+		// include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
+		include DOL_DOCUMENT_ROOT.'/custom/affaire/tpl/extrafields_view.tpl.php';
+		// this is a copy of htdocs/core/tpl/extrafields_view.tpl.php
+		// just to rewrite code for aff_status
+		// each code change will be indicated by // serem // END SEREM
 
 		print '</table>';
 
@@ -2199,19 +2277,20 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 				$arrayforbutaction = array();
 
 				// Fetch all status for this step
-				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE fk_step = $thisStep->rowid AND fk_workflow_type = $affaire->fk_workflow_type";
-				$resql = $db->query($sql);
-				if ($resql) {
-					while ($rstatus = $db->fetch_object($resql)) {
-						$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&token='.newToken());
+				foreach ($thisStatusArray as $key => $rstatus) {
+					$labeltoshow = $rstatus->label;
+					if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
+					if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
+						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+					} else {
+						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 					}
-				} else {
-					dol_print_error($db);
 				}
 
 				$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
 
-				print dolGetButtonAction('', $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
+				$infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: commande $object->ref");
+				print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 			}
 
 			// Delete

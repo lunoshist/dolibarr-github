@@ -208,8 +208,7 @@ if (isModEnabled('affaire')) {
 			if ($ret > 0 && isset($object->fk_project)) {
 				$ret = $object->fetch_project();
 			}
-		}
-		if ($ret <= 0) {
+		} else {
 			setEventMessages($object->error, $object->errors, 'errors');
 			$action = '';
 		}
@@ -326,6 +325,25 @@ if (isModEnabled('affaire')) {
 		} else {
 			dol_print_error($db);
 		}
+
+		// Fetch status of object propal
+		if ($id) {
+			$sql = "SELECT aff_status FROM `llx_propal_extrafields` WHERE fk_object = $id AND fk_affaire = $affaire->id";
+			$resql = $db->query($sql);
+			if ($resql) {
+				if ($resql->num_rows > 0) {
+					$ObjectStatus = $db->fetch_object($resql);
+					$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
+					// var_dump($ObjectStatus);
+					// print(json_encode($ObjectStatus, JSON_PRETTY_PRINT));
+					$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+				} else {
+					$INFO["Object"] .= "<br> > No Status";
+				}
+			} else {
+				dol_print_error($db);
+			}
+		}
 	}
 } else {
 	$object = new Propal($db);
@@ -435,7 +453,7 @@ if (empty($reshook)) {
 			$resql = $db->query($sql);
 			if ($resql) {
 				$obj = $db->fetch_object($resql);
-				$code = $obj->fk_type;
+				$code = intval($obj->fk_type);
 				$soc= $object->thirdparty;
 				
 				if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('PROPAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
@@ -681,6 +699,10 @@ if (empty($reshook)) {
 				echo "<script>window.close();</script>";
 			}
 		}
+		
+		if ($error) {
+			setEventMessages($error, null, 'errors');
+		}
 
 		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
 		if ($status_for == 'both' || $status_for == 'step') {
@@ -690,16 +712,13 @@ if (empty($reshook)) {
 					setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
 					if (is_string($result)) setEventMessages($result, null, 'errors');
 				}
-			} else {
-				setEventMessages($error, null, 'errors');
 			}
 		}
-
 
 		$_SESSION['urlsToOpen'] = $urlsToOpen;
 
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
-		$path .= $affaireID ? "&affaire=$affaireID" : '';
+		$path .= $affaire ? "&affaire=$affaire->id" : '';
 		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
 		header('Location: '.$path);
 		exit;
@@ -967,6 +986,12 @@ if (empty($reshook)) {
 
 			$action = 'create';
 			$error++;
+		}
+
+		// Extrafields for affaire
+		if ($affaire) {
+			$object->array_options["options_fk_affaire"] = $affaire->id;
+			$object->array_options["options_aff_status"] = $defaultStepStatus;
 		}
 
 		if (!$error) {
@@ -1243,7 +1268,7 @@ if (empty($reshook)) {
 						}
 
 						$path = $_SERVER["PHP_SELF"].'?id='.$id;
-						$path .= $affaireID ? "&affaire=$affaireID&action=changeStatus&newStatus=$defaultStepStatus" : '';
+						$path .= $affaire ? "&affaire=$affaire->id&action=changeStatus&newStatus=$defaultStepStatus&status_for=both" : '';
 						header('Location: '.$path);
 						// header('Location: '.$_SERVER["PHP_SELF"].'?id='.$id);
 						exit();
@@ -2433,8 +2458,8 @@ if ($action == 'create') {
 	print '<input type="hidden" name="action" value="add">';
 	print '<input type="hidden" name="changecompany" value="0">';	// will be set to 1 by javascript so we know post is done after a company change
 	print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
-	if ($affaireID) {
-		print '<input type="hidden" name="affaire" value="'.$affaireID.'">'; 
+	if ($affaire) {
+		print '<input type="hidden" name="affaire" value="'.$affaire->id.'">'; 
 	}
 	if ($origin != 'project' && $originid) {
 		print '<input type="hidden" name="origin" value="'.$origin.'">';
@@ -2800,7 +2825,7 @@ if ($action == 'create') {
 	 *  - if status_for = 'both' select between both, step or object (this make status simpler to understand, but make add a click each time yo change status)
 	 */
 
-	print "<br><br>WE HAVE MANY PROPAL";
+	print "<br><br>Where's the Confirm form which should be here ?";
 } elseif ($object->id > 0) {
 	/*
 	 * Show object in view mode
@@ -3753,7 +3778,7 @@ if ($action == 'create') {
 	
 					$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
 	
-					$infobulle = $langs->trans("Changer le status de l'étape et/ou de cette object: propal $object->ref");
+					$infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: propal $object->ref");
 					print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 				}
 
