@@ -3649,7 +3649,7 @@ if ($action == 'create') {
 		$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
 		// modified by hook
 		if (empty($reshook)) {
-			if ($action != 'editline') {
+			if ($action != 'editline' && !$affaire) {
 				// Validate
 				if (($object->statut == Propal::STATUS_DRAFT && $object->total_ttc >= 0 && count($object->lines) > 0)
 					|| ($object->statut == Propal::STATUS_DRAFT && getDolGlobalString('PROPAL_ENABLE_NEGATIVE') && count($object->lines) > 0)) {
@@ -3659,6 +3659,110 @@ if ($action == 'create') {
 						print '<a class="butActionRefused classfortooltip" href="#">'.$langs->trans('Validate').'</a>';
 					}
 				}
+				// Create event
+				/*if (isModEnabled('agenda') && !empty($conf->global->MAIN_ADD_EVENT_ON_ELEMENT_CARD)) 	// Add hidden condition because this is not a "workflow" action so should appears somewhere else on page.
+				{
+					print '<a class="butAction" href="' . DOL_URL_ROOT . '/comm/action/card.php?action=create&amp;origin=' . $object->element . '&amp;originid=' . $object->id . '&amp;socid=' . $object->socid . '">' . $langs->trans("AddAction") . '</a></div>';
+				}*/
+				// Edit
+				if ($object->statut == Propal::STATUS_VALIDATED && $usercancreate) {
+					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=modif&token='.newToken().'">'.$langs->trans('Modify').'</a>';
+				}
+
+				// ReOpen
+				if (((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED))) && $usercanclose) {
+					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=reopen&token='.newToken().(!getDolGlobalString('MAIN_JUMP_TAG') ? '' : '#reopen').'"';
+					print '>'.$langs->trans('ReOpen').'</a>';
+				}
+
+				// Send
+				if (empty($user->socid)) {
+					if ($object->statut == Propal::STATUS_VALIDATED || $object->statut == Propal::STATUS_SIGNED || getDolGlobalString('PROPOSAL_SENDBYEMAIL_FOR_ALL_STATUS')) {
+						print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER["PHP_SELF"].'?action=presend&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '', $usercansend);
+					}
+				}
+
+				// Create a sale order
+				if (isModEnabled('order') && $object->statut == Propal::STATUS_SIGNED) {
+					if ($usercancreateorder) {
+						print '<a class="butAction" href="'.DOL_URL_ROOT.'/commande/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("AddOrder").'</a>';
+					}
+				}
+
+				// Create a purchase order
+				if (getDolGlobalString('WORKFLOW_CAN_CREATE_PURCHASE_ORDER_FROM_PROPOSAL')) {
+					if ($object->statut == Propal::STATUS_SIGNED && isModEnabled("supplier_order")) {
+						if ($usercancreatepurchaseorder) {
+							print '<a class="butAction" href="'.DOL_URL_ROOT.'/fourn/commande/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("AddPurchaseOrder").'</a>';
+						}
+					}
+				}
+
+				// Create an intervention
+				if (isModEnabled("service") && isModEnabled('intervention') && $object->statut == Propal::STATUS_SIGNED) {
+					if ($usercancreateintervention) {
+						$langs->load("interventions");
+						print '<a class="butAction" href="'.DOL_URL_ROOT.'/fichinter/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("AddIntervention").'</a>';
+					}
+				}
+
+				// Create contract
+				if (isModEnabled('contract') && $object->statut == Propal::STATUS_SIGNED) {
+					$langs->load("contracts");
+
+					if ($usercancreatecontract) {
+						print '<a class="butAction" href="'.DOL_URL_ROOT.'/contrat/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans('AddContract').'</a>';
+					}
+				}
+
+				// Create an invoice and classify billed
+				if ($object->statut == Propal::STATUS_SIGNED && !getDolGlobalString('PROPOSAL_ARE_NOT_BILLABLE')) {
+					if (isModEnabled('invoice') && $usercancreateinvoice) {
+						print '<a class="butAction" href="'.DOL_URL_ROOT.'/compta/facture/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("CreateBill").'</a>';
+					}
+
+					$arrayofinvoiceforpropal = $object->getInvoiceArrayList();
+					if ((is_array($arrayofinvoiceforpropal) && count($arrayofinvoiceforpropal) > 0) || !getDolGlobalString('WORKFLOW_PROPAL_NEED_INVOICE_TO_BE_CLASSIFIED_BILLED')) {
+						if ($usercanclose) {
+							print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=classifybilled&token='.newToken().'&socid='.$object->socid.'">'.$langs->trans("ClassifyBilled").'</a>';
+						} else {
+							print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("NotEnoughPermissions").'">'.$langs->trans("ClassifyBilled").'</a>';
+						}
+					}
+				}
+
+				if (!getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE')) {
+					// Close as accepted/refused
+					if ($object->statut == Propal::STATUS_VALIDATED) {
+						if ($usercanclose) {
+							print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=closeas&token='.newToken().(!getDolGlobalString('MAIN_JUMP_TAG') ? '' : '#close').'"';
+							print '>'.$langs->trans('SetAcceptedRefused').'</a>';
+						} else {
+							print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("NotEnoughPermissions").'"';
+							print '>'.$langs->trans('SetAcceptedRefused').'</a>';
+						}
+					}
+				} else {
+					// Set not signed (close)
+					if ($object->statut == Propal::STATUS_DRAFT && $usercanclose) {
+						print '<a class="butAction" href="' . $_SERVER["PHP_SELF"] . '?id=' . $object->id . '&token='.newToken().'&action=closeas&token='.newToken() . (!getDolGlobalString('MAIN_JUMP_TAG') ? '' : '#close') . '"';
+						print '>' . $langs->trans('SetRefusedAndClose') . '</a>';
+					}
+				}
+
+				// Cancel propal
+				if ($object->status > Propal::STATUS_DRAFT && $usercanclose) {
+					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=cancel&token='.newToken().'">'.$langs->trans("CancelPropal").'</a>';
+				}
+
+				// Clone
+				if ($usercancreate) {
+					print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object='.$object->element.'">'.$langs->trans("ToClone").'</a>';
+				}
+
+				// Delete
+				print dolGetButtonAction($langs->trans("Delete"), '', 'delete', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken(), 'delete', $usercandelete);
+			} else if ($action != 'editline') {
 				// Create event
 				/*if (isModEnabled('agenda') && !empty($conf->global->MAIN_ADD_EVENT_ON_ELEMENT_CARD)) 	// Add hidden condition because this is not a "workflow" action so should appears somewhere else on page.
 				{

@@ -393,20 +393,21 @@ class modClassique extends DolibarrModules
             'target'=>'',
             'user'=>2
         );
-		$this->menu[$r++]=array(
-            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
-            'type'=>'left',
-            'titre'=>'Propal',
-            'mainmenu'=>'affaire',
-            'leftmenu'=>'classique_propal',
-            'url'=>'/classique/classique_propal_stateOfPlay.php',
-            'langs'=>'affaire@affaire',
-            'position'=>1005+$r,
-            'enabled'=>'isModEnabled("classique")',
-			'perms'=>'$user->hasRight("affaire", "affaire", "write")',
-            'target'=>'',
-            'user'=>2
-        );
+
+		// $this->menu[$r++]=array(
+        //     'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
+        //     'type'=>'left',
+        //     'titre'=>'Propal',
+        //     'mainmenu'=>'affaire',
+        //     'leftmenu'=>'classique_propal',
+        //     'url'=>'/classique/classique_propal_stateOfPlay.php',
+        //     'langs'=>'affaire@affaire',
+        //     'position'=>1005+$r,
+        //     'enabled'=>'isModEnabled("classique")',
+		// 	'perms'=>'$user->hasRight("affaire", "affaire", "write")',
+        //     'target'=>'',
+        //     'user'=>2
+        // );
 
 		/* END MODULEBUILDER LEFTMENU MYOBJECT */
 

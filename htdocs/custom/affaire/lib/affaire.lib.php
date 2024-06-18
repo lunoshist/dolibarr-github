@@ -419,7 +419,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 					if (is_string($result) || (is_numeric($result) && $result <= 0)) {
 						$error = $result;
 					} else if (is_object($result)) {
-						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_prod_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&action=changeStatus&newStatus=defaultStatus&token='.newToken();
+						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_prod_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&action=changeStatus&newStatus=defaultStatus&status_for=both&&token='.newToken();
 						$prod_page = dol_buildpath($path, 1);
 
 						addUrlToOpen($prod_page);
@@ -928,6 +928,41 @@ function SeremTaskNaming ($objdet, $obj2) {
 	$db->free($resql);
 
 	return $NewTaskName;
+}
+
+function TaskMarbreSerem()
+{
+	global $db,$conf;
+	$prefix='T';
+
+	$date=time(); // adaptation SEREM
+	$yy = date("y",$date);
+	$ddd = sprintf("%03s",date("z",$date) +1);
+
+	// D'abord on recupere la valeur max
+	$sql = "SELECT MAX(SUBSTRING(ref,7,2)) as max";	// This is standard SQL
+	$sql.= " FROM ".MAIN_DB_PREFIX."projet_task";
+	$sql.= " WHERE left(ref, 6) = '".$prefix.$yy.$ddd."'";
+
+	$resql=$db->query($sql);
+	if ($resql)
+	{
+		$obj = $db->fetch_object($resql);
+		if ($obj) $max = intval($obj->max);
+		else $max=0;
+	}
+	else
+	{
+		dol_syslog("generateproject::getNextValue sql=".$sql);
+		return -1;
+	}
+
+	$date = time();
+	$yymm = strftime("%y%m",$date);
+	$num = sprintf("%02s",$max+1);
+	// on r�cup�re le nom du client
+	return $prefix.$yy.$ddd.$num;
+
 }
 
 /**
