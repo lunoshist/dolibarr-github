@@ -9411,7 +9411,11 @@ class Form
 						$noMoreLinkedObjectBlockAfter = 1;
 					}
 
-					$res = @include dol_buildpath($reldir . '/' . $tplname . '.tpl.php');
+					$res=0;
+					$filePath = dol_buildpath($reldir . '/' . $tplname . '.tpl.php');
+					if (file_exists($filePath)) {
+						$res = @include $filePath;
+					}
 					if ($res) {
 						$nboftypesoutput++;
 						break;

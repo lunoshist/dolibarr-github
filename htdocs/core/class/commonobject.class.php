@@ -5110,7 +5110,11 @@ abstract class CommonObject
 			}
 
 			if (empty($conf->file->strict_mode)) {
-				$res = @include $tpl;
+				if (file_exists($tpl)) {
+					$res = @include $tpl;
+				} else {
+					$res = false;
+				}
 			} else {
 				$res = include $tpl; // for debug
 			}
@@ -5534,7 +5538,11 @@ abstract class CommonObject
 			}
 
 			if (empty($conf->file->strict_mode)) {
-				$res = @include $tpl;
+				if (file_exists($tpl)) {
+					$res = @include $tpl;
+				} else {
+					$res = false;
+				}
 			} else {
 				$res = include $tpl; // for debug
 			}

@@ -808,7 +808,7 @@ class tcpdi_parser {
 				break;
 			}
 			default: {
-				$frag = $data[$offset] . @$data[$offset+1] . @$data[$offset+2] . @$data[$offset+3];
+				$frag = $data[$offset] . (isset($data[$offset+1]) ? $data[$offset+1] . (isset($data[$offset+2]) ? $data[$offset+2] . (isset($data[$offset+3]) ? $data[$offset+3] : '') : '') : '');
 				switch ($frag) {
 					case 'endo':
 						// indirect object
