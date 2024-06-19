@@ -66,8 +66,9 @@ INSERT INTO `llx_c_affaire_status` (`rowid`, `label`, `label_short`, `fk_workflo
 (26, 'Traité | Livré', 'Livré', 1, 5, 300, 0, 'both', 1),
 (27, 'Brouillon (à valider)', 'Brouillon', 1, 6, 00, 0, 'both', 1),
 (28, 'Proforma', 'Proforma', 1, 6, 0, 0, 'both', 1),
-(29, 'Impayée', 'Impayée', 1, 6, 100, 0, 'both', 1),
-(30, 'Règlement commencée', 'Commencée', 1, 6, 150, 0, 'both', 1),
-(31, 'Abandonnée', 'Abandonnée', 1, 6, -1, 0, 'both', 1),
-(32, 'Payée partiellement', 'Payée (en partie)', 1, 6, 350, 0, 'both', 1),
-(33, 'Traité | Payée', 'Payée', 1, 6, 300, 0, 'both', 1);
+(29, 'À facturer', 'À facturer', 1, 6, 100, 0, 'both', 1),
+(30, 'Impayée', 'Impayée', 1, 6, 100, 0, 'both', 1),
+(31, 'Règlement commencée', 'Commencée', 1, 6, 150, 0, 'both', 1),
+(32, 'Abandonnée', 'Abandonnée', 1, 6, -1, 0, 'both', 1),
+(33, 'Payée partiellement', 'Payée (en partie)', 1, 6, 350, 0, 'both', 1),
+(34, 'Traité | Payée', 'Payée', 1, 6, 300, 0, 'both', 1);

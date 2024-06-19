@@ -24,4 +24,5 @@ INSERT INTO `llx_affaire_automation` (`fk_workflow_type`, `origin_step`, `origin
 (1, 2, 'TYPE:200', '', 'System', 'closeOtherPropal', 7),
 (1, 3, 'TYPE:100', '', 'System', 'generateProd', 14),
 (1, 3, 'TYPE:200', '', 'changeStatus', 'Prod', 15),
-(1, 4, 'TYPE:200', '', 'changeStatus', 'Expe', 22);
+(1, 4, 'TYPE:200', '', 'changeStatus', 'Expe', 22,
+(1, 4, 'TYPE:200', '', 'changeStatus', 'Facture', 29);

@@ -104,39 +104,132 @@ function getLinkedAff($object) {
  */
 function dol_tabs($object) {
 	// TODO The entiere function
-	print dol_get_fiche_head();
+	print dol_get_fiche_head($object);
 }
 
 /**
  * Print the banner (Icon, Ref, Thirdparty, Affaire, backlink, Status) of the specified object
  *
  * @param object $object
+ * @param array $info
  * @return void
  */
-function dol_banner($object) {
+function dol_banner($object, $INFO=null) {
 	// TODO The entiere function
-	dol_banner_tab($object, '');
+	//dol_banner_tab($object, '');
+
+	if (isset($INFO)) {
+		print '<div class="refid">'.$INFO["Banner"]["ref"].'</div>';
+		print '<table class="border centpercent tableforfield"><tbody>
+			<tr><td class="titlefield fieldname_type">Step</td><td class="valuefield fieldname_type">'.$INFO["Banner"]["step"]->label.'</tr>
+			<tr><td class="titlefield fieldname_type">Status</td><td class="valuefield fieldname_type">'.printBagde($INFO["Banner"]["status"], 'big').'</tr>
+		</tbody></table>';
+	}
 }
 
 /**
  * Print a nav bar with the steps of the specified workflow as tabs
  *
- * @param int $workflow_type
+ * @param Affaire $affaire
+ * @param object $selectedStep 
+ * @param array $affaireStatusbyStep
+ * @param object
  * @return void
  */
-function dol_workflow_tabs($workflow_type) {
+function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Workflow=null) {
 	global $langs, $conf, $db;
-	// TODO review the entiere function
-	$sql = 'SELECT label from llx_c_affaire_workflow_types WHERE rowid='.$workflow_type;
-	$resql= $db->query($sql);
-	$res = $db->fetch_object($resql);
-	$label = $res->label;
-	// $res = @include dol_buildpath($reldir . '/' . $tplname . '.tpl.php');
-	dol_include_once("/$label/core/modules/mod$label.class.php");
-	$modLabel = "mod$label";
-	$modAffaire = new $modLabel;
-	dol_tabs($modAffaire);
-	$db->free($resql);
+	if (!$affaireStatusbyStep) {
+		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
+		$resql = $db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStatusbyStep = $db->fetch_object($resql);
+			} else {
+				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
+			}
+		} else {
+			dol_print_error($db);
+		}
+	}
+
+	// TODO if no $workflow rsql  ...
+
+	//var_dump($selectedStep);
+	//var_dump($affaireStatusbyStep);
+
+	print '<div class="tabs" data-role="controlgroup" data-type="horizontal" style="border: 1px solid #BBB">';
+
+	$tab ='';
+
+	// Fetch all step
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE active = 1 AND fk_workflow_type = $affaire->fk_workflow_type ORDER BY position";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			while ($Step = $db->fetch_object($resql)) {
+				if (!$Step->position) continue;
+				$active = ($Step->rowid == $selectedStep->rowid) ? 'tabactive' : 'tabunactive';
+
+				// Fetch status of this step
+				$fk_status_thisstep = "fk_status_".strtolower($Step->label_short);
+				$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
+				unset($thisStatus);
+
+				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$Step->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+				$resql2 = $db->query($sql);
+				if ($resql2) {
+					if ($resql2->num_rows > 0) {
+						$thisStatus = $db->fetch_object($resql2);
+					}
+				} else {
+					dol_print_error($db);
+				}
+				$db->free($resql2);
+
+
+				$path = '/'.strtolower($Workflow->label).'/'.strtolower($Workflow->label).'_'.strtolower($Step->label_short).'_stateOfPlay.php?affaire='.$affaire->id;
+				$card_page = dol_buildpath($path, 1);
+				$tab .= '<div class="inline-block tabsElem"><!-- id tab = contact --><div class="tab '.$active.'" style="margin: 0 !important"><a id="'.$Step->label_short.'" class="tab inline-block valignmiddle" href="'.$card_page.'" title="'.$Step->label_short.'">'.$Step->label.(isset($thisStatus) ? printBagde($thisStatus,'mini') : '').'<a></div></div>';
+			}
+		} else {
+			setEventMessages($langs->trans("BeleBele"), null, 'mesg');
+		}
+	} else {
+		dol_print_error($db);
+	}
+	print $tab;
+	
+	print '</div>';
+
+
+}
+
+/**
+ * function to get html for bagde of a status
+ * 
+ * @param object|int $Status
+ * @param string $width
+ * 
+ * @return string html to print
+ */
+function printBagde($Status, $width) {
+	// TODO check if $status is int and fetch status if it's the case
+
+	if (is_object($Status)) {
+		// TODO fetch code
+	} else {
+		return '<span class="badge badge-status">Pas de status</span>';
+	}
+
+	switch ($width) {
+		case 'mini':
+			return '<span class="badge marginleftonlyshort">'.$Status->label_short.'</span>';
+		case 'small':		
+			return '<span class="badge badge-status'.$Status->fk_type.' badge-status">'.$Status->label_short.'</span>';
+		case 'default':
+		case 'big':
+			return '<span class="badge badge-status'.$Status->fk_type.' badge-status">'.$Status->label.'</span>';
+	}
 }
 
 /**
@@ -409,10 +502,30 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			} else if ($r->automation_type == 'System') {
 				// TODO
 				if ($r->new_step == 'createOrder') {
-					$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_cmde_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid=&'.$object->socid.'&token='.newToken();
-					$cmde_page = dol_buildpath($path, 1);
-					
-					addUrlToOpen($cmde_page);
+					// TODO
+					// $result = generateCommande($object->id, $object->element, $object, $affaire, $r->new_status);
+					// if (is_string($result) || (is_numeric($result) && $result <= 0)) {
+					// 	$error = $result;
+					// } else if (is_object($result)) {
+					// 	$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_cmde_stateOfPlay.php?affaire='.$affaire->id.'&action=changeStatus&newStatus=defaultStatus&status_for=both&&token='.newToken();
+					// 	$cmde_page = dol_buildpath($path, 1);
+						
+					// 	addUrlToOpen($cmde_page);
+					// }
+
+					// CHECK COMMANDE ASSOCIED TO AFFAIRE
+					$order = checkCommandeExist($affaire);
+					if ($order < 0) {
+						$error = "ERROR: L'affaire est associé à plusieurs commandes !!!";
+						break;
+					}
+					if (empty($order)) {
+						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_cmde_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid=&'.$object->socid.'&token='.newToken();
+						$cmde_page = dol_buildpath($path, 1);
+
+						addUrlToOpen($cmde_page);
+					}
+						
 				}
 				if ($r->new_step == 'generateProd') {
 					$result = generateProject($object->id, $object->element, $object, $affaire, $r->new_status);
@@ -466,6 +579,43 @@ function injectOpenUrlsScript() {
 		unset($_SESSION['urlsToOpen']);
 	}
 }
+
+function generateCommande($affaire, $propal) {
+	// CHECK COMMANDE ALREADY EXIST
+	$result = checkCommandeExist($affaire);
+	/*
+	if no result -> create
+
+	else if result and fk_import = propal id  -> update
+
+	else return error = affaire can't have several commande
+	*/
+	// 
+}
+
+/**
+ * Check if affaire already have a order linked (an affaire equal to only one commande)
+ * 
+ * @param Affaire $affaire
+ * @return int -1 if KO : many order | 0 if no order | $id if order 
+ */
+function checkCommandeExist($affaire) {
+	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+	
+	if (isset($affaire->linkedObjects["commande"])) {
+		if (count($affaire->linkedObjects["commande"]) > 1) {
+			return -1;
+		} else {
+			reset($affaire->linkedObjects["commande"]);
+			$key = key($affaire->linkedObjects["commande"]);
+			$id = $affaire->linkedObjects["commande"][$key]->id;
+			return $id;
+		}
+	} else {
+		return 0;
+	}
+}
+
 
 /**
  * function to create a project as production for a given propal or commande

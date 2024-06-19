@@ -162,6 +162,7 @@ if (isModEnabled('affaire')) {
 		}
 	}
 	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
+	$INFO["Banner"]["ref"] = $affaire->ref;
 	
 
 	// Get the expedition linked to the affaire 
@@ -184,12 +185,17 @@ if (isModEnabled('affaire')) {
 		} else {
 			// If no expedition linked, let's create one 
 			$INFO["Object"] .= "(No expedition)";
-			$action = "create";
-
-			reset($affaire->linkedObjects["commande"]);
-			$key = key($affaire->linkedObjects["commande"]);
-			$origin_id = $affaire->linkedObjects["commande"][$key]->id;
-			$origin = 'commande';
+			
+			if (isset($affaire->linkedObjects["commande"]) && (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_ORDER_FROM_SCRATCH'))) {
+				$action = "create";
+	
+				reset($affaire->linkedObjects["commande"]);
+				$key = key($affaire->linkedObjects["commande"]);
+				$origin_id = $affaire->linkedObjects["commande"][$key]->id;
+				$origin = 'commande';
+			} else {
+				$action = "no_create";
+			}
 
 			$_POST['entrepot_id'] = 1; // <- entrepot Serem
 		}
@@ -225,6 +231,7 @@ if (isModEnabled('affaire')) {
 				// var_dump($affaireStep);
 				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
 				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
+				$INFO["Banner"]["step"] = $affaireStep;
 			} else {
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 			}
@@ -241,6 +248,7 @@ if (isModEnabled('affaire')) {
 				// var_dump($affaireStatus);
 				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
 				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
+				$INFO["Banner"]["status"] = $affaireStatus;
 			} else {
 				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
 				$INFO["Affaire"] .= "<br> > aff_Status: NoSuchStatusForThisStepInThisWorkflow";
@@ -1460,7 +1468,14 @@ $help_url = 'EN:Module_Shipments|FR:Module_Expéditions|ES:M&oacute;dulo_Expedic
 
 llxHeader('', $title, $help_url);
 
-print implode("\n", $INFO)."<br><br>";
+if (getDolGlobalInt('DEBUG')) {
+	print implode("\n", $INFO)."<br><br>";
+} else {
+	dol_tabs($affaire);
+	dol_banner($affaire, $INFO);
+}
+dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+
 injectOpenUrlsScript();
  
 if (empty($action)) {
@@ -2353,6 +2368,31 @@ if ($action == 'create') {
 	 */
 
 	print "<br><br>WE HAVE MANY EXPEDITION";
+
+	print '<table class="border centpercent tableforfieldcreate">';
+
+	foreach ($affaire->linkedObjects["shipping"] as $expe) {
+		print "<tr>
+		<td>$expe->ref_customer</td>
+		<td>$expe->date_creation</td>";
+		if ($object->shipping_method_id > 0) {
+			// Get code using getLabelFromKey
+			$code = $langs->getLabelFromKey($db, $object->shipping_method_id, 'c_shipment_mode', 'rowid', 'code');
+			print "<td>".$langs->trans("SendingMethod".strtoupper($code))."</td>";
+		}
+		print "</tr>";
+	}
+
+	print '</table>';
+} else if ($action == 'no_create') {
+	/**
+	 * TODO
+	 * a table with each cmde
+	 * button fusion
+	 * button create new affaire
+	 */
+
+	 print "<br><br>IL N'Y A PAS ".(isset($affaire->linkedObjects["commande"]) ? "D'EXPÉDITION" : "DE COMMANDE")." ASSOCIÉ À CETTE AFFAIRE <br><br> ON NE CRÉER PAS UNE EXPÉDITION COMME ÇA !!!!";
 } else if ($action == 'confirm_changeStatus') {
 	/**
 	 * TODO
@@ -2484,7 +2524,7 @@ if ($action == 'create') {
 	if (isModEnabled('affaire')) {
 		$langs->load("affaire");
 		$morehtmlref .= '<br>';
-		if ($usercancreate) {
+		if (isset($usercancreate) && $usercancreate) {
 			$morehtmlref .= img_picto($langs->trans("Affaire"), 'affaire.png@affaire', 'class="pictofixedwidth"');
 			if ($action != 'classify') {
 				$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetAffaire')).'</a> ';

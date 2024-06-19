@@ -148,6 +148,7 @@ if (isModEnabled('affaire')) {
 		}
 	}
 	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
+	$INFO["Banner"]["ref"] = $affaire->ref;
 	
 
 	// Get the project linked to the affaire 
@@ -170,16 +171,12 @@ if (isModEnabled('affaire')) {
 		} else {
 			// If no project linked, let's create one 
 			$INFO["Object"] .= "(No project)";
-			$action = "create";
-			// 	print '<div class="tabsAction">';
-			// 	$parameters = array();
-			// 	$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
-			// 	// modified by hook
-			// 	if (empty($reshook)) {
-			// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=create&token='.newToken().'">'.$langs->trans('Create').'</a>';
-			// 		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&action=changeStatus&token='.newToken().'">'.$langs->trans('ChangeStatus').'</a>';
-			// 	}		
-			// 	print '</div>';
+			
+			if (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROJECT_FROM_SCRATCH')) {
+				$action = "create";
+			} else {
+				$action = "no_create";
+			}
 		}
 	} else if ($id) {
 		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
@@ -220,6 +217,7 @@ if (isModEnabled('affaire')) {
 				// var_dump($affaireStep);
 				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
 				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
+				$INFO["Banner"]["step"] = $affaireStep;
 			} else {
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
 			}
@@ -236,6 +234,7 @@ if (isModEnabled('affaire')) {
 				// var_dump($affaireStatus);
 				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
 				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
+				$INFO["Banner"]["status"] = $affaireStatus;
 
 			} else {
 				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
@@ -1154,7 +1153,14 @@ $help_url = "EN:Module_Projects|FR:Module_Projets|ES:M&oacute;dulo_Proyectos|DE:
 
 llxHeader("", $title, $help_url);
 
-print implode("\n", $INFO)."<br><br>";
+if (getDolGlobalInt('DEBUG')) {
+	print implode("\n", $INFO)."<br><br>";
+} else {
+	dol_tabs($affaire);
+	dol_banner($affaire, $INFO);
+}
+dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+
 injectOpenUrlsScript();
 
 $titleboth = $langs->trans("LeadsOrProjects");
@@ -1528,6 +1534,15 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
 	 */
 
 	print "<br><br>WE HAVE MANY PROJET";
+} else if ($action == 'no_create') {
+	/**
+	 * TODO
+	 * a table with each cmde
+	 * button fusion
+	 * button create new affaire
+	 */
+
+	 print "<br><br>IL N'Y A PAS DE PROJET ASSOCIÉ À CETTE AFFAIRE <br><br> ON NE CRÉER PAS UNE PROJET COMME ÇA !!!!";
 } else if ($action == 'confirm_changeStatus') {
 	/**
 	 * TODO
