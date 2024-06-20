@@ -104,7 +104,7 @@ function getLinkedAff($object) {
  */
 function dol_tabs($object) {
 	// TODO The entiere function
-	print dol_get_fiche_head($object);
+	// print dol_get_fiche_head($object);
 }
 
 /**
@@ -118,8 +118,9 @@ function dol_banner($object, $INFO=null) {
 	// TODO The entiere function
 	//dol_banner_tab($object, '');
 
+
 	if (isset($INFO)) {
-		print '<div class="refid">'.$INFO["Banner"]["ref"].'</div>';
+		print '<div class="refid">'.$object->getNomUrl(1, '', 0, "refid").'</div>';
 		print '<table class="border centpercent tableforfield"><tbody>
 			<tr><td class="titlefield fieldname_type">Step</td><td class="valuefield fieldname_type">'.$INFO["Banner"]["step"]->label.'</tr>
 			<tr><td class="titlefield fieldname_type">Status</td><td class="valuefield fieldname_type">'.printBagde($INFO["Banner"]["status"], 'big').'</tr>
@@ -264,10 +265,8 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 
 	// CHECK CONDITIONS
 	if (!empty($condition)) {
-		// TODO 
-		$invalid_codition = 0;
-
-		if ($invalid_codition) {
+		$valid = checkConditions($condition, $affaire);
+		if (!$valid) {
 			$db->rollback();
 			return "INVALID_CONDITION";
 		}
@@ -476,10 +475,8 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 		while ($r = $db->fetch_object($resql)) {
 			// CHECK CONDITIONS
 			if (!empty($r->conditions)) {
-				// TODO 
-				$invalid_codition = 0;
-
-				if ($invalid_codition) {
+				$valid = checkConditions($r->conditions, $affaire);
+				if (!$valid) {
 					continue;
 				}
 			}
@@ -528,11 +525,15 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 						
 				}
 				if ($r->new_step == 'generateProd') {
+					if (checkProjectExist($affaire) == 0) {
+						$changeStatus = 1;
+					}
 					$result = generateProject($object->id, $object->element, $object, $affaire, $r->new_status);
 					if (is_string($result) || (is_numeric($result) && $result <= 0)) {
 						$error = $result;
 					} else if (is_object($result)) {
-						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_prod_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&action=changeStatus&newStatus=defaultStatus&status_for=both&&token='.newToken();
+						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_prod_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&token='.newToken();
+						if (!empty($changeStatus)) $path .= '&action=changeStatus&newStatus=defaultStatus&status_for=both';
 						$prod_page = dol_buildpath($path, 1);
 
 						addUrlToOpen($prod_page);
@@ -555,6 +556,176 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 	} else {
 		return $error--;
 	}
+}
+
+function checkConditions($arg, $affaire) {
+	/*
+	FUNCTION:functionName($arg):operator(==,!=,>,<,<=,>=):result expected
+	TYPE:step(rowid or label_short):operator(==,!=,>,<,<=,>=):status code
+	STATUS:step(rowid or label_short):operator(==,!=,>,<,<=,>=):status rowid
+	Ex: 
+	FUNCTION:checkCommandeExist($affaire):>=:0
+
+	many conditions can be provided by 
+		- joining the codition into a parantese ()
+		- and adding & or | in the beginnig (!! A pararentese is either and(&) either or(|) but a sub-condition can be a parentese)
+		- and adding && or || to separate each sub-condition 
+	Ex:
+	(&:FUNCTION:checkCommandeExist($affaire):>=:0:&&:TYPE:cmde:>=:200:&&:(|:STATUS:prod:!=:22:||:STATUS:prod:!=:23))
+
+	in english correspond to if result of checkCommandeExist is superior to 0, and commande status type success or higher, but prod status isn't ___ nor ___
+	
+	in logic correspond to 
+	(1 and 2 and 3) ?= true 
+	where
+	1 = FUNCTION:checkCommandeExist($affaire):>=:0 ?= true (in english : result of checkCommandeExist is superior to 0)
+	2 = TYPE:prod:>=:300 ?= true (in english : commande type success or higher)
+	3 = (4 or 5) ?= true (in english : one of the to option is true)
+
+	4 = STATUS:prod:!=:22 ?= true (in english : prod status isn't ___)
+	5 = STATUS:prod:!=:23 ?= true (in english : prod status isn't ___)
+
+	*/
+	
+	
+    // Vérifie si l'argument est une combinaison de conditions
+    if (preg_match('/^\(|^\&\:|^\|\:/', $arg)) {
+        // C'est une combinaison de conditions
+        return checkComplexCondition($arg, $affaire);
+    } else {
+        // C'est une condition simple
+        return checkSimpleCondition($arg, $affaire);
+    }
+}
+
+function checkComplexCondition($arg, $affaire) {
+    // // Supprime les parenthèses externes si présentes
+    // if ($arg[0] == '(' && $arg[strlen($arg) - 1] == ')') {
+    //     $arg = substr($arg, 1, -1);
+    // }
+
+    // // Divise les sous-conditions en utilisant && ou ||
+    // $conditions = preg_split('/(\&\&|\|\|)/', $arg, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+    // $result = null;
+    // $operator = null;
+
+	// Vérifie si la chaîne commence par ( et capture l'opérateur principal (& ou |)
+    if (preg_match('/^\((\&|\|):/', $arg, $matches)) {
+        $operator = $matches[1];
+    } else {
+		throw new Exception("Format incorrect");
+    }
+
+    $arg = substr($arg, 2, -1); // Supprime l'opérateur principal et les parenthèses autour de la chaîne
+    
+    $conditions = [];
+    $currentCondition = '';
+    $depth = 0;
+    $length = strlen($arg);
+    
+    for ($i = 0; $i < $length; $i++) {
+        $char = $arg[$i];
+
+        if ($char === '(') {
+            $depth++;
+        } elseif ($char === ')') {
+            $depth--;
+        }
+
+        if ($depth === 0 && ($arg[$i] === $operator && $arg[$i + 1] === $operator)) {
+            // Sépare la condition en utilisant le séparateur && ou ||
+            $conditions[] = trim($currentCondition);
+            $currentCondition = '';
+            $i++; // Skip the next & or |
+        } else {
+            $currentCondition .= $char;
+        }
+    }
+    
+    if ($currentCondition !== '') {
+        $conditions[] = trim($currentCondition);
+    }
+
+	
+	$result = null;
+    foreach ($conditions as $condition) {
+		// Supprime les ":" au début et à la fin si présent
+		if ($condition[0] == ':') {
+			$condition = substr($condition, 1);
+		}
+		if ($condition[strlen($condition) - 1] == ':') {
+			$condition = substr($condition, 0, -1);
+		}
+
+		$subConditionResult = checkConditions(trim($condition), $affaire);
+		
+		if ($result === null) {
+			$result = $subConditionResult;
+		} else {
+			if ($operator == '&') {
+				$result = $result && $subConditionResult;
+			} else if ($operator == '|') {
+				$result = $result || $subConditionResult;
+			}
+		}
+    }
+
+    return $result;
+}
+
+function checkSimpleCondition($arg, $affaire) {
+    // Décompose l'argument en parties de la condition simple
+    $parts = explode(':', $arg);
+    $type = $parts[0];
+    $subject = $parts[1];
+    $operator = $parts[2];
+    $expected = $parts[3];
+
+    // Exécution et vérification de la condition en fonction du type
+    switch ($type) {
+        case 'FUNCTION':
+            // Appelle la fonction spécifiée avec ses arguments
+            // $functionParts = explode('(', rtrim($subject, ')'));
+            // $functionName = $functionParts[0];
+            // $functionArgs = explode(',', $functionParts[1]);
+            // $result = call_user_func_array($functionName, $functionArgs);
+			if ($subject == 'checkCommandeExist(__affaire__)') {
+				$result = checkCommandeExist($affaire);
+			} else {
+				throw new Exception("Incorrect function");
+			}
+            break;
+        case 'TYPE':
+            // Récupère la valeur de type spécifié
+            $status = $affaire->getStatus($subject);
+			$result = $status->fk_type;
+            break;
+        case 'STATUS':
+            // Récupère la valeur de statut spécifié
+            $status = $affaire->getStatus($subject);
+			$result = $status->rowid;
+            break;
+        default:
+            throw new Exception("Type inconnu : $type");
+    }
+
+    // Compare le résultat avec la valeur attendue
+    switch ($operator) {
+        case '==':
+            return $result == $expected;
+        case '!=':
+            return $result != $expected;
+        case '>':
+            return $result > $expected;
+        case '<':
+            return $result < $expected;
+        case '>=':
+            return $result >= $expected;
+        case '<=':
+            return $result <= $expected;
+        default:
+            throw new Exception("Opérateur inconnu : $operator");
+    }
 }
 
 /**
@@ -609,6 +780,29 @@ function checkCommandeExist($affaire) {
 			reset($affaire->linkedObjects["commande"]);
 			$key = key($affaire->linkedObjects["commande"]);
 			$id = $affaire->linkedObjects["commande"][$key]->id;
+			return $id;
+		}
+	} else {
+		return 0;
+	}
+}
+
+/**
+ * Check if affaire already have a project linked
+ * 
+ * @param Affaire $affaire
+ * @return int -1 if KO : many project | 0 if no project | $id if project 
+ */
+function checkProjectExist($affaire) {
+	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+	
+	if (isset($affaire->linkedObjects["project"])) {
+		if (count($affaire->linkedObjects["project"]) > 1) {
+			return -1;
+		} else {
+			reset($affaire->linkedObjects["project"]);
+			$key = key($affaire->linkedObjects["project"]);
+			$id = $affaire->linkedObjects["project"][$key]->id;
 			return $id;
 		}
 	} else {

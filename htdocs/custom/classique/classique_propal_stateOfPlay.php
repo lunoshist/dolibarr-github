@@ -3901,7 +3901,7 @@ if ($action == 'create') {
 
 				// Create a sale order
 				if (empty(checkCommandeExist($affaire)) && getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL')) {
-					$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW8'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW8'.$workflow->rowid);
+					$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
 
 					if (isModEnabled('order') && $object->statut == Propal::STATUS_SIGNED) {
 						if ($usercancreateorder) {

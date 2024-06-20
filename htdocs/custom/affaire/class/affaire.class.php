@@ -828,7 +828,7 @@ class Affaire extends CommonObject
 
 		if (empty($this->showphoto_on_popup)) {
 			if ($withpicto) {
-				$result .= img_object(($notooltip ? '' : $label), ($this->picto ? $this->picto : 'generic'), (($withpicto != 2) ? 'class="paddingright"' : ''), 0, 0, $notooltip ? 0 : 1);
+				$result .= img_object(($notooltip ? '' : $label), ($this->picto ? $this->picto : 'generic'), (($withpicto != 2) ? 'class="pictofixedwidth paddingright"' : ''), 0, 0, $notooltip ? 0 : 1);
 			}
 		} else {
 			if ($withpicto) {
@@ -1300,8 +1300,76 @@ class Affaire extends CommonObject
 
 		return $affaires;
 	}
-}
 
+	public function getStep($label) {
+
+			
+	}
+
+	public function getAllStatus() {
+		global $langs;
+
+		// Fetch affaire status of each step
+		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $this->id";
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$affaireStatusbyStep = $this->db->fetch_object($resql);
+			} else {
+				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
+			}
+		} else {
+			dol_print_error($this->db);
+		}
+		$this->db->free($resql);
+
+		$result = array();
+		foreach ($affaireStatusbyStep as $key => $rowid) {
+			if (preg_match('/^fk_status_(.*)/', $key, $matches)) {
+				$step = $matches[1];
+				if (is_numeric($rowid)) {
+					$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $rowid AND fk_workflow_type = $this->fk_workflow_type";
+					$resql = $this->db->query($sql);
+					if ($resql) {
+						if ($resql->num_rows > 0) {
+							$thisStatus = $this->db->fetch_object($resql);
+							$result[$step] = $thisStatus;
+						}
+					} else {
+						dol_print_error($this->db);
+					}
+				} else {
+					$result[$step] = $rowid;
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	public function getStatus($step='') {
+		if ($step) {
+			$allStatus = $this->getAllStatus();
+
+			$result = $allStatus[$step];
+		} else {
+			// Fetch status of affaire
+			$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
+			$resql = $this->db->query($sql);
+			if ($resql) {
+				if ($resql->num_rows > 0) {
+					$result = $this->db->fetch_object($resql);
+				} else {
+					setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
+				}
+			} else {
+				dol_print_error($this->db);
+			}
+		}
+
+		return $result;
+	}
+}
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobjectline.class.php';
 
