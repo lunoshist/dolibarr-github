@@ -46,7 +46,7 @@ INSERT INTO `llx_c_affaire_status` (`rowid`, `label`, `label_short`, `fk_workflo
 (6, 'Signée (à facturer)', 'Signée', 1, 2, 200, 0, 'both', 1),
 (7, 'Non signée (fermée)', 'Non signée', 1, 2, 350, 0, 'both', 1),
 (8, 'Traitée | Facturé', 'Facturé', 1, 2, 300, 0, 'both', 1),
-(9, 'Brouillon (à valider)', 'Brouillon', 1, 3, 00, 0, 'both', 0),
+(9, 'Brouillon (à valider)', 'Brouillon', 1, 3, 00, 0, 'both', 1),
 (10, 'Validée (prod en attente)', 'Validée', 1, 3, 100, 0, 'both', 1),
 (11, 'Lancement production', 'Prod', 1, 3, 200, 0, 'both', 1),
 (12, 'Annulée', 'Annulée', 1, 3, -1, 0, 'both', 1),

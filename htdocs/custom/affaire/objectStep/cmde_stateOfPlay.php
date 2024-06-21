@@ -38,7 +38,7 @@
  */
 
 // Load Dolibarr environment
-require '../../main.inc.php';
+require '../../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/doleditor.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
@@ -64,9 +64,6 @@ if (isModEnabled('variants')) {
 	require_once DOL_DOCUMENT_ROOT.'/variants/class/ProductCombination.class.php';
 }
 
-dol_include_once('/affaire/class/affaire.class.php');
-dol_include_once('/affaire/lib/affaire_affaire.lib.php');
-dol_include_once('/affaire/lib/affaire.lib.php');
 
 // Load translation files required by the page
 $langs->loadLangs(array('orders', 'sendings', 'companies', 'bills', 'propal', 'deliveries', 'products', 'other'));
@@ -80,16 +77,6 @@ if (isModEnabled('margin')) {
 if (isModEnabled('productbatch')) {
 	$langs->load('productbatch');
 }
-
-if (isset($_SESSION['post_data'])) {
-	$_POST = $_SESSION['post_data'];
-    unset($_SESSION['post_data']);
-}
-if (isset($_SESSION['get_data'])) {
-    $_GET = $_SESSION['get_data'];
-    unset($_SESSION['get_data']);
-}
-
 
 
 $id        = (GETPOSTINT('id') ? GETPOSTINT('id') : GETPOSTINT('orderid'));
@@ -122,254 +109,56 @@ $hookmanager->initHooks(array('ordercard', 'globalcard'));
 
 $result = restrictedArea($user, 'commande', $id);
 
-// AFFAIRE
-$INFO = array(
-	"Workflow" => '<br>Workflow :  ',
-	"Affaire" => '<br><br>Affaire :  ',
-	"Object" => '<br><br>Object ',
-	"Page" => '<br><br><br>This page :  ',
-);
-global $urlsToOpen;
-$urlsToOpen = $urlsToOpen ?? [];
+$object = new Commande($db);
+$extrafields = new ExtraFields($db);
+
+// fetch optionals attributes and labels
+$extrafields->fetch_name_optionals_label($object->table_element);
+
+// Load object
+include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';     // Must be include, not include_once
 
 if (isModEnabled('affaire')) {
-	$langs->load('affaire');
-
-
-	// Workflow
-	$workflow_array = array();
-	// $workflow = (object)array("rowid"=>2, "label"=>'classique');
-	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
-	$resql = $db->query($sql);
-	if ($resql) {
-		$res = $db->fetch_object($resql);
-		$workflow_array["rowid"] = $res->rowid;
-		$workflow_array["label"] = $res->label;
-		$workflow = (object)$workflow_array;
-	} else {
-		dol_print_error($db);
-	}
-	$INFO["Workflow"] .= "<br> > $workflow->label [$workflow->rowid]";
-
+	dol_include_once('/affaire/class/affaire.class.php');
+	dol_include_once('/affaire/lib/affaire_affaire.lib.php');
+	dol_include_once('/affaire/lib/affaire.lib.php');
+	
 	// Get affaire
 	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
-	if (empty($affaireID) && !empty($id)) {
-		$object = new Commande($db);
-		$ret = $object->fetch($id);
+	if (empty($affaireID)) {
 
 		$affaireID = getLinkedAff($object);
 	}
-	
+
 	// Load affaire
 	if ($affaireID > 0) {
 		$affaire = new Affaire($db);
 		$res = $affaire->fetch($affaireID);
 		if ($res > 0) {
-			if ($affaire->fk_workflow_type != $workflow->rowid) {
-				// TODO fetch good workflow
-				$path = dol_buildpath('')."?aiffaire=$affaireID";
-				header('Location: '.$path);
-				exit();
+			$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE rowid = ".$affaire->fk_workflow_type;
+			$resql = $db->query($sql);
+			if ($resql) {
+				$workflow = $db->fetch_object($resql);
+			} else {
+				dol_print_error($db);
 			}
 
-			/* TODO the associated function
-			dol_tabs($affaire);
-			dol_banner($affaire);
-			dol_workflow_tabs($affaire->fk_workflow_type);
-			*/
+			// REDIRECT
+			$_POST["affaire"] = $affaire->id;
+			$_SESSION['post_data'] = $_POST;
+			$_SESSION['get_data'] = $_GET;
+
+			
+			$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
+			$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php';
+			$path = dol_buildpath($path, 1);
+			header('Location: '.$path);
+			exit();
 		} else {
 			setEventMessages($affaire->error, $affaire->errors, 'errors');
 			$action = '';
 		}
 	}
-	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
-	$INFO["Banner"]["ref"] = $affaire->ref;
-	
-
-	// Get the order linked to the affaire 
-	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
-	if (empty($id) && $action != "create" && $action != "add") {
-		if (isset($affaire->linkedObjects["commande"])) {
-			$commande_array = $affaire->linkedObjects["commande"];
-			$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["commande"]).")  :  ";
-			// If only one linked commande : $id = this commande
-			if (count($commande_array) == 1) {
-				reset($commande_array);
-				$key = key($commande_array);
-				$id = $commande_array[$key]->id;
-			// If many commande : display a list
-			} else if (count($commande_array) > 1) {
-				setEventMessages("tooManyCmde, an affaire correspond to one cmde and only one cmde.\nyou can either add line to the other commande, either create a new affaire", $affaire->errors, 'errors');
-				$action = 'too_many_cmde';
-			} else if (count($commande_array) == 0) {
-				$action = 'create';
-			}
-		} else {
-			// If no commande linked, let's create one 
-			$INFO["Object"] .= "(No commande)";
-			
-			if (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_ORDER_FROM_SCRATCH')) {
-				$action = "create";
-			} else {
-				$action = "no_create";
-			}
-		}
-	} else if ($id) {
-		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["commande"]).")  :  ";
-	}
-	
-
-	// load commande
-	$object = new Commande($db);
-	$extrafields = new ExtraFields($db);
-	$extrafields->fetch_name_optionals_label($object->table_element);
-	
-	// Load object
-	include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';     // Must be include, not include_once
-	$INFO["Object"] .= "<br> > $object->ref [$id]";
-
-
-	if ($affaire) {
-		// Fetch step of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStep = $db->fetch_object($resql);
-				$defaultStepStatus = $affaireStep->fk_default_status;
-				// var_dump($affaireStep);
-				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
-				$INFO["Banner"]["step"] = $affaireStep;
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
-		// Fetch status of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatus = $db->fetch_object($resql);
-				// var_dump($affaireStatus);
-				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
-				$INFO["Banner"]["status"] = $affaireStatus;
-			} else {
-				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				$INFO["Affaire"] .= "<br> > aff_Status: NoSuchStatusForThisStepInThisWorkflow";
-			}
-		} else {
-			dol_print_error($db);
-		}
-
-
-		// Fetch affaire status of each step
-		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatusbyStep = $db->fetch_object($resql);
-			} else {
-				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
-
-		// Fetch this step
-		$thisStepName = 'Cmde'; // <-- this has to be modified when dictionnary change
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStep = $db->fetch_object($resql);
-				$defaultStepStatus = $thisStep->fk_default_status;
-				// var_dump($thisStep);
-				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				
-				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
-		
-		// Fetch all status of this step : cmde
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
-		$resql = $db->query($sql);
-		if ($resql) {
-			$thisStatusArray = array();
-			if ($resql->num_rows > 0) {
-				while ($res = $db->fetch_object($resql)) {
-					$thisStatusArray[$res->rowid] = $res;
-				}
-			} else {
-				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
-
-		// Fetch status of affaire for this step
-		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
-		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
-		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStatus = $db->fetch_object($resql);
-				// var_dump($thisStatus);
-				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
-			} else {
-				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("CmdeNotCreated - NoStatus"), null, 'mesgs');
-				} else {
-					setEventMessages($langs->trans("CmdeHasNoStatus"), null, 'errors');
-				}
-			}
-		} else {
-			dol_print_error($db);
-		}
-
-		// Fetch status of object commande
-		if ($id) {
-			$sql = "SELECT aff_status FROM `llx_commande_extrafields` WHERE fk_object = $id AND fk_affaire = $affaire->id";
-			$resql = $db->query($sql);
-			if ($resql) {
-				if ($resql->num_rows > 0) {
-					$ObjectStatus = $db->fetch_object($resql);
-					$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
-					// var_dump($ObjectStatus);
-					// print(json_encode($ObjectStatus, JSON_PRETTY_PRINT));
-					$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
-				} else {
-					$INFO["Object"] .= "<br> > No Status";
-				}
-			} else {
-				dol_print_error($db);
-			}
-		}
-	}
-} else {
-	// Load commande
-	$object = new Commande($db);
-	$extrafields = new ExtraFields($db);
-	$extrafields->fetch_name_optionals_label($object->table_element);
-	
-	// Load object
-	include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';     // Must be include, not include_once
-	
-	$INFO["Object"] .= "<br> > $object->ref [$id]";
 }
 
 
@@ -397,7 +186,7 @@ $error = 0;
 
 $date_delivery = dol_mktime(GETPOSTINT('liv_hour'), GETPOSTINT('liv_min'), 0, GETPOSTINT('liv_month'), GETPOSTINT('liv_day'), GETPOSTINT('liv_year'));
 
-// ACTION
+
 /*
  * Actions
  */
@@ -440,440 +229,6 @@ if (empty($reshook)) {
 	include DOL_DOCUMENT_ROOT.'/core/actions_dellink.inc.php';     // Must be include, not include_once
 
 	include DOL_DOCUMENT_ROOT.'/core/actions_lineupdown.inc.php';  // Must be include, not include_once
-
-	// Affaire action
-	if ($id && $action == 'changeStatus') {
-		$newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
-		$close_window = GETPOSTINT('close_window');
-		$status_for = GETPOST('status_for', 'aZ09');
-		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
-		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
-
-		$error = 0;
-
-		// Change object commande ($commande->aff_status & Commande::STATUS)
-		if ($status_for == 'both' || $status_for == 'object') {
-			$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
-			$resql = $db->query($sql);
-			if ($resql) {
-				$obj = $db->fetch_object($resql);
-				$code = intval($obj->fk_type);
-				
-				if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('COMMANDE_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
-					switch (true) {
-						case ($code < 0):
-							// VALIDATED if needed
-							if ($object->statut == Commande::STATUS_DRAFT && ($object->total_ttc >= 0 || getDolGlobalString('ORDER_ENABLE_NEGATIVE')) && $usercanvalidate) {
-								$numlines = count($object->lines);
-								$soc = $object->thirdparty;
-								if ($numlines > 0) {
-									// We check that object has a temporary ref
-									$ref = substr($object->ref, 1, 4);
-									if ($ref == 'PROV' || $ref == '') {
-										$numref = $object->getNextNumRef($soc);
-										if (empty($numref)) {
-											$error++;
-											setEventMessages($object->error, $object->errors, 'errors');
-										}
-									} else {
-										$numref = $object->ref;
-									}
-
-									$idwarehouse = GETPOSTINT('idwarehouse');
-							
-									$qualified_for_stock_change = 0;
-									if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-										$qualified_for_stock_change = $object->hasProductsOrServices(2);
-									} else {
-										$qualified_for_stock_change = $object->hasProductsOrServices(1);
-									}
-							
-									// Check parameters
-									if (isModEnabled('stock') && getDolGlobalString('STOCK_CALCULATE_ON_VALIDATE_ORDER') && $qualified_for_stock_change) {
-										if (!$idwarehouse || $idwarehouse == -1) {
-											$error++;
-											setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
-											$action = '';
-										}
-									}
-							
-									if (!$error) {
-										$locationTarget = '';
-							
-										$db->begin();
-							
-										$result = $object->valid($user, $idwarehouse);
-										if ($result >= 0) {
-											$error = 0;
-											$deposit = null;
-							
-											$deposit_percent_from_payment_terms = (float) getDictionaryValue('c_payment_term', 'deposit_percent', $object->cond_reglement_id);
-							
-											if (
-												GETPOST('generate_deposit', 'alpha') == 'on' && !empty($deposit_percent_from_payment_terms)
-												&& isModEnabled('invoice') && $user->hasRight('facture', 'creer')
-											) {
-												require_once DOL_DOCUMENT_ROOT . '/compta/facture/class/facture.class.php';
-							
-												$date = dol_mktime(0, 0, 0, GETPOSTINT('datefmonth'), GETPOSTINT('datefday'), GETPOSTINT('datefyear'));
-												$forceFields = array();
-							
-												if (GETPOSTISSET('date_pointoftax')) {
-													$forceFields['date_pointoftax'] = dol_mktime(0, 0, 0, GETPOSTINT('date_pointoftaxmonth'), GETPOSTINT('date_pointoftaxday'), GETPOSTINT('date_pointoftaxyear'));
-												}
-							
-												$deposit = Facture::createDepositFromOrigin($object, $date, GETPOSTINT('cond_reglement_id'), $user, 0, GETPOSTINT('validate_generated_deposit') == 'on', $forceFields);
-							
-												if ($deposit) {
-													setEventMessage('DepositGenerated');
-													$locationTarget = DOL_URL_ROOT . '/compta/facture/card.php?id=' . $deposit->id;
-												} else {
-													$error++;
-													setEventMessages($object->error, $object->errors, 'errors');
-												}
-											}
-							
-											// Define output language
-											if (! $error) {
-												$db->commit();
-							
-												if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-													$outputlangs = $langs;
-													$newlang = '';
-													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-														$newlang = GETPOST('lang_id', 'aZ09');
-													}
-													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-														$newlang = $object->thirdparty->default_lang;
-													}
-													if (!empty($newlang)) {
-														$outputlangs = new Translate("", $conf);
-														$outputlangs->setDefaultLang($newlang);
-													}
-													$model = $object->model_pdf;
-													$ret = $object->fetch($id); // Reload to get new records
-							
-													$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-							
-													if ($deposit) {
-														$deposit->fetch($deposit->id); // Reload to get new records
-														$deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
-													}
-												}
-							
-												if ($locationTarget) {
-													header('Location: ' . $locationTarget);
-													exit;
-												}
-											} else {
-												$db->rollback();
-											}
-										} else {
-											$db->rollback();
-											setEventMessages($object->error, $object->errors, 'errors');
-										}
-									}
-								} else {
-									$error = $langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref);
-								}
-							}
-							// CANCELED
-							if ($object->statut == Commande::STATUS_VALIDATED && !empty($usercancancel)){
-								$idwarehouse = GETPOSTINT('idwarehouse');
-
-								$qualified_for_stock_change = 0;
-								if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-									$qualified_for_stock_change = $object->hasProductsOrServices(2);
-								} else {
-									$qualified_for_stock_change = $object->hasProductsOrServices(1);
-								}
-						
-								// Check parameters
-								if (isModEnabled('stock') && getDolGlobalString('STOCK_CALCULATE_ON_VALIDATE_ORDER') && $qualified_for_stock_change) {
-									if (!$idwarehouse || $idwarehouse == -1) {
-										$error++;
-										setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
-										$action = '';
-									}
-								}
-						
-								if (!$error) {
-									$result = $object->cancel($idwarehouse);
-						
-									if ($result < 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								}
-							} else if ($object->statut != Commande::STATUS_CANCELED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Commande::STATUS_CANCELED) depuis l'ancien status system";
-							}
-							break;
-						case (0 <= $code && $code <= 99):
-							// REOPEN if needed
-							if (($object->statut == Commande::STATUS_CLOSED || $object->statut == Commande::STATUS_CANCELED) && $usercancreate && (!$object->billed || !getDolGlobalInt('ORDER_DONT_REOPEN_BILLED'))) {
-								if (getDolGlobalInt('ORDER_REOPEN_TO_DRAFT')) {
-									$result = $object->setDraft($user, $idwarehouse);
-									if ($result < 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								} else {
-									$result = $object->set_reopen($user);
-									if ($result > 0) {
-										setEventMessages($langs->trans('OrderReopened', $object->ref), null);
-									} else {
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								}
-							}
-							// DRAFT
-							if ($usercancreate && $object->statut != Commande::STATUS_DRAFT) {
-								$idwarehouse = GETPOST('idwarehouse');
-
-								$qualified_for_stock_change = 0;
-								if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-									$qualified_for_stock_change = $object->hasProductsOrServices(2);
-								} else {
-									$qualified_for_stock_change = $object->hasProductsOrServices(1);
-								}
-
-								// Check parameters
-								if (isModEnabled('stock') && getDolGlobalString('STOCK_CALCULATE_ON_VALIDATE_ORDER') && $qualified_for_stock_change) {
-									if (!$idwarehouse || $idwarehouse == -1) {
-										$error++;
-										setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
-										$action = '';
-									}
-								}
-
-								if (!$error) {
-									$result = $object->setDraft($user, $idwarehouse);
-									if ($result >= 0) {
-										// Define output language
-										if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-											$outputlangs = $langs;
-											$newlang = '';
-											if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-												$newlang = GETPOST('lang_id', 'aZ09');
-											}
-											if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-												$newlang = $object->thirdparty->default_lang;
-											}
-											if (!empty($newlang)) {
-												$outputlangs = new Translate("", $conf);
-												$outputlangs->setDefaultLang($newlang);
-											}
-											$model = $object->model_pdf;
-											$ret = $object->fetch($id); // Reload to get new records
-
-											$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-										}
-									} else {
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								}
-							} else if ($object->statut != Commande::STATUS_DRAFT) {
-								$error = "Impossible mettre le status à $obj->label (System status : Commande::STATUS_DRAFT) vous n'avez pas les droits";
-							}
-							break;
-						case (100 <= $code && $code <= 299): //<-- old system use same status for validated and prod state
-							// REOPEN
-							if (($object->statut == Commande::STATUS_CLOSED || $object->statut == Commande::STATUS_CANCELED) && $usercancreate && (!$object->billed || !getDolGlobalInt('ORDER_DONT_REOPEN_BILLED'))) {
-								if (getDolGlobalInt('ORDER_REOPEN_TO_DRAFT')) {
-									$result = $object->setDraft($user, $idwarehouse);
-									if ($result < 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								} else {
-									$result = $object->set_reopen($user);
-									if ($result > 0) {
-										setEventMessages($langs->trans('OrderReopened', $object->ref), null);
-									} else {
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								}
-							}
-							// VALIDATED && ACCEPTED
-							else if ($object->statut == Commande::STATUS_DRAFT && ($object->total_ttc >= 0 || getDolGlobalString('ORDER_ENABLE_NEGATIVE')) && $usercanvalidate) {
-								$numlines = count($object->lines);
-								$soc = $object->thirdparty;
-								if ($numlines > 0) {
-									// We check that object has a temporary ref
-									$ref = substr($object->ref, 1, 4);
-									if ($ref == 'PROV' || $ref == '') {
-										$numref = $object->getNextNumRef($soc);
-										if (empty($numref)) {
-											$error++;
-											setEventMessages($object->error, $object->errors, 'errors');
-										}
-									} else {
-										$numref = $object->ref;
-									}
-
-									$idwarehouse = GETPOSTINT('idwarehouse');
-							
-									$qualified_for_stock_change = 0;
-									if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-										$qualified_for_stock_change = $object->hasProductsOrServices(2);
-									} else {
-										$qualified_for_stock_change = $object->hasProductsOrServices(1);
-									}
-							
-									// Check parameters
-									if (isModEnabled('stock') && getDolGlobalString('STOCK_CALCULATE_ON_VALIDATE_ORDER') && $qualified_for_stock_change) {
-										if (!$idwarehouse || $idwarehouse == -1) {
-											$error++;
-											setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
-											$action = '';
-										}
-									}
-							
-									if (!$error) {
-										$locationTarget = '';
-							
-										$db->begin();
-							
-										$result = $object->valid($user, $idwarehouse);
-										if ($result >= 0) {
-											$error = 0;
-											$deposit = null;
-							
-											$deposit_percent_from_payment_terms = (float) getDictionaryValue('c_payment_term', 'deposit_percent', $object->cond_reglement_id);
-							
-											if (
-												GETPOST('generate_deposit', 'alpha') == 'on' && !empty($deposit_percent_from_payment_terms)
-												&& isModEnabled('invoice') && $user->hasRight('facture', 'creer')
-											) {
-												require_once DOL_DOCUMENT_ROOT . '/compta/facture/class/facture.class.php';
-							
-												$date = dol_mktime(0, 0, 0, GETPOSTINT('datefmonth'), GETPOSTINT('datefday'), GETPOSTINT('datefyear'));
-												$forceFields = array();
-							
-												if (GETPOSTISSET('date_pointoftax')) {
-													$forceFields['date_pointoftax'] = dol_mktime(0, 0, 0, GETPOSTINT('date_pointoftaxmonth'), GETPOSTINT('date_pointoftaxday'), GETPOSTINT('date_pointoftaxyear'));
-												}
-							
-												$deposit = Facture::createDepositFromOrigin($object, $date, GETPOSTINT('cond_reglement_id'), $user, 0, GETPOSTINT('validate_generated_deposit') == 'on', $forceFields);
-							
-												if ($deposit) {
-													setEventMessage('DepositGenerated');
-													$locationTarget = DOL_URL_ROOT . '/compta/facture/card.php?id=' . $deposit->id;
-												} else {
-													$error++;
-													setEventMessages($object->error, $object->errors, 'errors');
-												}
-											}
-							
-											// Define output language
-											if (! $error) {
-												$db->commit();
-							
-												if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-													$outputlangs = $langs;
-													$newlang = '';
-													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-														$newlang = GETPOST('lang_id', 'aZ09');
-													}
-													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-														$newlang = $object->thirdparty->default_lang;
-													}
-													if (!empty($newlang)) {
-														$outputlangs = new Translate("", $conf);
-														$outputlangs->setDefaultLang($newlang);
-													}
-													$model = $object->model_pdf;
-													$ret = $object->fetch($id); // Reload to get new records
-							
-													$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-							
-													if ($deposit) {
-														$deposit->fetch($deposit->id); // Reload to get new records
-														$deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
-													}
-												}
-							
-												if ($locationTarget) {
-													header('Location: ' . $locationTarget);
-													exit;
-												}
-											} else {
-												$db->rollback();
-											}
-										} else {
-											$db->rollback();
-											setEventMessages($object->error, $object->errors, 'errors');
-										}
-									}
-								} else {
-									$error = $langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref);
-								}
-							} else if ($object->statut != Commande::STATUS_VALIDATED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Commande::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							break;
-						case (300 <= $code && $code <= 399):
-							// SHIPPED
-							$result = $object->cloture($user);
-							if ($result < 0) {
-								$error = $object->error;
-							}
-							// CLASSIFY BILLED
-							$ret = $object->classifyBilled($user);
-							if ($ret < 0) {
-								setEventMessages($object->error, $object->errors, 'errors');
-							}
-							break;
-					}
-				}
-
-				if (empty($error)) {
-					$object->oldcopy = dol_clone($object, 2);
-					$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
-
-					$object->array_options["options_".$attribute_name] = $newStatus;
-					$result = $object->updateExtraField($attribute_name, 'PROPAL_MODIFY');
-					if ($result < 0) {
-						setEventMessages($object->error, $object->errors, 'errors');
-						$error--;
-					}
-					if ($error) {
-						$action = 'edit_extras';
-					}
-				} else {
-					setEventMessages($error, null, 'errors');
-				}
-			} else {
-				$error = $langs->trans("StatusNotFound");
-			}
-
-			if (empty($error) && $close_window) {
-				echo "<script>window.close();</script>";
-			}
-		}
-
-		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
-		if ($status_for == 'both' || $status_for == 'step') {
-			if (empty($error)) {
-				$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
-				if ($result) {
-					setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
-					if (is_string($result)) setEventMessages($result, null, 'errors');
-				}
-			} else {
-				setEventMessages($error, null, 'errors');
-			}
-		}
-
-
-		$_SESSION['urlsToOpen'] = $urlsToOpen;
-
-		$path = $_SERVER["PHP_SELF"].'?id='.$id;
-		$path .= $affaire ? "&affaire=$affaire->id" : '';
-		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
-		header('Location: '.$path);
-		exit;
-	} else if ($action == 'changeStatus') {
-		$action = 'confirm_changeStatus';
-	}
 
 	// Action clone object
 	if ($action == 'confirm_clone' && $confirm == 'yes' && $usercancreate) {
@@ -1020,11 +375,6 @@ if (empty($reshook)) {
 				if ($ret < 0) {
 					$error++;
 				}
-			}
-			// Extrafields for affaire
-			if ($affaire) {
-				$object->array_options["options_fk_affaire"] = $affaire->id;
-				$object->array_options["options_aff_status"] = $defaultStepStatus;
 			}
 
 			// If creation from another object of another module (Example: origin=propal, originid=1)
@@ -1213,19 +563,6 @@ if (empty($reshook)) {
 				}
 			}
 
-			// Link to affaire
-			if ($object_id > 0 && $affaire) {
-				$result = $object->add_object_linked($affaire->element, $affaire->id);
-				if ($result == 1) {
-					// TODO log it instead of a message
-					setEventMessage("La commande à bien été lié à l'affaire", 'mesgs');
-				} else {
-					$error_message = $db->lasterror();
-					setEventMessage("IMPOSSIBLE DE LIER LA COMMANDE À L4AFFAIRE : $error_message", 'errors');
-					// TODO log it
-				}
-			}
-
 			// Insert default contacts if defined
 			if ($object_id > 0) {
 				if (GETPOSTINT('contactid')) {
@@ -1243,10 +580,7 @@ if (empty($reshook)) {
 			// End of object creation, we show it
 			if ($object_id > 0 && !$error) {
 				$db->commit();
-				// header('Location: '.$_SERVER["PHP_SELF"].'?id='.$object_id);
-				$path = $_SERVER["PHP_SELF"].'?id='.$object_id;
-				$path .= $affaire ? "&affaire=$affaire->id&action=changeStatus&newStatus=$defaultStepStatus&status_for=both" : '';
-				header('Location: '.$path);
+				header('Location: '.$_SERVER["PHP_SELF"].'?id='.$object_id);
 				exit();
 			} else {
 				$db->rollback();
@@ -2363,7 +1697,7 @@ if (empty($reshook)) {
 	}
 }
 
-// VIEW
+
 /*
  *	View
  */
@@ -2375,17 +1709,6 @@ if ($action == 'create') {
 $help_url = 'EN:Customers_Orders|FR:Commandes_Clients|ES:Pedidos de clientes|DE:Modul_Kundenaufträge';
 
 llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-order page-card');
-
-if (getDolGlobalInt('DEBUG')) {
-	print implode("\n", $INFO)."<br><br>";
-} else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
-}
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
-
-injectOpenUrlsScript();
-
 
 $form = new Form($db);
 $formfile = new FormFile($db);
@@ -2559,9 +1882,6 @@ if ($action == 'create' && $usercancreate) {
 	print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
 	if (!empty($currency_tx)) {
 		print '<input type="hidden" name="originmulticurrency_tx" value="'.$currency_tx.'">';
-	}
-	if ($affaire) {
-		print '<input type="hidden" name="affaire" value="'.$affaire->id.'">'; 
 	}
 
 	print dol_get_fiche_head('');
@@ -2875,33 +2195,6 @@ if ($action == 'create' && $usercancreate) {
 	}
 
 	print '</form>';
-} else if ($action == 'too_many_cmde') {
-	/**
-	 * TODO
-	 * a table with each cmde
-	 * button fusion
-	 * button create new affaire
-	 */
-
-	print "<br><br>WE HAVE MANY COMMANDE !!!!";
-} else if ($action == 'no_create') {
-	/**
-	 * TODO
-	 * a table with each cmde
-	 * button fusion
-	 * button create new affaire
-	 */
-
-	 print "<br><br>IL N'Y A PAS DE COMMANDE ASSOCIÉ À CETTE AFFAIRE <br><br> ON NE CRÉER PAS UNE COMMANDE COMME ÇA !!!!";
-} else if ($action == 'confirm_changeStatus') {
-	/**
-	 * TODO
-	 * a form to confirm change status 
-	 *  - if no $id then select the cmde !!->should nerver happen
-	 *  - if status_for = 'both' select between both, step or object (this make status simpler to understand, but make add a click each time yo change status)
-	 */
-
-	print "<br><br>Where's the Confirm form which should be here ?";
 } else {
 	// Mode view
 	$now = dol_now();
@@ -3214,17 +2507,6 @@ if ($action == 'create' && $usercancreate) {
 		if (!getDolGlobalString('MAIN_DISABLE_OTHER_LINK') && $object->thirdparty->id > 0) {
 			$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/commande/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherOrders").'</a>)';
 		}
-
-		// Affaire
-		if (isModEnabled('affaire')) {
-			$langs->load("affaire");
-			$morehtmlref .= '<br>';
-			$morehtmlref .= $affaire->getNomUrl(1);
-			if ($affaire->title) {
-				$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->title).'</span>';
-			}
-		}
-
 		// Project
 		if (isModEnabled('project')) {
 			$langs->load("projects");
@@ -3530,12 +2812,7 @@ if ($action == 'create' && $usercancreate) {
 			}
 
 			// Other attributes
-			// change tpl to handle aff_status
-			// include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
-			include DOL_DOCUMENT_ROOT.'/custom/affaire/tpl/extrafields_view.tpl.php';
-			// this is a copy of htdocs/core/tpl/extrafields_view.tpl.php
-			// just to rewrite code for aff_status
-			// each code change will be indicated by // serem // END SEREM
+			include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
 
 			print '</table>';
 
@@ -3690,16 +2967,11 @@ if ($action == 'create' && $usercancreate) {
 			print '</table>';
 			print '</div>';
 
-			if ($object->statut != Commande::STATUS_DRAFT) {
-				print $langs->trans('Go_back_to_draft_to_edit');
-			}
-
 			print "</form>\n";
 		}
 
 		print dol_get_fiche_end();
 
-		// ACTION BUTTONS
 		/*
 		 * Buttons for actions
 		 */
@@ -3710,298 +2982,151 @@ if ($action == 'create' && $usercancreate) {
 			// Note that $action and $object may be modified by hook
 			$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action);
 			if (empty($reshook)) {
-				if (!$affaire) {
-					// Reopen a closed order
-					if (($object->statut == Commande::STATUS_CLOSED || $object->statut == Commande::STATUS_CANCELED) && $usercancreate && (!$object->billed || !getDolGlobalInt('ORDER_DONT_REOPEN_BILLED'))) {
-						print dolGetButtonAction('', $langs->trans('ReOpen'), 'default', $_SERVER["PHP_SELF"].'?action=reopen&amp;token='.newToken().'&amp;id='.$object->id, '');
-					}
-	
-					// Send
-					if (empty($user->socid)) {
-						if ($object->statut > Commande::STATUS_DRAFT || getDolGlobalString('COMMANDE_SENDBYEMAIL_FOR_ALL_STATUS')) {
-							if ($usercansend) {
-								print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER["PHP_SELF"].'?action=presend&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
-							} else {
-								print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER['PHP_SELF']. '#', '', false);
-							}
-						}
-					}
-	
-					// Valid
-					if ($object->statut == Commande::STATUS_DRAFT && ($object->total_ttc >= 0 || getDolGlobalString('ORDER_ENABLE_NEGATIVE')) && $usercanvalidate) {
-						if ($numlines > 0) {
-							print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER["PHP_SELF"].'?action=validate&amp;token='.newToken().'&amp;id='.$object->id, $object->id, 1);
+				// Reopen a closed order
+				if (($object->statut == Commande::STATUS_CLOSED || $object->statut == Commande::STATUS_CANCELED) && $usercancreate && (!$object->billed || !getDolGlobalInt('ORDER_DONT_REOPEN_BILLED'))) {
+					print dolGetButtonAction('', $langs->trans('ReOpen'), 'default', $_SERVER["PHP_SELF"].'?action=reopen&amp;token='.newToken().'&amp;id='.$object->id, '');
+				}
+
+				// Send
+				if (empty($user->socid)) {
+					if ($object->statut > Commande::STATUS_DRAFT || getDolGlobalString('COMMANDE_SENDBYEMAIL_FOR_ALL_STATUS')) {
+						if ($usercansend) {
+							print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER["PHP_SELF"].'?action=presend&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
 						} else {
-							print dolGetButtonAction($langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref), $langs->trans('Validate'), 'default', $_SERVER["PHP_SELF"].'?action=validate&amp;token='.newToken().'&amp;id='.$object->id, $object->id, 0);
-						}
-					}
-					// Edit
-					if ($object->statut == Commande::STATUS_VALIDATED && $usercancreate) {
-						print dolGetButtonAction('', $langs->trans('Modify'), 'default', $_SERVER["PHP_SELF"].'?action=modif&amp;token='.newToken().'&amp;id='.$object->id, '');
-					}
-	
-					$arrayforbutaction = array();
-	
-					// Create a purchase order
-					$arrayforbutaction[] = array('lang' => 'orders', 'enabled' => (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0), 'perm' => $usercancreatepurchaseorder, 'label' => 'AddPurchaseOrder', 'url' => '/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id);
-					/*if (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0) {
-						if ($usercancreatepurchaseorder) {
-							print dolGetButtonAction('', $langs->trans('AddPurchaseOrder'), 'default', DOL_URL_ROOT.'/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id, '');
-						}
-					}*/
-	
-					// Create intervention
-					$arrayforbutaction[] = array('lang' => 'interventions', 'enabled' => (isModEnabled("intervention") && $object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0), 'perm' => $user->hasRight('ficheinter', 'creer'), 'label' => 'AddIntervention', 'url' => '/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
-					/*if (isModEnabled('ficheinter')) {
-						$langs->load("interventions");
-	
-						if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0) {
-							if ($user->hasRight('ficheinter', 'creer')) {
-								print dolGetButtonAction('', $langs->trans('AddIntervention'), 'default', DOL_URL_ROOT.'/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-							} else {
-								print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('AddIntervention'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-							}
-						}
-					}*/
-	
-					// Create contract
-					$arrayforbutaction[] = array('lang' => 'contracts', 'enabled' => (isModEnabled("contract") && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)), 'perm' => $user->hasRight('contrat', 'creer'), 'label' => 'AddContract', 'url' => '/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
-					/*if (isModEnabled('contrat') && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)) {
-						$langs->load("contracts");
-	
-						if ($user->hasRight('contrat', 'creer')) {
-							print dolGetButtonAction('', $langs->trans('AddContract'), 'default', DOL_URL_ROOT.'/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-						}
-					}*/
-	
-					$numshipping = 0;
-					if (isModEnabled('shipping')) {
-						$numshipping = $object->countNbOfShipments();
-					}
-	
-					// Create shipment
-					if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES'))) {
-						if ((getDolGlobalInt('MAIN_SUBMODULE_EXPEDITION') && $user->hasRight('expedition', 'creer')) || (getDolGlobalInt('MAIN_SUBMODULE_DELIVERY') && $user->hasRight('expedition', 'delivery', 'creer'))) {
-							$arrayforbutaction[] = array('lang' => 'sendings', 'enabled' => (isModEnabled("shipping") && ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES')))), 'perm' => $user->hasRight('expedition', 'creer'), 'label' => 'CreateShipment', 'url' => '/expedition/shipment.php?id='.$object->id);
-							/*
-							if ($user->hasRight('expedition', 'creer')) {
-							print dolGetButtonAction('', $langs->trans('CreateShipment'), 'default', DOL_URL_ROOT.'/expedition/shipment.php?id='.$object->id, '');
-							} else {
-							print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('CreateShipment'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-							}*/
-						} else {
-							$langs->load("errors");
-							print dolGetButtonAction($langs->trans('ErrorModuleSetupNotComplete'), $langs->trans('CreateShipment'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-						}
-					}
-	
-					// Create bill
-					$arrayforbutaction[] = array(
-						'lang' => 'bills',
-						'enabled' => (isModEnabled('invoice') && $object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0),
-						'perm' => ($user->hasRight('facture', 'creer') && !getDolGlobalInt('WORKFLOW_DISABLE_CREATE_INVOICE_FROM_ORDER')),
-						'label' => 'CreateBill',
-						'url' => '/compta/facture/card.php?action=create&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid
-					);
-					/*
-					 if (isModEnabled('facture') && $object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0) {
-					 if (isModEnabled('facture') && $user->hasRight('facture', 'creer') && empty($conf->global->WORKFLOW_DISABLE_CREATE_INVOICE_FROM_ORDER)) {
-					 print dolGetButtonAction('', $langs->trans('CreateBill'), 'default', DOL_URL_ROOT.'/compta/facture/card.php?action=create&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-					 }
-					 }*/
-	
-					$actionButtonsParameters = [
-						"areDropdownButtons"	=> !getDolGlobalInt("MAIN_REMOVE_DROPDOWN_CREATE_BUTTONS_ON_ORDER")
-					];
-	
-					if ($numlines > 0) {
-						print dolGetButtonAction('', $langs->trans("Create"), 'default', $arrayforbutaction, $object->id, 1, $actionButtonsParameters);
-					} else {
-						print dolGetButtonAction($langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref), $langs->trans("Create"), 'default', $arrayforbutaction, $object->id, 0, $actionButtonsParameters);
-					}
-	
-					// Set to shipped
-					if (($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS) && $usercanclose) {
-						print dolGetButtonAction('', $langs->trans('ClassifyShipped'), 'default', $_SERVER["PHP_SELF"].'?action=shipped&amp;token='.newToken().'&amp;id='.$object->id, '');
-					}
-	
-					// Set billed or unbilled
-					// Note: Even if module invoice is not enabled, we should be able to use button "Classified billed"
-					if ($object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0) {
-						if ($usercancreate && $object->statut >= Commande::STATUS_VALIDATED && !getDolGlobalString('WORKFLOW_DISABLE_CLASSIFY_BILLED_FROM_ORDER') && !getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT')) {
-							print dolGetButtonAction('', $langs->trans('ClassifyBilled'), 'default', $_SERVER["PHP_SELF"].'?action=classifybilled&amp;token='.newToken().'&amp;id='.$object->id, '');
-						}
-					}
-					if ($object->statut > Commande::STATUS_DRAFT && $object->billed) {
-						if ($usercancreate && $object->statut >= Commande::STATUS_VALIDATED && !getDolGlobalString('WORKFLOW_DISABLE_CLASSIFY_BILLED_FROM_ORDER') && !getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT')) {
-							print dolGetButtonAction('', $langs->trans('ClassifyUnBilled'), 'delete', $_SERVER["PHP_SELF"].'?action=classifyunbilled&amp;token='.newToken().'&amp;id='.$object->id, '');
-						}
-					}
-	
-					// Clone
-					if ($usercancreate) {
-						print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER["PHP_SELF"].'?action=clone&amp;token='.newToken().'&amp;id='.$object->id.'&amp;socid='.$object->socid, '');
-					}
-	
-					// Cancel order
-					if ($object->statut == Commande::STATUS_VALIDATED && !empty($usercancancel)) {
-						print '<a class="butActionDelete" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=cancel&token='.newToken().'">'.$langs->trans("CancelOrder").'</a>';
-					}
-	
-					// Delete order
-					if ($usercandelete) {
-						if ($numshipping == 0) {
-							print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');
-						} else {
-							print dolGetButtonAction($langs->trans('ShippingExist'), $langs->trans('Delete'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-						}
-					}
-				} else {
-					// Send
-					if (empty($user->socid)) {
-						if ($object->statut > Commande::STATUS_DRAFT || getDolGlobalString('COMMANDE_SENDBYEMAIL_FOR_ALL_STATUS')) {
-							if ($usercansend) {
-								print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER["PHP_SELF"].'?action=presend&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
-							} else {
-								print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER['PHP_SELF']. '#', '', false);
-							}
-						}
-					}
-
-					$arrayforbutaction = array();
-
-					// Create a purchase order
-					$arrayforbutaction[] = array('lang' => 'orders', 'enabled' => (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0), 'perm' => $usercancreatepurchaseorder, 'label' => 'AddPurchaseOrder', 'url' => '/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id);
-					/*if (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0) {
-						if ($usercancreatepurchaseorder) {
-							print dolGetButtonAction('', $langs->trans('AddPurchaseOrder'), 'default', DOL_URL_ROOT.'/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id, '');
-						}
-					}*/
-
-					// Create intervention
-					$arrayforbutaction[] = array('lang' => 'interventions', 'enabled' => (isModEnabled("intervention") && $object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0), 'perm' => $user->hasRight('ficheinter', 'creer'), 'label' => 'AddIntervention', 'url' => '/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
-					/*if (isModEnabled('ficheinter')) {
-						$langs->load("interventions");
-
-						if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0) {
-							if ($user->hasRight('ficheinter', 'creer')) {
-								print dolGetButtonAction('', $langs->trans('AddIntervention'), 'default', DOL_URL_ROOT.'/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-							} else {
-								print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('AddIntervention'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-							}
-						}
-					}*/
-
-					// Create contract
-					$arrayforbutaction[] = array('lang' => 'contracts', 'enabled' => (isModEnabled("contract") && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)), 'perm' => $user->hasRight('contrat', 'creer'), 'label' => 'AddContract', 'url' => '/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
-					/*if (isModEnabled('contrat') && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)) {
-						$langs->load("contracts");
-
-						if ($user->hasRight('contrat', 'creer')) {
-							print dolGetButtonAction('', $langs->trans('AddContract'), 'default', DOL_URL_ROOT.'/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-						}
-					}*/
-
-					$numshipping = 0;
-					if (isModEnabled('shipping')) {
-						$numshipping = $object->countNbOfShipments();
-					}
-
-					// Create shipment
-					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SHIPEMENT_FROM_ORDER')) {
-						if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES'))) {
-							if ((getDolGlobalInt('MAIN_SUBMODULE_EXPEDITION') && $user->hasRight('expedition', 'creer')) || (getDolGlobalInt('MAIN_SUBMODULE_DELIVERY') && $user->hasRight('expedition', 'delivery', 'creer'))) {
-								$steplabel = empty(getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'expe' : getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$workflow->rowid);
-								$entrepot_id = 1; // <-entrepot SEREM
-
-								$arrayforbutaction[] = array(
-									'lang' => 'sendings', 
-									'enabled' => (isModEnabled("shipping") && ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES')))), 
-									'perm' => $user->hasRight('expedition', 'creer'), 
-									'label' => 'CreateShipment', 
-									'url' => '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?action=create&affaire='.$affaire->id.'&automatic=1&origin=commande&origin_id='.$object->id.(!empty($entrepot_id) ? "&entrepot_id=".$entrepot_id : '')
-								);
-								/*
-								if ($user->hasRight('expedition', 'creer')) {
-									print dolGetButtonAction('', $langs->trans('CreateShipment'), 'default', DOL_URL_ROOT.'/expedition/shipment.php?id='.$object->id, '');
-									} else {
-										print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('CreateShipment'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-								}*/
-							} else {
-								$langs->load("errors");
-								print dolGetButtonAction($langs->trans('ErrorModuleSetupNotComplete'), $langs->trans('CreateShipment'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-							}
-						}
-					}
-						
-					// Create bill
-					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INVOICE_FROM_ORDER')) {
-						$steplabel = empty(getDolGlobalString('STEP_FACTURE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'facture' : getDolGlobalString('STEP_FACTURE_FOR_WORKFLOW_'.$workflow->rowid);
-						
-						$arrayforbutaction[] = array(
-							'lang' => 'bills',
-							'enabled' => (isModEnabled('invoice') && $object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0),
-							'perm' => ($user->hasRight('facture', 'creer') && !getDolGlobalInt('WORKFLOW_DISABLE_CREATE_INVOICE_FROM_ORDER')),
-							'label' => 'CreateBill',
-							'url' => '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&amp;action=create&automatic=1&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid
-						);
-					}
-
-					/*
-					if (isModEnabled('facture') && $object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0) {
-					if (isModEnabled('facture') && $user->hasRight('facture', 'creer') && empty($conf->global->WORKFLOW_DISABLE_CREATE_INVOICE_FROM_ORDER)) {
-					print dolGetButtonAction('', $langs->trans('CreateBill'), 'default', DOL_URL_ROOT.'/compta/facture/card.php?action=create&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-					}
-					}*/
-
-					$actionButtonsParameters = [
-						'areDropdownButtons' => false
-					];
-
-					if ($numlines > 0) {
-						print dolGetButtonAction('', $langs->trans("Create"), 'default', $arrayforbutaction, $object->id, 1, $actionButtonsParameters);
-					} else {
-						print dolGetButtonAction($langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref), $langs->trans("Create"), 'default', $arrayforbutaction, $object->id, 0, $actionButtonsParameters);
-					}
-					
-					// Clone
-					// TODO
-					if ($usercancreate) {
-						// print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER["PHP_SELF"].'?action=clone&amp;token='.newToken().'&amp;id='.$object->id.'&amp;socid='.$object->socid, '');
-						print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
-					}
-									
-					// Change status
-					if (isModEnabled('affaire')) {
-						$arrayofstatusforbutaction = array();
-
-						// Fetch all status for this step
-						foreach ($thisStatusArray as $key => $rstatus) {
-							$labeltoshow = $rstatus->label;
-							if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
-							if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
-								$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
-							} else {
-								$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
-							}
-						}
-
-						$params = array("areDropdownButtons" => true, 'backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
-
-						$infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: commande $object->ref");
-						print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayofstatusforbutaction, 'changeStatusButton', 1, $params);
-					}
-
-					// Delete order
-					if ($usercandelete) {
-						if ($numshipping == 0) {
-							print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');
-						} else {
-							print dolGetButtonAction($langs->trans('ShippingExist'), $langs->trans('Delete'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+							print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER['PHP_SELF']. '#', '', false);
 						}
 					}
 				}
-				print '</div>';
+
+				// Valid
+				if ($object->statut == Commande::STATUS_DRAFT && ($object->total_ttc >= 0 || getDolGlobalString('ORDER_ENABLE_NEGATIVE')) && $usercanvalidate) {
+					if ($numlines > 0) {
+						print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER["PHP_SELF"].'?action=validate&amp;token='.newToken().'&amp;id='.$object->id, $object->id, 1);
+					} else {
+						print dolGetButtonAction($langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref), $langs->trans('Validate'), 'default', $_SERVER["PHP_SELF"].'?action=validate&amp;token='.newToken().'&amp;id='.$object->id, $object->id, 0);
+					}
+				}
+				// Edit
+				if ($object->statut == Commande::STATUS_VALIDATED && $usercancreate) {
+					print dolGetButtonAction('', $langs->trans('Modify'), 'default', $_SERVER["PHP_SELF"].'?action=modif&amp;token='.newToken().'&amp;id='.$object->id, '');
+				}
+
+				$arrayforbutaction = array();
+
+				// Create a purchase order
+				$arrayforbutaction[] = array('lang' => 'orders', 'enabled' => (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0), 'perm' => $usercancreatepurchaseorder, 'label' => 'AddPurchaseOrder', 'url' => '/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id);
+				/*if (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0) {
+					if ($usercancreatepurchaseorder) {
+						print dolGetButtonAction('', $langs->trans('AddPurchaseOrder'), 'default', DOL_URL_ROOT.'/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id, '');
+					}
+				}*/
+
+				// Create intervention
+				$arrayforbutaction[] = array('lang' => 'interventions', 'enabled' => (isModEnabled("intervention") && $object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0), 'perm' => $user->hasRight('ficheinter', 'creer'), 'label' => 'AddIntervention', 'url' => '/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
+				/*if (isModEnabled('ficheinter')) {
+					$langs->load("interventions");
+
+					if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0) {
+						if ($user->hasRight('ficheinter', 'creer')) {
+							print dolGetButtonAction('', $langs->trans('AddIntervention'), 'default', DOL_URL_ROOT.'/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
+						} else {
+							print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('AddIntervention'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+						}
+					}
+				}*/
+
+				// Create contract
+				$arrayforbutaction[] = array('lang' => 'contracts', 'enabled' => (isModEnabled("contract") && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)), 'perm' => $user->hasRight('contrat', 'creer'), 'label' => 'AddContract', 'url' => '/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
+				/*if (isModEnabled('contrat') && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)) {
+					$langs->load("contracts");
+
+					if ($user->hasRight('contrat', 'creer')) {
+						print dolGetButtonAction('', $langs->trans('AddContract'), 'default', DOL_URL_ROOT.'/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
+					}
+				}*/
+
+				$numshipping = 0;
+				if (isModEnabled('shipping')) {
+					$numshipping = $object->countNbOfShipments();
+				}
+
+				// Create shipment
+				if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES'))) {
+					if ((getDolGlobalInt('MAIN_SUBMODULE_EXPEDITION') && $user->hasRight('expedition', 'creer')) || (getDolGlobalInt('MAIN_SUBMODULE_DELIVERY') && $user->hasRight('expedition', 'delivery', 'creer'))) {
+						$arrayforbutaction[] = array('lang' => 'sendings', 'enabled' => (isModEnabled("shipping") && ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES')))), 'perm' => $user->hasRight('expedition', 'creer'), 'label' => 'CreateShipment', 'url' => '/expedition/shipment.php?id='.$object->id);
+						/*
+						if ($user->hasRight('expedition', 'creer')) {
+						print dolGetButtonAction('', $langs->trans('CreateShipment'), 'default', DOL_URL_ROOT.'/expedition/shipment.php?id='.$object->id, '');
+						} else {
+						print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('CreateShipment'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+						}*/
+					} else {
+						$langs->load("errors");
+						print dolGetButtonAction($langs->trans('ErrorModuleSetupNotComplete'), $langs->trans('CreateShipment'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+					}
+				}
+
+				// Create bill
+				$arrayforbutaction[] = array(
+					'lang' => 'bills',
+					'enabled' => (isModEnabled('invoice') && $object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0),
+					'perm' => ($user->hasRight('facture', 'creer') && !getDolGlobalInt('WORKFLOW_DISABLE_CREATE_INVOICE_FROM_ORDER')),
+					'label' => 'CreateBill',
+					'url' => '/compta/facture/card.php?action=create&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid
+				);
+				/*
+				 if (isModEnabled('facture') && $object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0) {
+				 if (isModEnabled('facture') && $user->hasRight('facture', 'creer') && empty($conf->global->WORKFLOW_DISABLE_CREATE_INVOICE_FROM_ORDER)) {
+				 print dolGetButtonAction('', $langs->trans('CreateBill'), 'default', DOL_URL_ROOT.'/compta/facture/card.php?action=create&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
+				 }
+				 }*/
+
+				$actionButtonsParameters = [
+					"areDropdownButtons"	=> !getDolGlobalInt("MAIN_REMOVE_DROPDOWN_CREATE_BUTTONS_ON_ORDER")
+				];
+
+				if ($numlines > 0) {
+					print dolGetButtonAction('', $langs->trans("Create"), 'default', $arrayforbutaction, $object->id, 1, $actionButtonsParameters);
+				} else {
+					print dolGetButtonAction($langs->trans("ErrorObjectMustHaveLinesToBeValidated", $object->ref), $langs->trans("Create"), 'default', $arrayforbutaction, $object->id, 0, $actionButtonsParameters);
+				}
+
+				// Set to shipped
+				if (($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS) && $usercanclose) {
+					print dolGetButtonAction('', $langs->trans('ClassifyShipped'), 'default', $_SERVER["PHP_SELF"].'?action=shipped&amp;token='.newToken().'&amp;id='.$object->id, '');
+				}
+
+				// Set billed or unbilled
+				// Note: Even if module invoice is not enabled, we should be able to use button "Classified billed"
+				if ($object->statut > Commande::STATUS_DRAFT && !$object->billed && $object->total_ttc >= 0) {
+					if ($usercancreate && $object->statut >= Commande::STATUS_VALIDATED && !getDolGlobalString('WORKFLOW_DISABLE_CLASSIFY_BILLED_FROM_ORDER') && !getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT')) {
+						print dolGetButtonAction('', $langs->trans('ClassifyBilled'), 'default', $_SERVER["PHP_SELF"].'?action=classifybilled&amp;token='.newToken().'&amp;id='.$object->id, '');
+					}
+				}
+				if ($object->statut > Commande::STATUS_DRAFT && $object->billed) {
+					if ($usercancreate && $object->statut >= Commande::STATUS_VALIDATED && !getDolGlobalString('WORKFLOW_DISABLE_CLASSIFY_BILLED_FROM_ORDER') && !getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT')) {
+						print dolGetButtonAction('', $langs->trans('ClassifyUnBilled'), 'delete', $_SERVER["PHP_SELF"].'?action=classifyunbilled&amp;token='.newToken().'&amp;id='.$object->id, '');
+					}
+				}
+
+				// Clone
+				if ($usercancreate) {
+					print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER["PHP_SELF"].'?action=clone&amp;token='.newToken().'&amp;id='.$object->id.'&amp;socid='.$object->socid, '');
+				}
+
+				// Cancel order
+				if ($object->statut == Commande::STATUS_VALIDATED && !empty($usercancancel)) {
+					print '<a class="butActionDelete" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=cancel&token='.newToken().'">'.$langs->trans("CancelOrder").'</a>';
+				}
+
+				// Delete order
+				if ($usercandelete) {
+					if ($numshipping == 0) {
+						print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');
+					} else {
+						print dolGetButtonAction($langs->trans('ShippingExist'), $langs->trans('Delete'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+					}
+				}
 			}
 			print '</div>';
 		}
@@ -4030,7 +3155,7 @@ if ($action == 'create' && $usercancreate) {
 			$compatibleImportElementsList = false;
 			if ($usercancreate
 				&& $object->statut == Commande::STATUS_DRAFT) {
-				$compatibleImportElementsList = array('commande', 'propal', 'facture', 'affaire'); // import from linked elements
+				$compatibleImportElementsList = array('commande', 'propal', 'facture'); // import from linked elements
 			}
 			$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem, $compatibleImportElementsList);
 

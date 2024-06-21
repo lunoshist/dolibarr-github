@@ -190,7 +190,7 @@ function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Wo
 
 				$path = '/'.strtolower($Workflow->label).'/'.strtolower($Workflow->label).'_'.strtolower($Step->label_short).'_stateOfPlay.php?affaire='.$affaire->id;
 				$card_page = dol_buildpath($path, 1);
-				$tab .= '<div class="inline-block tabsElem"><!-- id tab = contact --><div class="tab '.$active.'" style="margin: 0 !important"><a id="'.$Step->label_short.'" class="tab inline-block valignmiddle" href="'.$card_page.'" title="'.$Step->label_short.'">'.$Step->label.(isset($thisStatus) ? printBagde($thisStatus,'mini') : '').'<a></div></div>';
+				$tab .= '<div class="inline-block tabsElem"><!-- id tab = contact --><div class="tab '.$active.'" style="margin: 0 !important"><a id="'.$Step->label_short.'" class="tab inline-block valignmiddle" href="'.$card_page.'" title="'.$Step->label_short.'">'.$Step->label.(isset($thisStatus) ? printBagde($thisStatus,'mini') : '').'</a></div></div>';
 			}
 		} else {
 			setEventMessages($langs->trans("BeleBele"), null, 'mesg');
@@ -214,7 +214,31 @@ function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Wo
  * @return string html to print
  */
 function printBagde($Status, $width) {
+	global $db, $langs;
+
 	// TODO check if $status is int and fetch status if it's the case
+	if (!is_object($Status) && is_numeric($Status)) {
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $Status";
+		$resql = $db->query($sql);
+		if ($resql && $resql->num_rows > 0) {
+			$Status = $db->fetch_object($resql);	
+		} else {
+			dol_print_error($db);
+		}
+		$db->free($resql);
+	}
+
+
+	// STYLE 
+	$color = '';
+	$sql = "SELECT * FROM llx_c_affaire_status_types WHERE code = ".$Status->fk_type;
+	$resql = $db->query($sql);
+	if ($resql && $resql->num_rows > 0) {
+		$Type = $db->fetch_object($resql);
+		$color = "color: #$Type->color !important; ";
+		$color .= !empty($Type->border_color) ? "border-color: #$Type->border_color !important; " : "border-color: transparent !important; ";
+		$color .= !empty($Type->background_color) ? "background-color: #$Type->background_color !important; " : "background-color: transparent !important; ";
+	}
 
 	if (is_object($Status)) {
 		// TODO fetch code
@@ -224,12 +248,12 @@ function printBagde($Status, $width) {
 
 	switch ($width) {
 		case 'mini':
-			return '<span class="badge marginleftonlyshort">'.$Status->label_short.'</span>';
+			return '<span class="badge marginleftonlyshort" style=" '.$color.'">'.$Status->label_short.'</span>';
 		case 'small':		
-			return '<span class="badge badge-status'.$Status->fk_type.' badge-status">'.$Status->label_short.'</span>';
+			return '<span class="badge badge-status'.$Status->fk_type.' badge-status" style=" '.$color.'">'.$Status->label_short.'</span>';
 		case 'default':
 		case 'big':
-			return '<span class="badge badge-status'.$Status->fk_type.' badge-status">'.$Status->label.'</span>';
+			return '<span class="badge badge-status'.$Status->fk_type.' badge-status" style=" '.$color.'">'.$Status->label.'</span>';
 	}
 }
 
@@ -760,6 +784,35 @@ function generateCommande($affaire, $propal) {
 	else if result and fk_import = propal id  -> update
 
 	else return error = affaire can't have several commande
+	*/
+
+	/* triger from workflow module:
+	if (isModEnabled('order') && getDolGlobalString('WORKFLOW_PROPAL_AUTOCREATE_ORDER')) {
+		$object->fetchObjectLinked();
+		if (!empty($object->linkedObjectsIds['commande'])) {
+			if (empty($object->context['closedfromonlinesignature'])) {
+				$langs->load("orders");
+				setEventMessages($langs->trans("OrderExists"), null, 'warnings');
+			}
+			return $ret;
+		}
+
+		include_once DOL_DOCUMENT_ROOT.'/commande/class/commande.class.php';
+		$newobject = new Commande($this->db);
+
+		$newobject->context['createfrompropal'] = 'createfrompropal';
+		$newobject->context['origin'] = $object->element;
+		$newobject->context['origin_id'] = $object->id;
+
+		$ret = $newobject->createFromProposal($object, $user);
+		if ($ret < 0) {
+			$this->setErrorsFromObject($newobject);
+		}
+
+		$object->clearObjectLinkedCache();
+
+		return (int) $ret;
+	}
 	*/
 	// 
 }

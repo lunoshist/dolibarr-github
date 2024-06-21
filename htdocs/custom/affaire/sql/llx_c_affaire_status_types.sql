@@ -10,14 +10,14 @@ CREATE TABLE `llx_c_affaire_status_types` (
   description varchar (255),
   color varchar (255),
   border_color varchar (255),
-  backgroung_color varchar (255)
+  background_color varchar (255)
 ) ENGINE=InnoDB;
 
 --
 -- Déchargement des données de la table `llx_c_affaire_status_types`
 --
 
-INSERT INTO `llx_c_affaire_status_types` (`code`, `label`, `description`, `color`, `border_color`, `backgroung_color`) VALUES
+INSERT INTO `llx_c_affaire_status_types` (`code`, `label`, `description`, `color`, `border_color`, `background_color`) VALUES
 ('-1', 'cancel', 'Étape annulée, abandonnér', '999999', '', 'e7f0f0'),
 ('00', 'draft', 'Brouillon', '999999', 'cbd3d3', ''),
 ('100', 'open', 'Étape en cours - À nous de jouer ', 'ffffff', '', 'bc9526'),

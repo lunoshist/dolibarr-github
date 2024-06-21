@@ -1303,6 +1303,65 @@ class Affaire extends CommonObject
 
 	public function getStep($label) {
 
+		// Fetch this step
+		$thisStepName = 'Propal'; // <-- this has to be modified when dictionnary change
+
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$thisStep = $this->db->fetch_object($resql);
+				$defaultStepStatus = $thisStep->fk_default_status;
+				// var_dump($thisStep);
+				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
+				
+				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
+			} else {
+				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			}
+		} else {
+			dol_print_error($this->db);
+		}
+
+		// Fetch all status of this step : propal
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			$thisStatusArray = array();
+			if ($resql->num_rows > 0) {
+				while ($res = $this->db->fetch_object($resql)) {
+					$thisStatusArray[$res->rowid] = $res;
+				}
+			} else {
+				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
+			}
+		} else {
+			dol_print_error($this->db);
+		}
+
+
+		// Fetch status of affaire for this step
+		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
+		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
+
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			if ($resql->num_rows > 0) {
+				$thisStatus = $this->db->fetch_object($resql);
+				// var_dump($thisStatus);
+				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
+				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
+			} else {
+				if ($action == ('add' || 'create')) {
+					setEventMessages($langs->trans("PropalNotCreated - NoStatus"), null, 'mesgs');
+				} else {
+					setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
+				}
+			}
+		} else {
+			dol_print_error($this->db);
+		}
 			
 	}
 

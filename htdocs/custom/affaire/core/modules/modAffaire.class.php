@@ -211,6 +211,17 @@ class modAffaire extends DolibarrModules
 		// 'thirdparty'       to add a tab in third party view
 		// 'user'             to add a tab in user view
 
+		$this->tabs[] = array('data'=>'propal:-comm');
+		$this->tabs[] = array('data'=>'propal:+comm:Proposition commerciale:@affaire:true:/custom/affaire/objectStep/propal_stateOfPlay.php?id=__ID__');
+		$this->tabs[] = array('data'=>'order:-order');
+		$this->tabs[] = array('data'=>'order:+order:Commande client:@affaire:true:/custom/affaire/objectStep/cmde_stateOfPlay.php?id=__ID__');
+		$this->tabs[] = array('data'=>'project:-project');
+		$this->tabs[] = array('data'=>'project:+project:Projet:@affaire:true:/custom/affaire/objectStep/prod_stateOfPlay.php?id=__ID__');
+		$this->tabs[] = array('data'=>'expedition:-shipping');
+		$this->tabs[] = array('data'=>'expedition:+shipping:Fiche expédition:@affaire:true:/custom/affaire/objectStep/expe_stateOfPlay.php?id=__ID__');
+		$this->tabs[] = array('data'=>'invoice:-compta');
+		$this->tabs[] = array('data'=>'invoice:+compta:Facture client:@affaire:true:/custom/affaire/objectStep/facture_stateOfPlay.php?id=__ID__');
+
 		// Dictionaries
 		/* Example:
 		 $this->dictionaries=array(
