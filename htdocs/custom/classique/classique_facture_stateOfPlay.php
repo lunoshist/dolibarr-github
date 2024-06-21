@@ -523,120 +523,319 @@ if (empty($reshook)) {
 								if ($close_code) {
 									$result = $object->setCanceled($user, $close_code, $close_note);
 									if ($result < 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
+										$error = $object->error;
 									}
 								} else {
-									setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Reason")), null, 'errors');
+									$error = $langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Reason"));
 								}
 							}
 
 							break;
 						case (0 <= $code && $code <= 99):
 							// DRAFT
+							if ($object->status == Facture::STATUS_VALIDATED && $usercanunvalidate) {
+								$confirm = GETPOST('confirm', 'aZ09');
+								if (!$confirm) {							
+									// We check if lines of invoice are not already transferred into accountancy
+									$ventilExportCompta = $object->getVentilExportCompta();
+
+									if ($ventilExportCompta == 0) {
+										$totalpaid = $object->getSommePaiement();
+										$totalcreditnotes = $object->getSumCreditNotesUsed();
+										$totaldeposits = $object->getSumDepositsUsed();
+										//print "totalpaid=".$totalpaid." totalcreditnotes=".$totalcreditnotes." totaldeposts=".$totaldeposits."
+										// selleruserrevenuestamp=".$selleruserevenustamp;
+
+										// We can also use bcadd to avoid pb with floating points
+										// For example print 239.2 - 229.3 - 9.9; does not return 0.
+										$resteapayer = price2num($object->total_ttc - $totalpaid - $totalcreditnotes - $totaldeposits, 'MT');
+
+										// Multicurrency
+										if (isModEnabled('multicurrency')) {
+											$multicurrency_totalpaid = $object->getSommePaiement(1);
+											$multicurrency_totalcreditnotes = $object->getSumCreditNotesUsed(1);
+											$multicurrency_totaldeposits = $object->getSumDepositsUsed(1);
+											$multicurrency_resteapayer = price2num($object->multicurrency_total_ttc - $multicurrency_totalpaid - $multicurrency_totalcreditnotes - $multicurrency_totaldeposits, 'MT');
+											// Code to fix case of corrupted data
+											// TODO We should not need this. Also data comes from a not reliable value of $object->multicurrency_total_ttc that may be wrong if it was
+											// calculated by summing lines that were in a currency for some of them and into another for others (lines from discount/down payment into another currency for example)
+											if ($resteapayer == 0 && $multicurrency_resteapayer != 0 && $object->multicurrency_code != $conf->currency) {
+												$resteapayer = price2num((float) $multicurrency_resteapayer / $object->multicurrency_tx, 'MT');
+											}
+										}
+
+										if ($object->paye) {
+											$resteapayer = 0;
+										}
+										$resteapayeraffiche = $resteapayer;
+										
+										if (getDolGlobalString('INVOICE_CAN_BE_EDITED_EVEN_IF_PAYMENT_DONE') || ($resteapayer == price2num($object->total_ttc, 'MT', 1) && empty($object->paye))) {
+											$objectidnext = $object->getIdReplacingInvoice();
+											if (!$objectidnext && $object->is_last_in_cycle()) {
+												if ($usercanunvalidate) {
+													$action = 'chstatus_confirm_setdraft';
+													$error = 'need_confirm';
+												} else {
+													$error = $langs->trans('NotEnoughPermissions');
+												}
+											} elseif (!$object->is_last_in_cycle()) {
+												$error = $langs->trans('NotLastInCycle');
+											} else {
+												$error = $langs->trans('DisabledBecauseReplacedInvoice');
+											}
+										}
+									} else {
+										$error = $langs->trans('DisabledBecauseDispatchedInBookkeeping');
+									}
+								} else if ($confirm == 'yes') {
+									// Go back to draft status (unvalidate)
+									$idwarehouse = GETPOSTINT('idwarehouse');
+
+									$object->fetch($id);
+									$object->fetch_thirdparty();
+
+									// Check parameters
+									if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
+										$qualified_for_stock_change = 0;
+										if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
+											$qualified_for_stock_change = $object->hasProductsOrServices(2);
+										} else {
+											$qualified_for_stock_change = $object->hasProductsOrServices(1);
+										}
+
+										if ($qualified_for_stock_change) {
+											if (!$idwarehouse || $idwarehouse == - 1) {
+												$error++;
+												setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
+												$action = '';
+											}
+										}
+									}
+
+									if (!$error) {
+										// We check if invoice has payments
+										$totalpaid = 0;
+										$sql = 'SELECT pf.amount';
+										$sql .= ' FROM '.MAIN_DB_PREFIX.'paiement_facture as pf';
+										$sql .= ' WHERE pf.fk_facture = '.((int) $object->id);
+
+										$result = $db->query($sql);
+										if ($result) {
+											$i = 0;
+											$num = $db->num_rows($result);
+
+											while ($i < $num) {
+												$objp = $db->fetch_object($result);
+												$totalpaid += $objp->amount;
+												$i++;
+											}
+										} else {
+											dol_print_error($db, '');
+										}
+
+										$resteapayer = $object->total_ttc - $totalpaid;
+
+										// We check that invoice lines are transferred into accountancy
+										$ventilExportCompta = $object->getVentilExportCompta();
+
+										// We check if no payment has been made
+										if ($ventilExportCompta == 0) {
+											if (getDolGlobalString('INVOICE_CAN_BE_EDITED_EVEN_IF_PAYMENT_DONE') || ($resteapayer == $object->total_ttc && empty($object->paye))) {
+												$result = $object->setDraft($user, $idwarehouse);
+												if ($result < 0) {
+													setEventMessages($object->error, $object->errors, 'errors');
+												}
+
+												// Define output language
+												if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+													$outputlangs = $langs;
+													$newlang = '';
+													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
+														$newlang = GETPOST('lang_id', 'aZ09');
+													}
+													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
+														$newlang = $object->thirdparty->default_lang;
+													}
+													if (!empty($newlang)) {
+														$outputlangs = new Translate("", $conf);
+														$outputlangs->setDefaultLang($newlang);
+														$outputlangs->load('products');
+													}
+													$model = $object->model_pdf;
+													$ret = $object->fetch($id); // Reload to get new records
+
+													$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
+												}
+											}
+										}
+									}
+								}
+							} else if ($object->statut != Facture::STATUS_DRAFT) {
+								$error = "Impossible mettre le status à $obj->label (System status : Facture::STATUS_DRAFT) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
+							}
 							break;
 						case (100 <= $code && $code <= 199):
 							// REOPEN
 							if ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT)
-							|| ($object->type == Facture::TYPE_CREDIT_NOTE && empty($discount->id))
-							|| ($object->type == Facture::TYPE_DEPOSIT && empty($discount->id))
-							|| ($object->type == Facture::TYPE_SITUATION && empty($discount->id)))
-							&& ($object->status == Facture::STATUS_CLOSED || $object->status == Facture::STATUS_ABANDONED || ($object->status == 1 && $object->paye == 1))   // Condition ($object->status == 1 && $object->paye == 1) should not happened but can be found due to corrupted data
-							&& ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $usercancreate) || $usercanreopen)) {
-								if ($object->close_code != 'replaced' || (!$objectidnext)) {
-									
-									$error = "Impossible mettre le status à $obj->label ".$langs->trans('DisabledBecauseReplacedInvoice');
-									break;								
-								}
-								$result = $object->fetch($id);
+								|| ($object->type == Facture::TYPE_CREDIT_NOTE && empty($discount->id))
+								|| ($object->type == Facture::TYPE_DEPOSIT && empty($discount->id))
+								|| ($object->type == Facture::TYPE_SITUATION && empty($discount->id)))
+								&& ($object->status == Facture::STATUS_CLOSED || $object->status == Facture::STATUS_ABANDONED || ($object->status == 1 && $object->paye == 1))   // Condition ($object->status == 1 && $object->paye == 1) should not happened but can be found due to corrupted data
+								&& ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $usercancreate) || $usercanreopen)) {				// A paid invoice (partially or completely)
+								
+								if ($object->close_code != 'replaced' || (!$objectidnext)) { 				// Not replaced by another invoice or replaced but the replacement invoice has been deleted
+									$result = $object->fetch($id);
 
-								if ($object->status == Facture::STATUS_CLOSED || ($object->status == Facture::STATUS_ABANDONED && ($object->close_code != 'replaced' || $object->getIdReplacingInvoice() == 0)) || ($object->status == Facture::STATUS_VALIDATED && $object->paye == 1)) {    // ($object->status == 1 && $object->paye == 1) should not happened but can be found when data are corrupted
-									$result = $object->setUnpaid($user);
-									if ($result > 0) {
-										header('Location: '.$_SERVER["PHP_SELF"].'?facid='.$id);
-										exit();
-									} else {
-										setEventMessages($object->error, $object->errors, 'errors');
+									if ($object->status == Facture::STATUS_CLOSED || ($object->status == Facture::STATUS_ABANDONED && ($object->close_code != 'replaced' || $object->getIdReplacingInvoice() == 0)) || ($object->status == Facture::STATUS_VALIDATED && $object->paye == 1)) {    // ($object->status == 1 && $object->paye == 1) should not happened but can be found when data are corrupted
+										$result = $object->setUnpaid($user);
+										if ($result > 0) {
+											break;
+										} else {
+											$error = $object->error;
+										}
 									}
+								} else {
+									$error = $langs->trans("DisabledBecauseReplacedInvoice");
 								}
 							}
 							// VALIDATED
 							else if ($object->status == Facture::STATUS_DRAFT && count($object->lines) > 0 && ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA || $object->type == Facture::TYPE_SITUATION) && (getDolGlobalString('FACTURE_ENABLE_NEGATIVE') || $object->total_ttc >= 0)) || ($object->type == Facture::TYPE_CREDIT_NOTE && $object->total_ttc <= 0)) && $usercanvalidate) {
-								// Validation
-								$object->fetch($id);
+								$confirm = GETPOST('confirm', 'aZ09');
+								if (!$confirm) {
+									$object->fetch($id);
 
-								if ((preg_match('/^[\(]?PROV/i', $object->ref) || empty($object->ref)) &&	// empty should not happened, but when it occurs, the test save life
-									getDolGlobalString('FAC_FORCE_DATE_VALIDATION')								// If option enabled, we force invoice date
-								) {
-									$object->date = dol_now();
-								}
-
-								if (getDolGlobalString('INVOICE_CHECK_POSTERIOR_DATE')) {
-									$last_of_type = $object->willBeLastOfSameType(true);
-									if (empty($object->date_validation) && !$last_of_type[0]) {
-										setEventMessages($langs->transnoentities("ErrorInvoiceIsNotLastOfSameType", $object->ref, dol_print_date($object->date, 'day'), dol_print_date($last_of_type[1], 'day')), null, 'errors');
-										$action = '';
-									}
-								}
-
-								// We check invoice sign
-								if ($object->type == Facture::TYPE_CREDIT_NOTE) {
-									// If a credit note, the sign must be negative
-									if ($object->total_ht > 0) {
-										setEventMessages($langs->trans("ErrorInvoiceAvoirMustBeNegative"), null, 'errors');
-										$action = '';
-									}
-								} else {
-									// If not a credit note, amount with tax must be positive or nul.
-									// Note that amount excluding tax can be negative because you can have a invoice of 100 with vat of 20 that
-									// consumes a credit note of 100 with vat 0 (total with tax is 0 but without tax is -20).
-									// For some cases, credit notes can have a vat of 0 (for example when selling goods in France).
-									if (!getDolGlobalString('FACTURE_ENABLE_NEGATIVE') && $object->total_ttc < 0) {
-										setEventMessages($langs->trans("ErrorInvoiceOfThisTypeMustBePositive"), null, 'errors');
-										$action = '';
+									if ((preg_match('/^[\(]?PROV/i', $object->ref) || empty($object->ref)) &&	// empty should not happened, but when it occurs, the test save life
+										getDolGlobalString('FAC_FORCE_DATE_VALIDATION')								// If option enabled, we force invoice date
+									) {
+										$object->date = dol_now();
 									}
 
-									// Also negative lines should not be allowed on 'non Credit notes' invoices. A test is done when adding or updating lines but we must
-									// do it again in validation to avoid cases where invoice is created from another object that allow negative lines.
-									// Note that we can accept the negative line if sum with other lines with same vat makes total positive: Because all the lines will be merged together
-									// when converted into 'available credit' and we will get a positive available credit line.
-									// Note: Other solution if you want to add a negative line on invoice, is to create a discount for customer and consumme it (but this is possible on standard invoice only).
-									$array_of_total_ht_per_vat_rate = array();
-									$array_of_total_ht_devise_per_vat_rate = array();
-									foreach ($object->lines as $line) {
-										//$vat_src_code_for_line = $line->vat_src_code;		// TODO We check sign of total per vat without taking into account the vat code because for the moment the vat code is lost/unknown when we add a down payment.
-										$vat_src_code_for_line = '';
-										if (empty($array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line])) {
-											$array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] = 0;
+									if (getDolGlobalString('INVOICE_CHECK_POSTERIOR_DATE')) {
+										$last_of_type = $object->willBeLastOfSameType(true);
+										if (empty($object->date_validation) && !$last_of_type[0]) {
+											$error = $langs->transnoentities("ErrorInvoiceIsNotLastOfSameType", $object->ref, dol_print_date($object->date, 'day'), dol_print_date($last_of_type[1], 'day'));
 										}
-										if (empty($array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line])) {
-											$array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] = 0;
-										}
-										$array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] += $line->total_ht;
-										$array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] += $line->multicurrency_total_ht;
 									}
 
-									//var_dump($array_of_total_ht_per_vat_rate);exit;
-									foreach ($array_of_total_ht_per_vat_rate as $vatrate => $tmpvalue) {
-										$tmp_total_ht = price2num($array_of_total_ht_per_vat_rate[$vatrate]);
-										$tmp_total_ht_devise = price2num($array_of_total_ht_devise_per_vat_rate[$vatrate]);
+									// We check invoice sign
+									if ($object->type == Facture::TYPE_CREDIT_NOTE) {
+										// If a credit note, the sign must be negative
+										if ($object->total_ht > 0) {
+											$error = $langs->trans("ErrorInvoiceAvoirMustBeNegative");
+										}
+									} else {
+										// If not a credit note, amount with tax must be positive or nul.
+										// Note that amount excluding tax can be negative because you can have a invoice of 100 with vat of 20 that
+										// consumes a credit note of 100 with vat 0 (total with tax is 0 but without tax is -20).
+										// For some cases, credit notes can have a vat of 0 (for example when selling goods in France).
+										if (!getDolGlobalString('FACTURE_ENABLE_NEGATIVE') && $object->total_ttc < 0) {
+											$error = $langs->trans("ErrorInvoiceOfThisTypeMustBePositive");
+										}
 
-										if (($tmp_total_ht < 0 || $tmp_total_ht_devise < 0) && !getDolGlobalString('FACTURE_ENABLE_NEGATIVE_LINES')) {
-											if ($object->type == $object::TYPE_DEPOSIT) {
-												$langs->load("errors");
-												// Using negative lines on deposit lead to headach and blocking problems when you want to consume them.
-												setEventMessages($langs->trans("ErrorLinesCantBeNegativeOnDeposits"), null, 'errors');
-												$error++;
-												$action = '';
-											} else {
-												$tmpvatratetoshow = explode('_', $vatrate);
-												$tmpvatratetoshow[0] = round((float) $tmpvatratetoshow[0], 2);
+										// Also negative lines should not be allowed on 'non Credit notes' invoices. A test is done when adding or updating lines but we must
+										// do it again in validation to avoid cases where invoice is created from another object that allow negative lines.
+										// Note that we can accept the negative line if sum with other lines with same vat makes total positive: Because all the lines will be merged together
+										// when converted into 'available credit' and we will get a positive available credit line.
+										// Note: Other solution if you want to add a negative line on invoice, is to create a discount for customer and consumme it (but this is possible on standard invoice only).
+										$array_of_total_ht_per_vat_rate = array();
+										$array_of_total_ht_devise_per_vat_rate = array();
+										foreach ($object->lines as $line) {
+											//$vat_src_code_for_line = $line->vat_src_code;		// TODO We check sign of total per vat without taking into account the vat code because for the moment the vat code is lost/unknown when we add a down payment.
+											$vat_src_code_for_line = '';
+											if (empty($array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line])) {
+												$array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] = 0;
+											}
+											if (empty($array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line])) {
+												$array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] = 0;
+											}
+											$array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] += $line->total_ht;
+											$array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] += $line->multicurrency_total_ht;
+										}
 
-												if ($tmpvatratetoshow[0] != 0) {
+										//var_dump($array_of_total_ht_per_vat_rate);exit;
+										foreach ($array_of_total_ht_per_vat_rate as $vatrate => $tmpvalue) {
+											$tmp_total_ht = price2num($array_of_total_ht_per_vat_rate[$vatrate]);
+											$tmp_total_ht_devise = price2num($array_of_total_ht_devise_per_vat_rate[$vatrate]);
+
+											if (($tmp_total_ht < 0 || $tmp_total_ht_devise < 0) && !getDolGlobalString('FACTURE_ENABLE_NEGATIVE_LINES')) {
+												if ($object->type == $object::TYPE_DEPOSIT) {
 													$langs->load("errors");
-													setEventMessages($langs->trans("ErrorLinesCantBeNegativeForOneVATRate", $tmpvatratetoshow[0]), null, 'errors');
-													$error++;
-													$action = '';
+													// Using negative lines on deposit lead to headach and blocking problems when you want to consume them.
+													$error = $langs->trans("ErrorLinesCantBeNegativeOnDeposits");
+												} else {
+													$tmpvatratetoshow = explode('_', $vatrate);
+													$tmpvatratetoshow[0] = round((float) $tmpvatratetoshow[0], 2);
+
+													if ($tmpvatratetoshow[0] != 0) {
+														$langs->load("errors");
+														$error = $langs->trans("ErrorLinesCantBeNegativeForOneVATRate", $tmpvatratetoshow[0]);
+													}
 												}
+											}
+										}
+									}
+
+									if ($action == 'changeStatus' && !$error) {
+										$action = 'chstatus_confirm_validate';
+										$error = 'need_confirm';
+									}
+								} else if ($confirm == 'yes') {
+									// Classify to validated
+									$idwarehouse = GETPOSTINT('idwarehouse');
+
+									$object->fetch($id);
+									$object->fetch_thirdparty();
+
+									// Check for warehouse
+									if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
+										$qualified_for_stock_change = 0;
+										if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
+											$qualified_for_stock_change = $object->hasProductsOrServices(2);
+										} else {
+											$qualified_for_stock_change = $object->hasProductsOrServices(1);
+										}
+
+										if ($qualified_for_stock_change) {
+											if (!$idwarehouse || $idwarehouse == - 1) {
+												$error++;
+												setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
+												$action = '';
+											}
+										}
+									}
+
+									if (!$error) {
+										$result = $object->validate($user, '', $idwarehouse);
+										if ($result >= 0) {
+											// Define output language
+											if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+												$outputlangs = $langs;
+												$newlang = '';
+												if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
+													$newlang = GETPOST('lang_id', 'aZ09');
+												}
+												if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
+													$newlang = $object->thirdparty->default_lang;
+												}
+												if (!empty($newlang)) {
+													$outputlangs = new Translate("", $conf);
+													$outputlangs->setDefaultLang($newlang);
+													$outputlangs->load('products');
+												}
+												$model = $object->model_pdf;
+
+												$ret = $object->fetch($id); // Reload to get new records
+
+												$result = $object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
+												if ($result < 0) {
+													setEventMessages($object->error, $object->errors, 'errors');
+												}
+											}
+										} else {
+											if (count($object->errors)) {
+												setEventMessages(null, $object->errors, 'errors');
+											} else {
+												setEventMessages($object->error, $object->errors, 'errors');
 											}
 										}
 									}
@@ -701,7 +900,9 @@ if (empty($reshook)) {
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
 		$path .= $affaire ? "&affaire=$affaire->id" : '';
 		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
-		$path .= ($action == 'chstatus_confirm_canceled') ? "&action=$action&newStatus=$newStatus&status_for=$status_for&close_window=$close_window" : '';
+		if (preg_match('/^chstatus_confirm_(.*)/', $action, $matches)) {
+			$path .= "&action=$action&newStatus=$newStatus&status_for=$status_for&close_window=$close_window";
+		}
 		header('Location: '.$path);
 		exit;
 	} else if ($action == 'changeStatus') {
@@ -5001,6 +5202,89 @@ if ($action == 'create') {
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id, $langs->trans('ValidateBill'), $text, 'confirm_valid', $formquestion, (($object->type != Facture::TYPE_CREDIT_NOTE && $object->total_ttc < 0) ? "no" : "yes"), 2);
 	}
 
+	// Confirmation of validation when aff status change
+	if ($action == 'chstatus_confirm_validate') {
+		$newStatus = GETPOSTINT('newStatus');
+		$close_window = GETPOSTINT('close_window');
+		$status_for = GETPOST('status_for', 'aZ09');
+
+		// we check object has a draft number
+		$objectref = substr($object->ref, 1, 4);
+		if ($objectref == 'PROV') {
+			$savdate = $object->date;
+			if (getDolGlobalString('FAC_FORCE_DATE_VALIDATION')) {
+				$object->date = dol_now();
+				$object->date_lim_reglement = $object->calculate_date_lim_reglement();
+			}
+			$numref = $object->getNextNumRef($soc);
+			// $object->date=$savdate;
+		} else {
+			$numref = $object->ref;
+		}
+
+		$text = $langs->trans('ConfirmValidateBill', $numref);
+		if (isModEnabled('notification')) {
+			require_once DOL_DOCUMENT_ROOT.'/core/class/notify.class.php';
+			$notify = new Notify($db);
+			$text .= '<br>';
+			$text .= $notify->confirmMessage('BILL_VALIDATE', $object->socid, $object);
+		}
+		$formquestion = array();
+
+		if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
+			$qualified_for_stock_change = 0;
+			if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
+				$qualified_for_stock_change = $object->hasProductsOrServices(2);
+			} else {
+				$qualified_for_stock_change = $object->hasProductsOrServices(1);
+			}
+
+			if ($qualified_for_stock_change) {
+				$langs->load("stocks");
+				require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
+				require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
+				$formproduct = new FormProduct($db);
+				$warehouse = new Entrepot($db);
+				$warehouse_array = $warehouse->list_array();
+				if (count($warehouse_array) == 1) {
+					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("WarehouseForStockIncrease", current($warehouse_array)) : $langs->trans("WarehouseForStockDecrease", current($warehouse_array));
+					$value = '<input type="hidden" id="idwarehouse" name="idwarehouse" value="'.key($warehouse_array).'">';
+				} else {
+					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("SelectWarehouseForStockIncrease") : $langs->trans("SelectWarehouseForStockDecrease");
+					$value = $formproduct->selectWarehouses(GETPOST('idwarehouse') ? GETPOST('idwarehouse') : 'ifone', 'idwarehouse', '', 1);
+				}
+				$formquestion = array(
+									// 'text' => $langs->trans("ConfirmClone"),
+									// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' =>
+									// 1),
+									// array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans("PuttingPricesUpToDate"), 'value'
+									// => 1),
+									array('type' => 'other', 'name' => 'idwarehouse', 'label' => $label, 'value' => $value));
+			}
+		}
+		if ($object->type != Facture::TYPE_CREDIT_NOTE && $object->total_ttc < 0) { 		// Can happen only if getDolGlobalString('FACTURE_ENABLE_NEGATIVE') is on
+			$text .= '<br>'.img_warning().' '.$langs->trans("ErrorInvoiceOfThisTypeMustBePositive");
+		}
+
+		// mandatoryPeriod
+		$nbMandated = 0;
+		foreach ($object->lines as $line) {
+			$res = $line->fetch_product();
+			if ($res  > 0) {
+				if ($line->product->isService() && $line->product->isMandatoryPeriod() && (empty($line->date_start) || empty($line->date_end))) {
+					$nbMandated++;
+					break;
+				}
+			}
+		}
+		if ($nbMandated > 0) {
+			$text .= '<div><span class="clearboth nowraponall warning">'.$langs->trans("mandatoryPeriodNeedTobeSetMsgValidate").'</span></div>';
+		}
+
+
+		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id.'&affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$newStatus.'&status_for='.$status_for.'&close_window='.$close_window.'&token='.newToken(), $langs->trans('ValidateBill'), $text, 'changeStatus', $formquestion, (($object->type != Facture::TYPE_CREDIT_NOTE && $object->total_ttc < 0) ? "no" : "yes"), 2);
+	}
+
 	// Confirm back to draft status
 	if ($action == 'modif') {
 		$text = $langs->trans('ConfirmUnvalidateBill', $object->ref);
@@ -5039,6 +5323,49 @@ if ($action == 'create') {
 		}
 
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id, $langs->trans('UnvalidateBill'), $text, 'confirm_modif', $formquestion, "yes", 1);
+	}
+	// Confirm back to draft status when aff status change
+	if ($action == 'chstatus_confirm_setdraft') {
+		$newStatus = GETPOSTINT('newStatus');
+		$close_window = GETPOSTINT('close_window');
+		$status_for = GETPOST('status_for', 'aZ09');
+
+		$text = $langs->trans('ConfirmUnvalidateBill', $object->ref);
+		$formquestion = array();
+
+		if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
+			$qualified_for_stock_change = 0;
+			if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
+				$qualified_for_stock_change = $object->hasProductsOrServices(2);
+			} else {
+				$qualified_for_stock_change = $object->hasProductsOrServices(1);
+			}
+
+			if ($qualified_for_stock_change) {
+				$langs->load("stocks");
+				require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
+				require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
+				$formproduct = new FormProduct($db);
+				$warehouse = new Entrepot($db);
+				$warehouse_array = $warehouse->list_array();
+				if (count($warehouse_array) == 1) {
+					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("WarehouseForStockDecrease", current($warehouse_array)) : $langs->trans("WarehouseForStockIncrease", current($warehouse_array));
+					$value = '<input type="hidden" id="idwarehouse" name="idwarehouse" value="'.key($warehouse_array).'">';
+				} else {
+					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("SelectWarehouseForStockDecrease") : $langs->trans("SelectWarehouseForStockIncrease");
+					$value = $formproduct->selectWarehouses(GETPOST('idwarehouse') ? GETPOST('idwarehouse') : 'ifone', 'idwarehouse', '', 1);
+				}
+				$formquestion = array(
+									// 'text' => $langs->trans("ConfirmClone"),
+									// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' =>
+									// 1),
+									// array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans("PuttingPricesUpToDate"), 'value'
+									// => 1),
+									array('type' => 'other', 'name' => 'idwarehouse', 'label' => $label, 'value' => $value));
+			}
+		}
+
+		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id.'&affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$newStatus.'&status_for='.$status_for.'&close_window='.$close_window.'&token='.newToken(), $langs->trans('UnvalidateBill'), $text, 'changeStatus', $formquestion, "yes", 1);
 	}
 
 	// Confirmation of payment classification
@@ -5127,7 +5454,7 @@ if ($action == 'create') {
 			$formconfirm = $form->formconfirm($_SERVER['PHP_SELF'].'?facid='.$object->id, $langs->trans('CancelBill'), $langs->trans('ConfirmCancelBill', $object->ref), 'confirm_canceled', $formquestion, "yes", 1, 270);
 		}
 	}
-	// Confirmation of status abandoned when aff status channge
+	// Confirmation of status abandoned when aff status change
 	if ($action == 'chstatus_confirm_canceled') {
 		// If there is a replacement invoice not yet validated (draft state),
 		// it is not allowed to classify the invoice as abandoned.
@@ -6692,53 +7019,9 @@ if ($action == 'create') {
 						'title' => ''
 					)
 				);
-				// Edit a validated invoice without any payment and not transferred to accounting
-				if ($object->status == Facture::STATUS_VALIDATED) {
-					// We check if lines of invoice are not already transferred into accountancy
-					$ventilExportCompta = $object->getVentilExportCompta();
-
-					if ($ventilExportCompta == 0) {
-						if (getDolGlobalString('INVOICE_CAN_BE_EDITED_EVEN_IF_PAYMENT_DONE') || ($resteapayer == price2num($object->total_ttc, 'MT', 1) && empty($object->paye))) {
-							if (!$objectidnext && $object->is_last_in_cycle()) {
-								if ($usercanunvalidate) {
-									unset($params['attr']['title']);
-									print dolGetButtonAction($langs->trans('Modify'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=modif&token='.newToken(), '', true, $params);
-								} else {
-									$params['attr']['title'] = $langs->trans('NotEnoughPermissions');
-									print dolGetButtonAction($langs->trans('Modify'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=modif&token='.newToken(), '', false, $params);
-								}
-							} elseif (!$object->is_last_in_cycle()) {
-								$params['attr']['title'] = $langs->trans('NotLastInCycle');
-								print dolGetButtonAction($langs->trans('Modify'), '', 'default', '#', '', false, $params);
-							} else {
-								$params['attr']['title'] = $langs->trans('DisabledBecauseReplacedInvoice');
-								print dolGetButtonAction($langs->trans('Modify'), '', 'default', '#', '', false, $params);
-							}
-						}
-					} else {
-						$params['attr']['title'] = $langs->trans('DisabledBecauseDispatchedInBookkeeping');
-						print dolGetButtonAction($langs->trans('Modify'), '', 'default', '#', '', false, $params);
-					}
-				}
 
 				$discount = new DiscountAbsolute($db);
 				$result = $discount->fetch(0, $object->id);
-
-				// Reopen an invoice
-				if ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT)
-					|| ($object->type == Facture::TYPE_CREDIT_NOTE && empty($discount->id))
-					|| ($object->type == Facture::TYPE_DEPOSIT && empty($discount->id))
-					|| ($object->type == Facture::TYPE_SITUATION && empty($discount->id)))
-					&& ($object->status == Facture::STATUS_CLOSED || $object->status == Facture::STATUS_ABANDONED || ($object->status == 1 && $object->paye == 1))   // Condition ($object->status == 1 && $object->paye == 1) should not happened but can be found due to corrupted data
-					&& ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $usercancreate) || $usercanreopen)) {				// A paid invoice (partially or completely)
-					if ($object->close_code != 'replaced' || (!$objectidnext)) { 				// Not replaced by another invoice or replaced but the replacement invoice has been deleted
-						unset($params['attr']['title']);
-						print dolGetButtonAction($langs->trans('ReOpen'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=reopen&token='.newToken(), '', true, $params);
-					} else {
-						$params['attr']['title'] = $langs->trans("DisabledBecauseReplacedInvoice");
-						print dolGetButtonAction($langs->trans('ReOpen'), '', 'default', '#', '', false, $params);
-					}
-				}
 
 				// Create contract
 				if (getDolGlobalString('CONTRACT_CREATE_FROM_INVOICE')) {
@@ -6748,14 +7031,6 @@ if ($action == 'create') {
 						if ($usercancreatecontract) {
 							print '<a class="butAction" href="' . DOL_URL_ROOT . '/contrat/card.php?action=create&amp;origin=' . $object->element . '&amp;originid=' . $object->id . '&amp;socid=' . $object->socid . '">' . $langs->trans('AddContract') . '</a>';
 						}
-					}
-				}
-
-				// Validate
-				if ($object->status == Facture::STATUS_DRAFT && count($object->lines) > 0 && ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA || $object->type == Facture::TYPE_SITUATION) && (getDolGlobalString('FACTURE_ENABLE_NEGATIVE') || $object->total_ttc >= 0)) || ($object->type == Facture::TYPE_CREDIT_NOTE && $object->total_ttc <= 0))) {
-					if ($usercanvalidate) {
-						unset($params['attr']['title']);
-						print dolGetButtonAction($langs->trans('Validate'), '', 'default', $_SERVER["PHP_SELF"].'?facid='.$object->id.'&action=valid&token='.newToken(), '', true, $params);
 					}
 				}
 
@@ -6913,7 +7188,8 @@ if ($action == 'create') {
 				// Clone
 				if (($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA) && $usercancreate) {
 					unset($params['attr']['title']);
-					print dolGetButtonAction($langs->trans('ToClone'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=clone&amp;object=invoice', '', true, $params);
+					//print dolGetButtonAction($langs->trans('ToClone'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=clone&amp;object=invoice', '', true, $params);
+					print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 				}
 
 				// Clone as predefined / Create template

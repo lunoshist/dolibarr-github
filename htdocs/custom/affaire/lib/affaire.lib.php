@@ -228,20 +228,17 @@ function printBagde($Status, $width) {
 		$db->free($resql);
 	}
 
-
-	// STYLE 
-	$color = '';
-	$sql = "SELECT * FROM llx_c_affaire_status_types WHERE code = ".$Status->fk_type;
-	$resql = $db->query($sql);
-	if ($resql && $resql->num_rows > 0) {
-		$Type = $db->fetch_object($resql);
-		$color = "color: #$Type->color !important; ";
-		$color .= !empty($Type->border_color) ? "border-color: #$Type->border_color !important; " : "border-color: transparent !important; ";
-		$color .= !empty($Type->background_color) ? "background-color: #$Type->background_color !important; " : "background-color: transparent !important; ";
-	}
-
 	if (is_object($Status)) {
-		// TODO fetch code
+		// STYLE 
+		$color = '';
+		$sql = "SELECT * FROM llx_c_affaire_status_types WHERE code = ".$Status->fk_type;
+		$resql = $db->query($sql);
+		if ($resql && $resql->num_rows > 0) {
+			$Type = $db->fetch_object($resql);
+			$color = "color: #$Type->color !important; ";
+			$color .= !empty($Type->border_color) ? "border-color: #$Type->border_color !important; " : "border-color: transparent !important; ";
+			$color .= !empty($Type->background_color) ? "background-color: #$Type->background_color !important; " : "background-color: transparent !important; ";
+		}
 	} else {
 		return '<span class="badge badge-status">Pas de status</span>';
 	}
