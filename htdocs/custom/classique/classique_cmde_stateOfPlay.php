@@ -332,7 +332,7 @@ if (isModEnabled('affaire')) {
 				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
 			} else {
 				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("CmdeNotCreated - NoStatus"), null, 'mesgs');
+					//setEventMessages($langs->trans("CmdeNotCreated - NoStatus"), null, 'mesgs');
 				} else {
 					setEventMessages($langs->trans("CmdeHasNoStatus"), null, 'errors');
 				}
@@ -970,6 +970,21 @@ if (empty($reshook)) {
 		// Link to a project
 		$object->setProject(GETPOSTINT('projectid'));
 	} elseif ($action == 'add' && $usercancreate) {
+		if ($res = checkCommandeExist($affaire)) {
+			if ($res > 0) {
+				if ($res != $object->id) {
+					setEventMessages($langs->trans('Une commande exitait déjà, ajouter les lignes à celle ci ou créer une autre affaire', $langs->transnoentities('Date')), null, 'errors');
+					$path = $_SERVER["PHP_SELF"].'?id='.$res."&affaire=$affaire->id";
+					header('Location: '.$path);
+					exit;
+				}
+			} else {
+				setEventMessages($langs->trans('Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire', $langs->transnoentities('Date')), null, 'errors');
+				$action = 'too_many_cmde';
+				$error++;
+			}
+		}
+
 		// Add order
 		$datecommande = dol_mktime(12, 0, 0, GETPOST('remonth'), GETPOST('reday'), GETPOST('reyear'));
 		$date_delivery = dol_mktime(GETPOSTINT('liv_hour'), GETPOSTINT('liv_min'), 0, GETPOSTINT('liv_month'), GETPOSTINT('liv_day'), GETPOSTINT('liv_year'));
@@ -2378,11 +2393,10 @@ llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-order page-card');
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
+	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 } else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
+	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 }
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 
 injectOpenUrlsScript();
 
@@ -2394,6 +2408,18 @@ $formmargin = new FormMargin($db);
 if (isModEnabled('project')) {
 	$formproject = new FormProjets($db);
 }
+
+// if ($res = checkCommandeExist($affaire)) {
+// 	if ($res > 0) {
+// 		if ($res != $object->id) {
+// 			$path = $_SERVER["PHP_SELF"].'?id='.$res."&affaire=$affaire->id";
+// 			header('Location: '.$path);
+// 			exit;
+// 		}
+// 	} else {
+// 		$action = 'too_many_cmde';
+// 	}
+// }
 
 // Mode creation
 if ($action == 'create' && $usercancreate) {
@@ -2883,7 +2909,28 @@ if ($action == 'create' && $usercancreate) {
 	 * button create new affaire
 	 */
 
-	print "<br><br>WE HAVE MANY COMMANDE !!!!";
+	print "<br><br>WE HAVE MANY COMMANDE !!!!<br><br>Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire<br><br>";
+
+	print '<table class="border centpercent tableforfieldcreate">';
+	print "<tr>
+		<td>REF</td>
+		<td>Total HT</td>
+		<td>Total TTC</td>
+		<td>Status</td>
+		<td>Date création</td>";
+	print "</tr>";
+
+	foreach ($affaire->linkedObjects["commande"] as $comm) {
+		print "<tr>
+		<td>".$comm->getNomUrl(1)."</td>
+		<td>".$comm->total_ht."</td>
+		<td>".$comm->total_ttc."</td>
+		<td>".printBagde($comm->array_options["options_aff_status"], 'mini')."</td>
+		<td>".dol_print_date($comm->date_creation, 'day')."</td>";
+		print "</tr>";
+	}
+
+	print '</table>';
 } else if ($action == 'no_create') {
 	/**
 	 * TODO

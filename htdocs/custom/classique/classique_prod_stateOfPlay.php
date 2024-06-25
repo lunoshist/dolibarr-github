@@ -156,42 +156,41 @@ if (isModEnabled('affaire')) {
 			setEventMessages($affaire->error, $affaire->errors, 'errors');
 			$action = '';
 		}
-	}
-	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
-	$INFO["Banner"]["ref"] = $affaire->ref;
-	
+		$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
+		$INFO["Banner"]["ref"] = $affaire->ref;
+		
 
-	// Get the project linked to the affaire 
-	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
-	if (empty($id) && $action != "create" && $action != "add") {
-		if (isset($affaire->linkedObjects["project"])) {
-			$project_array = $affaire->linkedObjects["project"];
-			$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
-			// If only one linked project : $id = this project
-			if (count($project_array) == 1) {
-				reset($project_array);
-				$key = key($project_array);
-				$id = $project_array[$key]->id;
-			// If many project : display a list
-			} else if (count($project_array) > 1) {
-				$action = 'several_project';
-			} else if (count($project_array) == 0) {
-				$action = 'create';
-			}
-		} else {
-			// If no project linked, let's create one 
-			$INFO["Object"] .= "(No project)";
-			
-			if (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROJECT_FROM_SCRATCH')) {
-				$action = "create";
+		// Get the project linked to the affaire 
+		$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+		if (empty($id) && $action != "create" && $action != "add") {
+			if (isset($affaire->linkedObjects["project"])) {
+				$project_array = $affaire->linkedObjects["project"];
+				$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
+				// If only one linked project : $id = this project
+				if (count($project_array) == 1) {
+					reset($project_array);
+					$key = key($project_array);
+					$id = $project_array[$key]->id;
+				// If many project : display a list
+				} else if (count($project_array) > 1) {
+					$action = 'several_project';
+				} else if (count($project_array) == 0) {
+					$action = 'create';
+				}
 			} else {
-				$action = "no_create";
+				// If no project linked, let's create one 
+				$INFO["Object"] .= "(No project)";
+				
+				if (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROJECT_FROM_SCRATCH')) {
+					$action = "create";
+				} else {
+					$action = "no_create";
+				}
 			}
+		} else if ($id) {
+			$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
 		}
-	} else if ($id) {
-		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["project"]).")  :  ";
 	}
-	
 
 	// load project
 	$object = new Project($db);
@@ -319,7 +318,7 @@ if (isModEnabled('affaire')) {
 				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
 			} else {
 				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("ProjectNotCreated - NoStatus"), null, 'mesgs');
+					// setEventMessages($langs->trans("ProjectNotCreated - NoStatus"), null, 'mesgs');
 				} else {
 					setEventMessages($langs->trans("ProjectHasNoStatus"), null, 'errors');
 				}
@@ -920,13 +919,17 @@ if (empty($reshook)) {
 		$result = $object->delete($user);
 		if ($result > 0) {
 			setEventMessages($langs->trans("RecordDeleted"), null, 'mesgs');
+			
+			$result = $object->deleteObjectLinked();
+			$sql = "UPDATE llx_commande SET fk_projet = NULL WHERE fk_projet = ".$object->id;
+			$resql = $db->query($sql);
 
 			if (!empty($_SESSION['pageforbacktolist']) && !empty($_SESSION['pageforbacktolist']['project'])) {
 				$tmpurl = $_SESSION['pageforbacktolist']['project'];
 				$tmpurl = preg_replace('/__SOCID__/', (string) $object->socid, $tmpurl);
 				$urlback = $tmpurl.(preg_match('/\?/', $tmpurl) ? '&' : '?'). 'restore_lastsearch_values=1';
 			} else {
-				$urlback = DOL_URL_ROOT.'/projet/list.php?restore_lastsearch_values=1';
+				$urlback = $_SERVER["PHP_SELF"].'?affaire='.$affaire->id;
 			}
 
 			header("Location: ".$urlback);
@@ -993,11 +996,10 @@ llxHeader("", $title, $help_url);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
+	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 } else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
+	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 }
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 
 injectOpenUrlsScript();
 
@@ -1364,14 +1366,34 @@ if ($action == 'create' && $user->hasRight('projet', 'creer')) {
         	});
         });
         </script>';
-} else if ($action == 'several_projet') {
+} else if ($action == 'several_project') {
 	/**
 	 * TODO
 	 * print the list of the project linked
 	 * for each $project_array {}
 	 */
 
-	print "<br><br>WE HAVE MANY PROJET";
+	setEventMessages("Trop de projets sont associés à l'affaire", null, 'errors');
+	
+	print "<br><br>WE HAVE MANY PROJET<br><br>";
+	print "Plusieurs projet exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE DONC UN SEUL PROJET, réunissez toutes les commandes en une ou créez une autre affaire<br><br>";
+	
+	print '<table class="border centpercent tableforfieldcreate">';
+	print "<tr>
+		<td>REF</td>
+		<td>Status</td>
+		<td>Date création</td>";
+	print "</tr>";
+
+	foreach ($affaire->linkedObjects["project"] as $proj) {
+		print "<tr>
+		<td>".$proj->getNomUrl(1)."</td>
+		<td>".printBagde($proj->array_options["options_aff_status"], 'mini')."</td>
+		<td>".dol_print_date($proj->date_creation, 'day')."</td>";
+		print "</tr>";
+	}
+
+	print '</table>';
 } else if ($action == 'no_create') {
 	/**
 	 * TODO

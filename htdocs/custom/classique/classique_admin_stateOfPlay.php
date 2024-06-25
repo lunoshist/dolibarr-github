@@ -231,11 +231,10 @@ llxHeader("", $title);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
+	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 } else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
+	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 }
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 
 injectOpenUrlsScript();
 

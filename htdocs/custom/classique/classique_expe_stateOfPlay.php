@@ -345,7 +345,7 @@ if (isModEnabled('affaire')) {
 				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
 			} else {
 				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("ExpeditionNotCreated - NoStatus"), null, 'mesgs');
+					//setEventMessages($langs->trans("ExpeditionNotCreated - NoStatus"), null, 'mesgs');
 				} else {
 					setEventMessages($langs->trans("ExpeditionHasNoStatus"), null, 'errors');
 				}
@@ -1407,11 +1407,10 @@ llxHeader('', $title, $help_url);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
+	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 } else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
+	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 }
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 
 injectOpenUrlsScript();
  
@@ -2305,6 +2304,34 @@ if ($action == 'create') {
 	 */
 
 	print "<br><br>WE HAVE MANY EXPEDITION<br><br>";
+
+	print '<table class="border centpercent tableforfieldcreate">';
+	print "<tr>
+		<td>REF</td>
+		<td>Méthode expédition</td>
+		<td>Status</td>
+		<td>Date création</td>";
+	print "</tr>";
+
+	foreach ($affaire->linkedObjects["facture"] as $fact) {
+		print "<tr>
+		<td>".$fact->getNomUrl(1)."</td>";
+		if ($object->shipping_method_id > 0) {
+			// Get code using getLabelFromKey
+			$code = $langs->getLabelFromKey($db, $object->shipping_method_id, 'c_shipment_mode', 'rowid', 'code');
+			print "<td>".$langs->trans("SendingMethod".strtoupper($code))."</td>";
+		} else {
+			print "<td></td>";
+		}
+		print 
+		"<td>".$fact->total_ht."</td>
+		<td>".$fact->total_ttc."</td>
+		<td>".printBagde($fact->array_options["options_aff_status"], 'mini')."</td>
+		<td>".dol_print_date($fact->date_creation, 'day')."</td>";
+		print "</tr>";
+	}
+
+	print '</table>';
 
 	print '<table class="border centpercent tableforfieldcreate">';
 

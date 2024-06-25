@@ -20,8 +20,8 @@ CREATE TABLE `llx_affaire_automation` (
 --
 
 INSERT INTO `llx_affaire_automation` (`fk_workflow_type`, `origin_step`, `origin_status`, `conditions`, `automation_type`, `new_step`, `new_status`) VALUES
-(1, 2, 'TYPE:200', '', 'System', 'createOrder', 10),
 (1, 2, 'TYPE:200', '', 'System', 'closeOtherPropal', 7),
+(1, 2, 'TYPE:200', '', 'System', 'createOrder', 10),
 (1, 3, 'TYPE:100', '', 'System', 'generateProd', 14),
 (1, 3, 'TYPE:200', '', 'changeStatus', 'Prod', 15),
 (1, 4, 'TYPE:200', '', 'changeStatus', 'Expe', 22,

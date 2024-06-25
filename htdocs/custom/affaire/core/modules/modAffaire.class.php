@@ -211,16 +211,18 @@ class modAffaire extends DolibarrModules
 		// 'thirdparty'       to add a tab in third party view
 		// 'user'             to add a tab in user view
 
-		$this->tabs[] = array('data'=>'propal:-comm');
-		$this->tabs[] = array('data'=>'propal:+comm:Proposition commerciale:@affaire:true:/custom/affaire/objectStep/propal_stateOfPlay.php?id=__ID__');
-		$this->tabs[] = array('data'=>'order:-order');
-		$this->tabs[] = array('data'=>'order:+order:Commande client:@affaire:true:/custom/affaire/objectStep/cmde_stateOfPlay.php?id=__ID__');
-		$this->tabs[] = array('data'=>'project:-project');
-		$this->tabs[] = array('data'=>'project:+project:Projet:@affaire:true:/custom/affaire/objectStep/prod_stateOfPlay.php?id=__ID__');
-		$this->tabs[] = array('data'=>'expedition:-shipping');
-		$this->tabs[] = array('data'=>'expedition:+shipping:Fiche expédition:@affaire:true:/custom/affaire/objectStep/expe_stateOfPlay.php?id=__ID__');
-		$this->tabs[] = array('data'=>'invoice:-compta');
-		$this->tabs[] = array('data'=>'invoice:+compta:Facture client:@affaire:true:/custom/affaire/objectStep/facture_stateOfPlay.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'propal:-comm');
+		$this->tabs[] = array('data'=>'propal:+aff:AFF Proposition:@affaire:true:/custom/affaire/objectStep/propal_stateOfPlay.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'order:-order');
+		$this->tabs[] = array('data'=>'order:+aff:AFF Commande:@affaire:true:/custom/affaire/objectStep/cmde_stateOfPlay.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'project:-project');
+		$this->tabs[] = array('data'=>'project:+aff:AFF Projet:@affaire:true:/custom/affaire/objectStep/prod_stateOfPlay.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'expedition:-shipping');
+		$this->tabs[] = array('data'=>'expedition:+aff:AFF Expédition:@affaire:true:/custom/affaire/objectStep/expe_stateOfPlay.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'invoice:-compta');
+		$this->tabs[] = array('data'=>'invoice:+aff:AFF Facture:@affaire:true:/custom/affaire/objectStep/facture_stateOfPlay.php?id=__ID__');
+		
+		$this->tabs[] = array('data'=>'affaire:+flow:Wokflow:@affaire:true:/custom/affaire/objectStep/facture_stateOfPlay.php?id=__ID__');
 
 		// Dictionaries
 		/* Example:
@@ -363,15 +365,15 @@ class modAffaire extends DolibarrModules
 
 		/* BEGIN MODULEBUILDER TOPMENU MYOBJECT */
 		$this->menu[$r++] = array(
-			'fk_menu'=>'', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire_affaire_list', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
 			'type'=>'top', // This is a Top menu entry
 			'titre'=>'ModuleAffaireName',
 			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
 			'mainmenu'=>'affaire',
-			'leftmenu'=>'',
-			'url'=>'/affaire/affaireindex.php',
+			'leftmenu'=>'affaire_affaire_list',
+			'url'=>'/affaire/affaire_list.php',
 			'langs'=>'affaire@affaire', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position'=>1000 + $r,
+			'position'=>40 + $r,
 			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
 			'perms'=>'1', // Use 'perms'=>'$user->hasRight("affaire", "affaire", "read")' if you want your menu with a permission rules
 			'target'=>'',
@@ -444,7 +446,7 @@ class modAffaire extends DolibarrModules
         $this->menu[$r++]=array(
             'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
             'type'=>'left',
-            'titre'=>'List Affaire',
+            'titre'=>'Liste Affaire',
             'mainmenu'=>'affaire',
             'leftmenu'=>'affaire_affaire_list',
             'url'=>'/affaire/affaire_list.php',

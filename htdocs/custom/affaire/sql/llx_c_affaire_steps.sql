@@ -41,6 +41,6 @@ INSERT INTO `llx_c_affaire_steps` (`rowid`, `label`, `label_short`, `fk_workflow
 (1, 'Affaire', 'Affaire', 1, 1, null, 0, 0, 1),
 (2, 'Proposition Commerciale', 'Propal', 1, 3, 1, 0, 1, 1),
 (3, 'Commande Client', 'Cmde', 1, 10, 2, 0, 1, 1),
-(4, 'Production', 'Prod', 1, 14, 3, 0, 1, 1),
+(4, 'Production Projet', 'Prod', 1, 14, 3, 0, 1, 1),
 (5, 'Expédition', 'Expe', 1, 22, 5, 0, 1, 1),
 (6, 'Facturation', 'Facture', 1, 29, 6, 0, 1, 1);

@@ -97,45 +97,13 @@ function getLinkedAff($object) {
 }
 
 /**
- * Print a nav bar with the tabs of the specified object
- *
- * @param object $object
- * @return void
- */
-function dol_tabs($object) {
-	// TODO The entiere function
-	// print dol_get_fiche_head($object);
-}
-
-/**
- * Print the banner (Icon, Ref, Thirdparty, Affaire, backlink, Status) of the specified object
- *
- * @param object $object
- * @param array $info
- * @return void
- */
-function dol_banner($object, $INFO=null) {
-	// TODO The entiere function
-	//dol_banner_tab($object, '');
-
-
-	if (isset($INFO)) {
-		print '<div class="refid">'.$object->getNomUrl(1, '', 0, "refid").'</div>';
-		print '<table class="border centpercent tableforfield"><tbody>
-			<tr><td class="titlefield fieldname_type">Step</td><td class="valuefield fieldname_type">'.$INFO["Banner"]["step"]->label.'</tr>
-			<tr><td class="titlefield fieldname_type">Status</td><td class="valuefield fieldname_type">'.printBagde($INFO["Banner"]["status"], 'big').'</tr>
-		</tbody></table>';
-	}
-}
-
-/**
  * Print a nav bar with the steps of the specified workflow as tabs
  *
  * @param Affaire $affaire
  * @param object $selectedStep 
  * @param array $affaireStatusbyStep
  * @param object
- * @return void
+ * @return string
  */
 function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Workflow=null) {
 	global $langs, $conf, $db;
@@ -152,13 +120,14 @@ function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Wo
 			dol_print_error($db);
 		}
 	}
+	$out = '';
 
 	// TODO if no $workflow rsql  ...
 
 	//var_dump($selectedStep);
 	//var_dump($affaireStatusbyStep);
 
-	print '<div class="tabs" data-role="controlgroup" data-type="horizontal" style="border: 1px solid #BBB">';
+	$out.= '<div class="tabs" data-role="controlgroup" data-type="horizontal" style="border: 1px solid #BBB">';
 
 	$tab ='';
 
@@ -198,11 +167,84 @@ function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Wo
 	} else {
 		dol_print_error($db);
 	}
-	print $tab;
+	$out.= $tab;
 	
-	print '</div>';
+	$out.= '</div>';
+
+	return $out;
+}
+
+function affaireBanner($affaire, $selectedStep=null, $affaireStatusbyStep='', $workflow=null) {
+	global $langs;
+	$thisStep = $affaire->getStep();
+	$thisStatus = $affaire->getStatus();
+
+	$out = '';
+	
+	$out.= '<div style="border-bottom: 4px solid #0A1464; padding: 5px; margin-bottom: 25px; background-color: rgb(117 190 218 / 15%);">';
+	
+	$head = affairePrepareHead($affaire);
+	$out.= dol_get_fiche_head($head, 'affaire', 'Affaire', 1, 'affaire@affaire');
+
+	// $out.= '<div class="refid">'.$affaire->getNomUrl(1, '', 0, "refid").'</div>';
+	// $out.= '<table class="border centpercent tableforfield"><tbody>
+	// 	<tr><td class="titlefield fieldname_type">Titre</td><td class="valuefield fieldname_type">'.$affaire->title.'</tr>
+	// 	<tr><td class="titlefield fieldname_type">Client final</td><td class="valuefield fieldname_type">'.$affaire->final_customer.'</tr>
+	// 	<tr><td class="titlefield fieldname_type">Step</td><td class="valuefield fieldname_type">'.$thisStep->label.'</tr>
+	// 	<tr><td class="titlefield fieldname_type">Status</td><td class="valuefield fieldname_type">'.printBagde($thisStatus, 'big').'</tr>
+	// </tbody></table>';
+
+	$form = new Form($affaire->db);
+	dol_include_once('htdocs/societe/class/societe.class.php');
+	$usercancreate = 1;
+
+	$width = 14;
+	$cssclass = 'photorefcenter';
+	$picto = $affaire->picto;  // @phan-suppress-current-line PhanUndeclaredProperty
+	$prefix = 'object_';
+	if ($affaire->element == 'project' && !$affaire->public) {  // @phan-suppress-current-line PhanUndeclaredProperty
+		$picto = 'project'; // instead of projectpub
+	}
+	if (strpos($picto, 'fontawesome_') !== false) {
+		$prefix = '';
+	}
+	$nophoto = img_picto('No photo', $prefix.$picto);
+
+	$morehtmlleft = '<!-- No photo to show -->';
+	$morehtmlleft .= '<div class="floatleft inline-block valignmiddle divphotoref"><div class="photoref">';
+	$morehtmlleft .= $nophoto;
+	$morehtmlleft .= '</div></div>';
 
 
+	$morehtmlref = '<div class="refidno">';
+	// Ref customer
+	$morehtmlref.= '<span class="opacitymedium">'.$affaire->label.'</span>';
+	// $morehtmlref .= $form->editfieldkey("Titre", 'label', $affaire->label, $affaire, $usercancreate, 'string', '', 0, 1);
+	// $morehtmlref .= $form->editfieldval("Titre", 'label', $affaire->label, $affaire, $usercancreate, 'string', '', null, null, '', 1);
+	// Thirdparty
+	if ($affaire->fk_soc) {
+		$res = $affaire->fetch_thirdparty();
+		$morehtmlref .= '<br><span class="hideonsmartphone">'.$langs->trans('ThirdParty').' : </span>'.$affaire->thirdparty->getNomUrl(1, 'customer');
+	}
+
+	$morehtmlref .= '</div>';
+
+
+	//$out.= dol_banner_tab($affaire, 'ref', '', 1, 'ref', 'ref', $morehtmlref);
+	$onlybanner = 1;
+
+	$out.= '<div class="'.($onlybanner ? 'arearefnobottom ' : 'arearef ').'heightref valignmiddle centpercent">';
+	$out.= $form->showrefnav($affaire, 'ref', '', 0, 'ref', 'ref', $morehtmlref, '', 0, $morehtmlleft, printBagde($thisStatus, 'big'), '');
+	$out.= '</div>';
+	//$out.= '<div class="underrefbanner clearboth"></div>';
+
+	$out.= dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+
+	$out.= dol_get_fiche_end();
+	$out.= '</div>';
+	$out.= '<div class="fiche">';
+
+	return $out;
 }
 
 /**
@@ -250,7 +292,7 @@ function printBagde($Status, $width) {
 			return '<span class="badge badge-status'.$Status->fk_type.' badge-status" style=" '.$color.'">'.$Status->label_short.'</span>';
 		case 'default':
 		case 'big':
-			return '<span class="badge badge-status'.$Status->fk_type.' badge-status" style=" '.$color.'">'.$Status->label.'</span>';
+			return '<span class="badge badge-status'.$Status->fk_type.' badge-status" style=" '.$color.' font-size: 1.1em; padding: .4em .4em;">'.$Status->label.'</span>';
 	}
 }
 
@@ -493,7 +535,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = 'TYPE:$newStatus->fk_type')";
 	$resql = $db->query($sql);
 	if ($resql) {
-		while ($r = $db->fetch_object($resql)) {
+		while (!$error && $r = $db->fetch_object($resql)) {
 			// CHECK CONDITIONS
 			if (!empty($r->conditions)) {
 				$valid = checkConditions($r->conditions, $affaire);
@@ -515,7 +557,13 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			 * if (empty($reshook)) {
 			 */
 			
-			if ($r->automation_type == 'changeStatus') {
+			if ($r->automation_type == 'changeStatusObject' || $r->automation_type == 'changeStatus') {
+				$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$r->new_step.'_stateOfPlay.php?affaire='.$affaire->id.'&token='.newToken();
+				$path .= '&action=changeStatus&newStatus='.$r->new_status.'&status_for=object&close_window=1';
+				$page = dol_buildpath($path, 1);
+
+				addUrlToOpen($page);
+			} else if ($r->automation_type == 'changeStatusStep' || $r->automation_type == 'changeStatus') {
 				$error = change_status($affaire, $r->new_status, $r->condition ?? '', $r->new_step);
 			} else if ($r->automation_type == 'System') {
 				// TODO
@@ -537,8 +585,12 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 						$error = "ERROR: L'affaire est associé à plusieurs commandes !!!";
 						break;
 					}
+					if ($order > 0) {
+						$error = "ERROR: Une commande existe déjà !!!";
+						break;
+					}
 					if (empty($order)) {
-						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_cmde_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid=&'.$object->socid.'&token='.newToken();
+						$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_cmde_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'&token='.newToken();
 						$cmde_page = dol_buildpath($path, 1);
 
 						addUrlToOpen($cmde_page);
@@ -560,8 +612,33 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 						addUrlToOpen($prod_page);
 					}
 				}
-				if ($r->new_step == 'STRING') {
+				if ($r->new_step == 'closeOtherPropal') {
 					// Do domething
+					if (isset($affaire->linkedObjects["propal"])) {
+						$propal_array = $affaire->linkedObjects["propal"];
+						// If only one linked propal : $id = this propal
+						if (count($propal_array) == 1) {
+							reset($propal_array);
+							$key = key($propal_array);
+							if ($object->id != $propal_array[$key]->id) {
+								$error = "L'object ne correspond pas à celui lié à l'affaire !!!";
+							};
+						// If many propal : display a list
+						} else if (count($propal_array) > 1) {
+							$steplabel = empty(getDolGlobalString('STEP_PROPAL_FOR_WORKFLOW_'.$workflow->rowid)) ? 'propal' : getDolGlobalString('STEP_PROPAL_FOR_WORKFLOW_'.$workflow->rowid);
+							foreach ($propal_array as $key => $value) {
+								if ($object->id != $propal_array[$key]->id) {
+									$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$propal_array[$key]->id.'&token='.newToken();
+									$path .= '&action=changeStatus&newStatus='.$r->new_status.'&status_for=object&close_window=1&automatic=1';
+									$page = dol_buildpath($path, 1);
+
+									addUrlToOpen($page);
+								}
+							}
+						} else if (count($propal_array) == 0) {
+							$error = "L'affaire n'a aucune propositions liés !!!";
+						}
+					}
 				}
 				if ($r->new_step == 'STRING') {
 					// Do domething

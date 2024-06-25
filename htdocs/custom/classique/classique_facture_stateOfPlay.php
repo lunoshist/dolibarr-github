@@ -351,7 +351,7 @@ if (isModEnabled('affaire')) {
 				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
 			} else {
 				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("FactureNotCreated - NoStatus"), null, 'mesgs');
+					//setEventMessages($langs->trans("FactureNotCreated - NoStatus"), null, 'mesgs');
 				} else {
 					setEventMessages($langs->trans("FactureHasNoStatus"), null, 'errors');
 				}
@@ -3854,11 +3854,10 @@ llxHeader('', $title, $help_url);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
+	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 } else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
+	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 }
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 
 injectOpenUrlsScript();
 

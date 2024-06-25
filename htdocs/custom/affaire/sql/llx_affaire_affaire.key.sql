@@ -18,7 +18,6 @@
 ALTER TABLE llx_affaire_affaire ADD INDEX idx_affaire_affaire_rowid (rowid);
 ALTER TABLE llx_affaire_affaire ADD INDEX idx_affaire_affaire_ref (ref);
 ALTER TABLE llx_affaire_affaire ADD INDEX idx_affaire_affaire_fk_soc (fk_soc);
-ALTER TABLE llx_affaire_affaire ADD INDEX idx_affaire_affaire_final_customer (final_customer);
 -- END MODULEBUILDER INDEXES
 
 --ALTER TABLE llx_affaire_affaire ADD UNIQUE INDEX uk_affaire_affaire_fieldxy(fieldx, fieldy);

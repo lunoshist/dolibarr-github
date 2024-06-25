@@ -120,12 +120,12 @@ class Affaire extends CommonObject
 	 */
 	public $fields=array(
 		"rowid" => array("type"=>"integer", "label"=>"TechnicalID", "enabled"=>"1", 'position'=>1, 'notnull'=>1, "visible"=>"0", "noteditable"=>"1", "index"=>"1", "css"=>"left", "comment"=>"Id"),
-		"ref" => array("type"=>"varchar(128)", "label"=>"Ref", "enabled"=>"1", 'position'=>20, 'notnull'=>1, "visible"=>"1", "index"=>"1", "searchall"=>"1", "showoncombobox"=>"1", "validate"=>"1", "comment"=>"Reference of object"),
+		"ref" => array("type"=>"varchar(128)", "label"=>"Ref", "enabled"=>"1", 'position'=>20, 'notnull'=>1, "visible"=>"5", "index"=>"1", "searchall"=>"1", "validate"=>"1", "comment"=>"Reference of object"),
 		"label" => array("type"=>"varchar(255)", "label"=>"Title", "enabled"=>"1", 'position'=>30, 'notnull'=>0, "visible"=>"1", "searchall"=>"1", "css"=>"minwidth300", "cssview"=>"wordbreak", "help"=>"Help text", "validate"=>"1",),
 		"fk_soc" => array("type"=>"integer:societe:societe/class/societe.class.php", "label"=>"ThirdParty", "enabled"=>"isModEnabled('societe')", 'position'=>60, 'notnull'=>-1, "visible"=>"1", "index"=>"1", "css"=>"maxwidth500 widthcentpercentminusxx", "csslist"=>"tdoverflowmax150", "help"=>"OrganizationEventLinkToThirdParty", "validate"=>"1",),
-		"description" => array("type"=>"text", "label"=>"Description", "enabled"=>"1", 'position'=>40, 'notnull'=>0, "visible"=>"3", "validate"=>"1",),
-		"note_public" => array("type"=>"html", "label"=>"NotePublic", "enabled"=>"1", 'position'=>70, 'notnull'=>0, "visible"=>"4", "cssview"=>"wordbreak", "validate"=>"1",),
-		"note_private" => array("type"=>"html", "label"=>"NotePrivate", "enabled"=>"1", 'position'=>75, 'notnull'=>0, "visible"=>"4", "cssview"=>"wordbreak", "validate"=>"1",),
+		"description" => array("type"=>"text", "label"=>"Description", "enabled"=>"1", 'position'=>40, 'notnull'=>0, "visible"=>"-4", "validate"=>"1",),
+		"note_public" => array("type"=>"html", "label"=>"NotePublic", "enabled"=>"1", 'position'=>70, 'notnull'=>0, "visible"=>"-2", "cssview"=>"wordbreak", "validate"=>"1",),
+		"note_private" => array("type"=>"html", "label"=>"NotePrivate", "enabled"=>"1", 'position'=>75, 'notnull'=>0, "visible"=>"-2", "cssview"=>"wordbreak", "validate"=>"1",),
 		"date_creation" => array("type"=>"datetime", "label"=>"DateCreation", "enabled"=>"1", 'position'=>500, 'notnull'=>1, "visible"=>"-2",),
 		"tms" => array("type"=>"timestamp", "label"=>"DateModification", "enabled"=>"1", 'position'=>501, 'notnull'=>0, "visible"=>"-2",),
 		"fk_user_creat" => array("type"=>"integer:User:user/class/user.class.php", "label"=>"UserAuthor", "picto"=>"user", "enabled"=>"1", 'position'=>510, 'notnull'=>1, "visible"=>"-2", "csslist"=>"tdoverflowmax150",),
@@ -134,11 +134,8 @@ class Affaire extends CommonObject
 		"import_key" => array("type"=>"varchar(14)", "label"=>"ImportId", "enabled"=>"1", 'position'=>1000, 'notnull'=>-1, "visible"=>"-2",),
 		"model_pdf" => array("type"=>"varchar(255)", "label"=>"Model pdf", "enabled"=>"1", 'position'=>1010, 'notnull'=>-1, "visible"=>"0",),
 		"fk_workflow_type" => array("type"=>"integer", "label"=>"WorkflowType", "enabled"=>"1", 'position'=>50, 'notnull'=>1, "visible"=>"-2",),
-		"final_customer" => array("type"=>"integer:societe:societe/class/societe.class.php", "label"=>"FinalCustomer", "enabled"=>"isModEnabled('societe')", 'position'=>65, 'notnull'=>-1, "visible"=>"1", "index"=>"1", "css"=>"maxwidth500 widthcentpercentminusxx", "csslist"=>"tdoverflowmax150", "validate"=>"1",),
 		"date_close" => array("type"=>"datetime", "label"=>"DateClose", "enabled"=>"1", 'position'=>502, 'notnull'=>0, "visible"=>"-2",),
 		"fk_user_close" => array("type"=>"integer:user:user/class/user.class.php", "label"=>"UserClose", "enabled"=>"1", 'position'=>512, 'notnull'=>-1, "visible"=>"-2", "csslist"=>"tdoverflowmax150",),
-		"total_ht" => array("type"=>"price", "label"=>"TotalHT", "enabled"=>"1", 'position'=>80, 'notnull'=>0, "visible"=>"4", "default"=>"null", "isameasure"=>"1",),
-		"total_ttc" => array("type"=>"price", "label"=>"TotalTTC", "enabled"=>"1", 'position'=>85, 'notnull'=>0, "visible"=>"4", "default"=>"null", "isameasure"=>"1",),
 		"fk_step" => array("type"=>"integer", "label"=>"Step", "enabled"=>"1", 'position'=>90, 'notnull'=>1, "visible"=>"2", "searchall"=>"1",),
 		"fk_status" => array("type"=>"integer", "label"=>"Status", "enabled"=>"1", 'position'=>95, 'notnull'=>1, "visible"=>"2", "searchall"=>"1",),
 	);
@@ -157,11 +154,8 @@ class Affaire extends CommonObject
 	public $import_key;
 	public $model_pdf;
 	public $fk_workflow_type;
-	public $final_customer;
 	public $date_close;
 	public $fk_user_close;
-	public $total_ht;
-	public $total_ttc;
 	public $fk_step;
 	public $fk_status;
 	// END MODULEBUILDER PROPERTIES
@@ -787,7 +781,8 @@ class Affaire extends CommonObject
 			$label = implode($this->getTooltipContentArray($params));
 		}
 
-		$url = dol_buildpath('/affaire/affaire_card.php', 1).'?id='.$this->id;
+		// $url = dol_buildpath('/affaire/affaire_card.php', 1).'?id='.$this->id;
+		$url = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$this->id;
 
 		if ($option !== 'nolink') {
 			// Add param to save lastsearch_values or not
@@ -1301,28 +1296,47 @@ class Affaire extends CommonObject
 		return $affaires;
 	}
 
-	public function getStep($label) {
-
-		// Fetch this step
-		$thisStepName = 'Propal'; // <-- this has to be modified when dictionnary change
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
+	/**
+	 * Function to fetch step (of this affaire or another)
+	 * 
+	 * @param int $rowid			filter on rowid
+	 * @param string $object		'propal'|'order'|'prod'|'expe'|'invoice'  filter to get the step corresponding to an object
+	 * @param string $label_short	
+	 * 
+	 * @return object|null $step
+	 */
+	public function getStep($rowid=0, $object='', $label_short='') {
+		if ($object) {
+			$label_short = getDolGlobalString('STEP_'.strtoupper('$object').'_FOR_WORKFLOW_'.$this->fk_workflow_type);
+		} 
+		
+		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE fk_workflow_type = $this->fk_workflow_type";
+		if ($label_short) {
+			$sql.= " AND label_short = '$label_short'";
+		} else if ($rowid) {
+			$sql.= " AND rowid = $rowid";
+		} else {
+			// Fetch this step
+			$sql.= " AND rowid = ".$this->fk_step;
+		}			
 		$resql = $this->db->query($sql);
 		if ($resql) {
 			if ($resql->num_rows > 0) {
-				$thisStep = $this->db->fetch_object($resql);
-				$defaultStepStatus = $thisStep->fk_default_status;
-				// var_dump($thisStep);
-				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				
-				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
+				$Step = $this->db->fetch_object($resql);
+				return $Step;
 			} else {
+				global $langs;
 				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+				return null;
 			}
 		} else {
 			dol_print_error($this->db);
+			return null;
 		}
+	}
 
+
+	public function getAllStatusOfStep() {
 		// Fetch all status of this step : propal
 		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
 		$resql = $this->db->query($sql);
@@ -1338,31 +1352,6 @@ class Affaire extends CommonObject
 		} else {
 			dol_print_error($this->db);
 		}
-
-
-		// Fetch status of affaire for this step
-		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
-		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $this->db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStatus = $this->db->fetch_object($resql);
-				// var_dump($thisStatus);
-				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
-			} else {
-				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("PropalNotCreated - NoStatus"), null, 'mesgs');
-				} else {
-					setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
-				}
-			}
-		} else {
-			dol_print_error($this->db);
-		}
-			
 	}
 
 	public function getAllStatus() {
@@ -1413,16 +1402,20 @@ class Affaire extends CommonObject
 			$result = $allStatus[$step];
 		} else {
 			// Fetch status of affaire
-			$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
+			$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $this->fk_status AND (fk_step = $this->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $this->fk_workflow_type OR fk_workflow_type = 1)";
 			$resql = $this->db->query($sql);
 			if ($resql) {
 				if ($resql->num_rows > 0) {
-					$result = $this->db->fetch_object($resql);
+					$Status = $this->db->fetch_object($resql);
+					$result = $Status;
 				} else {
+					global $langs;
 					setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
+					$result = null;
 				}
 			} else {
 				dol_print_error($this->db);
+				$result = null;
 			}
 		}
 

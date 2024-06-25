@@ -31,11 +31,8 @@ CREATE TABLE llx_affaire_affaire(
 	import_key varchar(14), 
 	model_pdf varchar(255), 
 	fk_workflow_type integer NOT NULL, 
-	final_customer integer, 
 	date_close datetime, 
 	fk_user_close integer, 
-	total_ht double DEFAULT NULL, 
-	total_ttc double DEFAULT NULL, 
 	fk_step integer NOT NULL, 
 	fk_status integer NOT NULL
 	-- END MODULEBUILDER FIELDS

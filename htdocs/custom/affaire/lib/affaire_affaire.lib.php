@@ -33,6 +33,8 @@ function affairePrepareHead($object)
 
 	$langs->load("affaire@affaire");
 
+	$showtabofpageworkflow = 1;
+	$showtabofpagecard = 1;
 	$showtabofpagecontact = 1;
 	$showtabofpagenote = 1;
 	$showtabofpagedocument = 1;
@@ -41,11 +43,19 @@ function affairePrepareHead($object)
 	$h = 0;
 	$head = array();
 
-	$head[$h][0] = dol_buildpath("/affaire/affaire_card.php", 1).'?id='.$object->id;
-	$head[$h][1] = $langs->trans("Affaire");
-	$head[$h][2] = 'card';
-	$h++;
+	if ($showtabofpageworkflow) {
+		$head[$h][0] = dol_buildpath("/affaire/affaire_workflow.php", 1).'?id='.$object->id;
+		$head[$h][1] = $langs->trans("Workflow");
+		$head[$h][2] = 'Workflow';
+		$h++;
+	}
 
+	if ($showtabofpagecard) {
+		$head[$h][0] = dol_buildpath("/affaire/affaire_card.php", 1).'?id='.$object->id;
+		$head[$h][1] = $langs->trans("Affaire");
+		$head[$h][2] = 'card';
+		$h++;
+	}
 	if ($showtabofpagecontact) {
 		$head[$h][0] = dol_buildpath("/affaire/affaire_contact.php", 1).'?id='.$object->id;
 		$head[$h][1] = $langs->trans("Contacts");

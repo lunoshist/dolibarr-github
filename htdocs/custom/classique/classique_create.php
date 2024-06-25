@@ -480,6 +480,29 @@ if ($action == 'create') {
 	print '<input type="hidden" name="fk_workflow_type" value="'.$fk_workflow_type.'">';
 	print '<input type="hidden" name="fk_step" value="'.$fk_step.'">';
 	print '<input type="hidden" name="fk_status" value="'.$fk_status.'">';
+
+	//Generate next ref
+	$defaultref = '';
+	$obj = !getDolGlobalString('AFFAIRE_ADDON') ? 'mod_affaire_serem' : $conf->global->AFFAIRE_ADDON;
+	// Search template files
+	$file = '';
+	$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
+	foreach ($dirmodels as $reldir) {
+		$file = dol_buildpath($reldir."core/modules/affaire/".$obj.'.php', 0);
+		if (file_exists($file)) {
+			dol_include_once($reldir."core/modules/affaire/".$obj.'.php');
+			$modAffaire = new $obj();
+			$defaultref = $modAffaire->getNextValue($object);
+			break;
+		}
+	}
+	if (is_numeric($defaultref) && $defaultref <= 0) {
+		$defaultref = '';
+	}
+
+	// $Projet->ref = $defaultref;
+
+	print '<input type="hidden" name="ref" value="'.$defaultref.'">';
 	
 	print dol_get_fiche_head(array(), '');
 

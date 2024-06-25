@@ -87,7 +87,7 @@ dol_include_once('/affaire/lib/affaire_affaire.lib.php');
 $langs->loadLangs(array("affaire@affaire", "other"));
 
 // Get parameters
-$id = GETPOSTINT('id');
+$id = GETPOSTINT('id') ? GETPOSTINT('id') : GETPOSTINT('affaire');
 $ref = GETPOST('ref', 'alpha');
 $lineid   = GETPOSTINT('lineid');
 
@@ -162,6 +162,49 @@ if (!isModEnabled("affaire")) {
 if (!$permissiontoread) {
 	accessforbidden();
 }
+
+
+// REDIRECT TO CURRENT STEP OR FISRT in no step
+$res = $object->fetch($id);
+
+// Fetch step of affaire
+$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $object->fk_step AND fk_workflow_type = $object->fk_workflow_type";
+$resql = $db->query($sql);
+if ($resql) {
+	if ($resql->num_rows > 0) {
+		$affaireStep = $db->fetch_object($resql);
+
+		if (strtolower($affaireStep->label_short) == 'affaire') {
+			// 1- Fetch steps in good order
+			$sql = "SELECT rowid, label_short, position FROM llx_c_affaire_steps WHERE fk_workflow_type = $object->fk_workflow_type ORDER BY position";
+			$result = $db->query($sql);
+			if ($result) {
+				// 2- Fetch the first real step ...
+				while (empty($newAffaireStatus)) {
+					$rstep = $db->fetch_object($result);
+					if (is_null($rstep)) break;
+					if (!$rstep->position) continue;
+					$rstepLabel = strtolower($rstep->label_short);
+					$rstepRowid = strtolower($rstep->rowid);
+
+					// REDIRECT
+					$path = '/classique/classique_'.$rstepLabel.'_stateOfPlay.php?affaire='.$object->id;
+					$path = dol_buildpath($path, 1);
+					header('Location: '.$path);
+					exit();
+				}
+			} else {
+				$error--;
+				dol_print_error($db);
+			}
+		}
+	} else {
+		setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+	}
+} else {
+	dol_print_error($db);
+}
+
 
 
 /*

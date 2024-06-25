@@ -325,7 +325,7 @@ if (isModEnabled('affaire')) {
 				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
 			} else {
 				if ($action == ('add' || 'create')) {
-					setEventMessages($langs->trans("PropalNotCreated - NoStatus"), null, 'mesgs');
+					//setEventMessages($langs->trans("PropalNotCreated - NoStatus"), null, 'mesgs');
 				} else {
 					setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
 				}
@@ -632,7 +632,7 @@ if (empty($reshook)) {
 							// CHECK COMMANDE ASSOCIED TO AFFAIRE
 							$check = checkCommandeExist($affaire);
 							if ($check < 0) {
-								$error = "ERROR: L'affaire est associé à plusieurs commandes !!!";
+								$error = "Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire";
 								break;
 							}
 							if ($check > 0) {
@@ -735,7 +735,7 @@ if (empty($reshook)) {
 						case (350 <= $code && $code <= 399):
 							// NOTSIGNED
 							// prevent browser refresh from closing proposal several times
-							if ($object->statut == $object::STATUS_VALIDATED || (getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') && $object->statut == $object::STATUS_DRAFT)) {
+							if ($object->statut == $object::STATUS_VALIDATED || ((getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') || GETPOST('automatic')) && $object->statut == $object::STATUS_DRAFT)) {
 								$db->begin();
 				
 								$result = $object->closeProposal($user, Propal::STATUS_NOTSIGNED);
@@ -798,6 +798,7 @@ if (empty($reshook)) {
 
 			if (empty($error) && $close_window) {
 				echo "<script>window.close();</script>";
+				exit();
 			}
 		}
 		
@@ -838,7 +839,7 @@ if (empty($reshook)) {
 			setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv('IdThirdParty')), null, 'errors');
 		} else {
 			if ($object->id > 0) {
-				if (getDolGlobalString('PROPAL_CLONE_DATE_DELIVERY')) {
+				if (getDolGlobalString('PROPAL_CLONE_DATE_DELIVERY') || GETPOST('PROPAL_CLONE_DATE_DELIVERY')) {
 					//Get difference between old and new delivery date and change lines according to difference
 					$date_delivery = dol_mktime(
 						12,
@@ -893,6 +894,33 @@ if (empty($reshook)) {
 						setEventMessages('', $warningMsgLineList, 'warnings');
 					}
 
+					// Extrafields for affaire
+					if ($affaire) {
+						$NEWobject = new Propal($db);
+						$ret = $NEWobject->fetch($result);
+
+						$NEWobject->array_options["options_fk_affaire"] = $affaire->id;
+						$NEWobject->array_options["options_aff_status"] = $defaultStepStatus;
+
+						// Link to affaire
+						if ($affaire) {
+							$res = $NEWobject->add_object_linked($affaire->element, $affaire->id);
+							if ($res == 1) {
+								// TODO log it instead of a message
+								setEventMessage("La proposition à bien été lié à l'affaire", 'mesgs');
+							} else {
+								$error_message = $db->lasterror();
+								setEventMessage("IMPOSSIBLE DE LIER LA PROPOSITION À L4AFFAIRE : $error_message", 'errors');
+								// TODO log it
+							}				
+						}
+
+						$path = $_SERVER["PHP_SELF"].'?id='.$result;
+						$path .= $affaire ? "&affaire=$affaire->id&action=changeStatus&newStatus=$defaultStepStatus&status_for=both" : '';
+						header('Location: '.$path);
+						// header('Location: '.$_SERVER["PHP_SELF"].'?id='.$result);
+						exit();
+					}
 					header("Location: ".$_SERVER['PHP_SELF'].'?id='.$result);
 					exit();
 				} else {
@@ -917,7 +945,7 @@ if (empty($reshook)) {
 		// Delete proposal
 		$result = $object->delete($user);
 		if ($result > 0) {
-			header('Location: '.DOL_URL_ROOT.'/comm/propal/list.php?restore_lastsearch_values=1');
+			header('Location: '.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id);
 			exit();
 		} else {
 			$langs->load("errors");
@@ -2437,11 +2465,10 @@ $now = dol_now();
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
+	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 } else {
-	dol_tabs($affaire);
-	dol_banner($affaire, $INFO);
+	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 }
-dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
 
 injectOpenUrlsScript();
 
@@ -2795,6 +2822,11 @@ if ($action == 'create') {
 			print '</td></tr>';
 		}
 
+		// Date relance
+		include_once DOL_DOCUMENT_ROOT . '/core/lib/date.lib.php';
+		$set_time = dol_now('tzuser') - (getServerTimeZoneInt('now') * 3600) + (getDolGlobalInt('TIME_BETWEEN_RELAUNCH') * 24 * 60 * 60); // set_time must be relative to PHP server timezone
+		$object->array_options["options_daterelance"] = $set_time;
+
 		// Other attributes
 		include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_add.tpl.php';
 
@@ -2929,7 +2961,28 @@ if ($action == 'create') {
 	 * for each $propal_array {}
 	 */
 
-	print "<br><br>WE HAVE MANY PROPAL";
+	print "<br><br>WE HAVE MANY PROPAL<br><br>";
+
+	print '<table class="border centpercent tableforfieldcreate">';
+	print "<tr>
+		<td>REF</td>
+		<td>Total HT</td>
+		<td>Total TTC</td>
+		<td>Status</td>
+		<td>Date création</td>";
+	print "</tr>";
+
+	foreach ($affaire->linkedObjects["propal"] as $prop) {
+		print "<tr>
+		<td>".$prop->getNomUrl(1)."</td>
+		<td>".$prop->total_ht."</td>
+		<td>".$prop->total_ttc."</td>
+		<td>".printBagde($prop->array_options["options_aff_status"], 'mini')."</td>
+		<td>".dol_print_date($prop->date_creation, 'day')."</td>";
+		print "</tr>";
+	}
+
+	print '</table>';
 } else if ($action == 'no_create') {
 	/**
 	 * TODO
@@ -2968,18 +3021,32 @@ if ($action == 'create') {
 	if ($action == 'clone') {
 		// Create an array for form
 		$filter = '(s.client:IN:1,2,3)';
-		$formquestion = array(
-			// 'text' => $langs->trans("ConfirmClone"),
-			// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
-			array('type' => 'other', 'name' => 'socid', 'label' => $langs->trans("SelectThirdParty"), 'value' => $form->select_company(GETPOSTINT('socid'), 'socid', $filter, '', 0, 0, null, 0, 'maxwidth300')),
-			array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans('PuttingPricesUpToDate'), 'value' => 0),
-			array('type' => 'checkbox', 'name' => 'update_desc', 'label' => $langs->trans('PuttingDescUpToDate'), 'value' => 0),
-		);
+		if (isModEnabled('affaire')) {
+			$formquestion = array(
+				'text' => $langs->trans("CLONER : signifie que vous répliquer cette proposition à l'identique, en conservant les liens (Ex: lier à la même affaire)"),
+				array('type' => 'separator',),
+				array('type' => 'hidden', "name" => 'PROPAL_CLONE_DATE_DELIVERY', "value" => '1'),
+				// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
+				array('type' => 'other', 'name' => 'socid', 'label' => $langs->trans("SelectThirdParty"), 'value' => $form->select_company(GETPOSTINT('socid'), 'socid', $filter, '', 0, 0, null, 0, 'maxwidth300')),
+				array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans('PuttingPricesUpToDate'), 'value' => 0),
+				array('type' => 'checkbox', 'name' => 'update_desc', 'label' => $langs->trans('PuttingDescUpToDate'), 'value' => 0),
+			);
+		} else {
+			$formquestion = array(
+				// 'text' => $langs->trans("ConfirmClone"),
+				'text' => $langs->trans("CLONER : signifie que vous répliquer cette proposition à l'identique, en conservant les liens (Ex: lier à la même affaire)"),
+				array('type' => 'separator',),
+				// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
+				array('type' => 'other', 'name' => 'socid', 'label' => $langs->trans("SelectThirdParty"), 'value' => $form->select_company(GETPOSTINT('socid'), 'socid', $filter, '', 0, 0, null, 0, 'maxwidth300')),
+				array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans('PuttingPricesUpToDate'), 'value' => 0),
+				array('type' => 'checkbox', 'name' => 'update_desc', 'label' => $langs->trans('PuttingDescUpToDate'), 'value' => 0),
+			);
+		}
 		if (getDolGlobalString('PROPAL_CLONE_DATE_DELIVERY') && !empty($object->delivery_date)) {
 			$formquestion[] = array('type' => 'date', 'name' => 'date_delivery', 'label' => $langs->trans("DeliveryDate"), 'value' => $object->delivery_date);
 		}
 		// Incomplete payment. We ask if reason = discount or other
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmClonePropal', $object->ref), 'confirm_clone', $formquestion, 'yes', 1);
+		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmClonePropal', $object->ref), 'confirm_clone', $formquestion, 'yes', 1, 320);
 	}
 
 	if ($action == 'closeas') {
@@ -3995,7 +4062,7 @@ if ($action == 'create') {
 				// TODO
 				// Clone
 				if ($usercancreate) {
-					// print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object='.$object->element.'">'.$langs->trans("ToClone").'</a>';
+					print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object='.$object->element.'">'.$langs->trans("ToClone").'</a>';
 					print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 				}
 
