@@ -87,7 +87,7 @@ dol_include_once('/affaire/lib/affaire_affaire.lib.php');
 $langs->loadLangs(array("affaire@affaire", "other"));
 
 // Get parameters
-$id = GETPOSTINT('id');
+$id = GETPOSTINT('id') ? GETPOSTINT('id') : GETPOSTINT('affaire');
 $ref = GETPOST('ref', 'alpha');
 $lineid   = GETPOSTINT('lineid');
 

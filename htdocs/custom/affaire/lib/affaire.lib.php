@@ -198,16 +198,8 @@ function affaireBanner($affaire, $selectedStep=null, $affaireStatusbyStep='', $w
 	dol_include_once('htdocs/societe/class/societe.class.php');
 	$usercancreate = 1;
 
-	$width = 14;
-	$cssclass = 'photorefcenter';
 	$picto = $affaire->picto;  // @phan-suppress-current-line PhanUndeclaredProperty
 	$prefix = 'object_';
-	if ($affaire->element == 'project' && !$affaire->public) {  // @phan-suppress-current-line PhanUndeclaredProperty
-		$picto = 'project'; // instead of projectpub
-	}
-	if (strpos($picto, 'fontawesome_') !== false) {
-		$prefix = '';
-	}
 	$nophoto = img_picto('No photo', $prefix.$picto);
 
 	$morehtmlleft = '<!-- No photo to show -->';
@@ -238,7 +230,7 @@ function affaireBanner($affaire, $selectedStep=null, $affaireStatusbyStep='', $w
 	$out.= '</div>';
 	//$out.= '<div class="underrefbanner clearboth"></div>';
 
-	$out.= dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	$out.= dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep, $workflow);
 
 	$out.= dol_get_fiche_end();
 	$out.= '</div>';
@@ -529,10 +521,10 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
  * @return integer|string			0 if OK, -1 or $error if not OK
  */
 function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object) {
-	global $db;
+	global $db, $user;
 	$error = 0;
 
-	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = 'TYPE:$newStatus->fk_type')";
+	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = 'TYPE:$newStatus->fk_type') ORDER BY";
 	$resql = $db->query($sql);
 	if ($resql) {
 		while (!$error && $r = $db->fetch_object($resql)) {
@@ -556,16 +548,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 			 *
 			 * if (empty($reshook)) {
 			 */
-			
-			if ($r->automation_type == 'changeStatusObject' || $r->automation_type == 'changeStatus') {
-				$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$r->new_step.'_stateOfPlay.php?affaire='.$affaire->id.'&token='.newToken();
-				$path .= '&action=changeStatus&newStatus='.$r->new_status.'&status_for=object&close_window=1';
-				$page = dol_buildpath($path, 1);
-
-				addUrlToOpen($page);
-			} else if ($r->automation_type == 'changeStatusStep' || $r->automation_type == 'changeStatus') {
-				$error = change_status($affaire, $r->new_status, $r->condition ?? '', $r->new_step);
-			} else if ($r->automation_type == 'System') {
+			if ($r->automation_type == 'System') {
 				// TODO
 				if ($r->new_step == 'createOrder') {
 					// TODO
@@ -581,12 +564,16 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 
 					// CHECK COMMANDE ASSOCIED TO AFFAIRE
 					$order = checkCommandeExist($affaire);
-					if ($order < 0) {
+					if (is_array($order)) {
 						$error = "ERROR: L'affaire est associé à plusieurs commandes !!!";
 						break;
 					}
+					if ($order < 0) {
+						$error = "ERROR SQL : ".$affaire->db->lasterror();
+						break;
+					}
 					if ($order > 0) {
-						$error = "ERROR: Une commande existe déjà !!!";
+						$error = "ERROR: Une commande existe déjà !!! Celle-ci n'a pas été mis à jour.";
 						break;
 					}
 					if (empty($order)) {
@@ -613,7 +600,8 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 					}
 				}
 				if ($r->new_step == 'closeOtherPropal') {
-					// Do domething
+					$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+
 					if (isset($affaire->linkedObjects["propal"])) {
 						$propal_array = $affaire->linkedObjects["propal"];
 						// If only one linked propal : $id = this propal
@@ -626,13 +614,67 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 						// If many propal : display a list
 						} else if (count($propal_array) > 1) {
 							$steplabel = empty(getDolGlobalString('STEP_PROPAL_FOR_WORKFLOW_'.$workflow->rowid)) ? 'propal' : getDolGlobalString('STEP_PROPAL_FOR_WORKFLOW_'.$workflow->rowid);
+							$automatic = 1;
 							foreach ($propal_array as $key => $value) {
 								if ($object->id != $propal_array[$key]->id) {
-									$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$propal_array[$key]->id.'&token='.newToken();
-									$path .= '&action=changeStatus&newStatus='.$r->new_status.'&status_for=object&close_window=1&automatic=1';
-									$page = dol_buildpath($path, 1);
+									$value->fetch_thirdparty();
 
-									addUrlToOpen($page);
+									// CHANGE SYSTEM STATUS
+									if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('PROPAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
+										// NOTSIGNED
+										// prevent browser refresh from closing proposal several times
+										if ($value->statut == $value::STATUS_VALIDATED || ((getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') || $automatic) && $value->statut == $value::STATUS_DRAFT)) {
+											$db->begin();
+							
+											$result = $value->closeProposal($user, Propal::STATUS_NOTSIGNED);
+											if ($result < 0) {
+												$error = $value->error;
+											}
+							
+											$deposit = null;
+							
+											$deposit_percent_from_payment_terms = getDictionaryValue('c_payment_term', 'deposit_percent', $value->cond_reglement_id);
+				
+											if (!$error) {
+												$db->commit();
+							
+												if ($deposit && !getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+													$ret = $deposit->fetch($deposit->id); // Reload to get new records
+													$outputlangs = $langs;
+							
+													if (getDolGlobalInt('MAIN_MULTILANGS')) {
+														$outputlangs = new Translate('', $conf);
+														$outputlangs->setDefaultLang($deposit->thirdparty->default_lang);
+														$outputlangs->load('products');
+													}
+							
+													$result = $deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
+							
+													if ($result < 0) {
+														setEventMessages($deposit->error, $deposit->errors, 'errors');
+													}
+												}
+											}
+										} else if ($value->statut != Propal::STATUS_NOTSIGNED) {
+											$error = "Impossible mettre le status à non signé (System status : Propal::STATUS_NOTSIGNED) depuis l'ancien status system : ".$value->LibStatut($value->statut);
+										}
+									}
+
+									// Change extrafield
+									if (empty($error)) {
+										$value->array_options["options_aff_status"] = $r->new_status;
+										$result = $value->updateExtraField('aff_status', 'PROPAL_MODIFY');
+										if ($result < 0) {
+											$error = $value->error;
+										}
+									}
+
+									// OLD METHOD
+									// $path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$propal_array[$key]->id.'&token='.newToken();
+									// $path .= '&action=changeStatus&newStatus='.$r->new_status.'&status_for=object&close_window=1&automatic=1';
+									// $page = dol_buildpath($path, 1);
+
+									// addUrlToOpen($page);
 								}
 							}
 						} else if (count($propal_array) == 0) {
@@ -646,6 +688,14 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 				if ($r->new_step == 'STRING') {
 					// Do domething
 				}
+			} else if ($r->automation_type == 'changeStatusStep' || $r->automation_type == 'changeStatus') {
+				$error = change_status($affaire, $r->new_status, $r->condition ?? '', $r->new_step);
+			} else if ($r->automation_type == 'changeStatusObject' || $r->automation_type == 'changeStatus') {
+				$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$r->new_step.'_stateOfPlay.php?affaire='.$affaire->id.'&token='.newToken();
+				$path .= '&action=changeStatus&newStatus='.$r->new_status.'&status_for=object&close_window=1';
+				$page = dol_buildpath($path, 1);
+
+				addUrlToOpen($page);
 			}
 		}
 
@@ -662,7 +712,7 @@ function checkConditions($arg, $affaire) {
 	TYPE:step(rowid or label_short):operator(==,!=,>,<,<=,>=):status code
 	STATUS:step(rowid or label_short):operator(==,!=,>,<,<=,>=):status rowid
 	Ex: 
-	FUNCTION:checkCommandeExist($affaire):>=:0
+	FUNCTION:checkCommandeExist(__affaire__):==:0
 
 	many conditions can be provided by 
 		- joining the codition into a parantese ()
@@ -892,51 +942,132 @@ function generateCommande($affaire, $propal) {
 }
 
 /**
- * Check if affaire already have a order linked (an affaire equal to only one commande)
+ * Check if affaire already have an order linked (an affaire equal to only one commande)
  * 
  * @param Affaire $affaire
  * @return int -1 if KO : many order | 0 if no order | $id if order 
  */
 function checkCommandeExist($affaire) {
-	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
+	// OLD WAY
+	// $affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
 	
-	if (isset($affaire->linkedObjects["commande"])) {
-		if (count($affaire->linkedObjects["commande"]) > 1) {
+	// if (isset($affaire->linkedObjects["commande"])) {
+	// 	if (count($affaire->linkedObjects["commande"]) > 1) {
+	// 		return -1;
+	// 	} else {
+	// 		reset($affaire->linkedObjects["commande"]);
+	// 		$key = key($affaire->linkedObjects["commande"]);
+	// 		$id = $affaire->linkedObjects["commande"][$key]->id;
+	// 		return $id;
+	// 	}
+	// } else {
+	// 	return 0;
+	// }
+
+	$sql = "SELECT rowid, fk_source, sourcetype, fk_target, targettype";
+	$sql .= " FROM ".$affaire->db->prefix()."element_element";
+	$sql .= " WHERE (fk_source = ".((int) $affaire->id)." AND sourcetype = '".$affaire->db->escape($affaire->element)."' AND targettype = 'commande')";
+	$sql .= " OR (fk_target = ".((int) $affaire->id)." AND targettype = '".$affaire->db->escape($affaire->element)."' AND sourcetype = 'commande')";
+	$resql = $affaire->db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 1) {
+			// KO trop de commande
 			return -1;
+		} else if ($resql->num_rows < 1) {
+			// OK
+			return 0;
 		} else {
-			reset($affaire->linkedObjects["commande"]);
-			$key = key($affaire->linkedObjects["commande"]);
-			$id = $affaire->linkedObjects["commande"][$key]->id;
-			return $id;
+			// return commande
+			$res = $affaire->db->fetch_object($resql);
+			if ($res->sourcetype == $affaire->db->escape($affaire->element)) {
+				return $res->fk_target;
+			} else {
+				return $res->fk_source;
+
+			}
 		}
 	} else {
-		return 0;
+		dol_print_error($affaire->db);
+		return -1;
 	}
 }
 
 /**
- * Check if affaire already have a project linked
+ * Check if affaire already have a propal linked
  * 
  * @param Affaire $affaire
- * @return int -1 if KO : many project | 0 if no project | $id if project 
+ * @return int -1 if KO : many propal | 0 if no propal | $id if propal 
+ */
+function checkPropalExist($affaire) {
+	return checkObjectLinkToAffaire($affaire, 'propal');
+}
+/**
+ * Check if affaire already have a prooject linked
+ * 
+ * @param Affaire $affaire
+ * @return int -1 if KO : many prooject | 0 if no prooject | $id if prooject 
  */
 function checkProjectExist($affaire) {
-	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
-	
-	if (isset($affaire->linkedObjects["project"])) {
-		if (count($affaire->linkedObjects["project"]) > 1) {
-			return -1;
+	return checkObjectLinkToAffaire($affaire, 'project');
+}
+
+/**
+ * Check if affaire have objects linked
+ * 
+ * @param Affaire $affaire
+ * @param string $ObjectTYPE 'propal', 'commande', 'project', 'shipment', '
+ * @return int|array -1 if KO | 0 if no object | $id if object | array of $id if many object
+ */
+function checkObjectLinkToAffaire($affaire, $objectTYPE='') {
+	$sql = "SELECT rowid, fk_source, sourcetype, fk_target, targettype";
+	$sql .= " FROM ".$affaire->db->prefix()."element_element";
+	$sql .= " WHERE (fk_source = ".((int) $affaire->id)." AND sourcetype = '".$affaire->db->escape($affaire->element)."'".(!empty($objectTYPE) ? " AND targettype = '$objectTYPE')" : ")");
+	$sql .= " OR (fk_target = ".((int) $affaire->id)." AND targettype = '".$affaire->db->escape($affaire->element)."'".(!empty($objectTYPE) ? " AND targettype = '$objectTYPE')" : ")");
+	$resql = $affaire->db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 1) {
+			// Plusieurs objects
+			$array_of_id = array();
+			while ($res = $affaire->db->fetch_object($resql)) {
+				if ($res->sourcetype == $affaire->db->escape($affaire->element)) {
+					$array_of_id[] = $res->fk_target;
+				} else {
+					$array_of_id[] = $res->fk_source;
+				}
+				$array_of_id[] = -1;
+			}
+			return $array_of_id;
+		} else if ($resql->num_rows < 1) {
+			// Pas d'objets
+			return 0;
 		} else {
-			reset($affaire->linkedObjects["project"]);
-			$key = key($affaire->linkedObjects["project"]);
-			$id = $affaire->linkedObjects["project"][$key]->id;
-			return $id;
+			// Un seul objet
+			$res = $affaire->db->fetch_object($resql);
+			if ($res->sourcetype == $affaire->db->escape($affaire->element)) {
+				return $res->fk_target;
+			} else {
+				return $res->fk_source;
+			}
 		}
 	} else {
-		return 0;
+		dol_print_error($affaire->db);
+		return -1;
 	}
 }
 
+/**
+ * Check if affaire have linked object
+ * 
+ * @param Affaire $affaire
+ * @return int -1 if KO | 0 if no oobject
+ */
+function checkCanDeleteAffaire($affaire) {
+	if (empty(checkObjectLinkToAffaire($affaire))) {
+		return 0;
+	} else {	
+		return -1;
+	}
+}
 
 /**
  * function to create a project as production for a given propal or commande

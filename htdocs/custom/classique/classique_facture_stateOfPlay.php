@@ -212,7 +212,7 @@ if (isModEnabled('affaire')) {
 			// If no facture linked, let's create one 
 			$INFO["Object"] .= "(No facture)";
 			
-			if (isset($affaire->linkedObjects["commande"]) && (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_ORDER_FROM_SCRATCH'))) {
+			if (isset($affaire->linkedObjects["commande"]) && (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INVOICE_FROM_SCRATCH'))) {
 				$action = "create";
 	
 				reset($affaire->linkedObjects["commande"]);
@@ -1757,6 +1757,9 @@ if (empty($reshook)) {
 		if ($affaire) {
 			$object->array_options["options_fk_affaire"] = $affaire->id;
 			$object->array_options["options_aff_status"] = $defaultStepStatus;
+			if (GETPOSTINT('type') === Facture::TYPE_PROFORMA) {
+				$object->array_options["options_aff_status"] = GETPOSTINT('newStatus');
+			}
 		}
 
 		$dateinvoice = dol_mktime(0, 0, 0, GETPOSTINT('remonth'), GETPOSTINT('reday'), GETPOSTINT('reyear'), 'tzserver');	// If we enter the 02 january, we need to save the 02 january for server
@@ -2133,7 +2136,7 @@ if (empty($reshook)) {
 			}
 
 
-			if (GETPOST('type') == Facture::TYPE_STANDARD) {
+			if (GETPOST('type') == Facture::TYPE_STANDARD || GETPOST('type') == Facture::TYPE_PROFORMA) {
 				if ($valuestandardinvoice < 0 || $valuestandardinvoice > 100) {
 					setEventMessages($langs->trans("ErrorAPercentIsRequired"), null, 'errors');
 					$error++;
@@ -2408,7 +2411,7 @@ if (empty($reshook)) {
 								}
 
 								// If we create a standard invoice with a percent, we change amount by changing the qty
-								if (GETPOST('type') == Facture::TYPE_STANDARD && $valuestandardinvoice > 0 && $valuestandardinvoice < 100) {
+								if ((GETPOST('type') == Facture::TYPE_STANDARD || GETPOST('type') == Facture::TYPE_PROFORMA) && $valuestandardinvoice > 0 && $valuestandardinvoice < 100) {
 									if (is_array($lines)) {
 										foreach ($lines as $line) {
 											// We keep ->subprice and ->pa_ht, but we change the qty
@@ -2767,7 +2770,7 @@ if (empty($reshook)) {
 				$result = $object->add_object_linked($affaire->element, $affaire->id);
 				if ($result == 1) {
 					// TODO log it instead of a message
-					setEventMessage("La proposition à bien été lié à l'affaire", 'mesgs');
+					setEventMessage("La facture à bien été lié à l'affaire", 'mesgs');
 				} else {
 					$error_message = $db->lasterror();
 					setEventMessage("IMPOSSIBLE DE LIER LA PROPOSITION À L4AFFAIRE : $error_message", 'errors');
@@ -2801,7 +2804,8 @@ if (empty($reshook)) {
 
 			// header('Location: '.$_SERVER["PHP_SELF"].'?facid='.$id);
 			$path = $_SERVER["PHP_SELF"].'?facid='.$id.'&id='.$id;
-			$path .= $affaire ? "&affaire=$affaire->id&action=changeStatus&newStatus=$defaultStepStatus&status_for=both" : '';
+			$path .= $affaire ? "&affaire=$affaire->id&action=changeStatus&status_for=both" : '';
+			$path .= ($affaire && GETPOST('type') == Facture::TYPE_PROFORMA) ? "&newStatus=".GETPOST('newStatus') : "&newStatus=$defaultStepStatus";
 			header('Location: '.$path);
 			exit();
 		} else {
@@ -4080,6 +4084,10 @@ if ($action == 'create') {
 	if ($affaire) {
 		print '<input type="hidden" name="affaire" value="'.$affaire->id.'">'; 
 	}
+	if (GETPOSTINT('type') == 4 ) {
+		print '<input type="hidden" name="type" value="'.GETPOSTINT('type').'">';
+		print '<input type="hidden" name="newStatus" value="'.GETPOSTINT('newStatus').'">';
+	}
 
 	print dol_get_fiche_head();
 
@@ -4224,133 +4232,140 @@ if ($action == 'create') {
 			}
 		}
 
+		print '<tr></tr>';
+
 		print '<tr><td class="tdtop fieldrequired">'.$langs->trans('Type').'</td><td colspan="2">';
 		print '<div class="tagtable">'."\n";
 
-		// Standard invoice
-		print '<div class="tagtr listofinvoicetype"><div class="tagtd listofinvoicetype">';
-		$tmp = '<input type="radio" id="radio_standard" name="type" value="0"'.(GETPOSTINT('type') ? '' : ' checked').'> ';
-		$tmp  = $tmp.'<label for="radio_standard" >'.$langs->trans("InvoiceStandardAsk").'</label>';
-		// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
-		$desc = $form->textwithpicto($tmp, $langs->transnoentities("InvoiceStandardDesc"), 1, 'help', '', 0, 3, 'standardonsmartphone');
-		print '<table class="nobordernopadding"><tr>';
-		print '<td>';
-		print $desc;
-		print '</td>';
-		if ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid))) {
-			/*print '<td class="nowrap" style="padding-left: 5px">';
-			$arraylist = array(
-				//'amount' => $langs->transnoentitiesnoconv('FixAmount', $langs->transnoentitiesnoconv('Deposit')),
-				//'variable' => $langs->transnoentitiesnoconv('VarAmountOneLine', $langs->transnoentitiesnoconv('Deposit')),
-				'variablealllines' => $langs->transnoentitiesnoconv('VarAmountAllLines')
-			);
-			print $form->selectarray('typestandard', $arraylist, GETPOST('typestandard', 'aZ09'), 0, 0, 0, '', 1);
-			print '</td>';*/
-			print '<td class="nowrap" style="padding-left: 15px">';
-			print '<span class="opacitymedium">'.$langs->trans('PercentOfOriginalObject').'</span>:<input class="right" placeholder="100%" type="text" id="valuestandardinvoice" name="valuestandardinvoice" size="3" value="'.(GETPOSTISSET('valuestandardinvoice') ? GETPOST('valuestandardinvoice', 'alpha') : '100%').'"/>';
+		if (GETPOSTINT('type') == 4 ) {
+			// Proforma invoice
+			print '<div class="tagtr listofinvoicetype"><div class="tagtd listofinvoicetype">';
+			$tmp = '<input type="radio" id="radio_standard" name="type" value="4" checked> ';
+			$tmp  = $tmp.'<label for="radio_standard" >'.$langs->trans("Proforma").'</label>';
+			// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
+			$desc = $form->textwithpicto($tmp, $langs->transnoentities("InvoiceDesc"), 1, 'help', '', 0, 3, 'standardonsmartphone');
+			print '<table class="nobordernopadding"><tr>';
+			print '<td>';
+			print $desc;
 			print '</td>';
-		}
-		print '</tr></table>';
-		print '</div></div>';
-
-		// Proforma invoice
-		print '<div class="tagtr listofinvoicetype"><div class="tagtd listofinvoicetype">';
-		$tmp = '<input type="radio" id="radio_standard" name="type" value="4"'.(GETPOSTINT('type') ? '' : ' checked').'> ';
-		$tmp  = $tmp.'<label for="radio_standard" >'.$langs->trans("Proforma").'</label>';
-		// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
-		$desc = $form->textwithpicto($tmp, $langs->transnoentities("InvoiceDesc"), 1, 'help', '', 0, 3, 'standardonsmartphone');
-		print '<table class="nobordernopadding"><tr>';
-		print '<td>';
-		print $desc;
-		print '</td>';
-		if ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid))) {
-			/*print '<td class="nowrap" style="padding-left: 5px">';
-			$arraylist = array(
-				//'amount' => $langs->transnoentitiesnoconv('FixAmount', $langs->transnoentitiesnoconv('Deposit')),
-				//'variable' => $langs->transnoentitiesnoconv('VarAmountOneLine', $langs->transnoentitiesnoconv('Deposit')),
-				'variablealllines' => $langs->transnoentitiesnoconv('VarAmountAllLines')
-			);
-			print $form->selectarray('typestandard', $arraylist, GETPOST('typestandard', 'aZ09'), 0, 0, 0, '', 1);
-			print '</td>';*/
-			print '<td class="nowrap" style="padding-left: 15px">';
-			print '<span class="opacitymedium">'.$langs->trans('PercentOfOriginalObject').'</span>:<input class="right" placeholder="100%" type="text" id="valuestandardinvoice" name="valuestandardinvoice" size="3" value="'.(GETPOSTISSET('valuestandardinvoice') ? GETPOST('valuestandardinvoice', 'alpha') : '100%').'"/>';
-			print '</td>';
-		}
-		print '</tr></table>';
-		print '</div></div>';
-
-		if ((empty($origin)) || ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid)))) {
-			// Deposit - Down payment
-			if (!getDolGlobalString('INVOICE_DISABLE_DEPOSIT')) {
-				print '<div class="tagtr listofinvoicetype"><div class="tagtd listofinvoicetype">';
-				$tmp = '<input type="radio" id="radio_deposit" name="type" value="3"'.(GETPOSTINT('type') == 3 ? ' checked' : '').'> ';
-				print '<script type="text/javascript">
-				jQuery(document).ready(function() {
-					jQuery("#typestandardinvoice, #valuestandardinvoice").click(function() {
-						jQuery("#radio_standard").prop("checked", true);
-					});
-					jQuery("#typedeposit, #valuedeposit").click(function() {
-						jQuery("#radio_deposit").prop("checked", true);
-					});
-					jQuery("#typedeposit").change(function() {
-						console.log("We change type of down payment");
-						jQuery("#radio_deposit").prop("checked", true);
-						setRadioForTypeOfInvoice();
-					});
-					jQuery("#radio_standard, #radio_deposit, #radio_replacement, #radio_creditnote, #radio_template").change(function() {
-						setRadioForTypeOfInvoice();
-					});
-					function setRadioForTypeOfInvoice() {
-						console.log("Change radio for type of invoice");
-						if (jQuery("#radio_deposit").prop("checked") && (jQuery("#typedeposit").val() == \'amount\' || jQuery("#typedeposit").val() == \'variable\')) {
-							jQuery("#checkforselects").prop("disabled", true);
-							jQuery("#checkforselects").prop("checked", false);
-							jQuery(".checkforselect").prop("disabled", true);
-							jQuery(".checkforselect").prop("checked", false);
-						} else {
-							jQuery("#checkforselects").prop("disabled", false);
-							jQuery("#checkforselects").prop("checked", true);
-							jQuery(".checkforselect").prop("disabled", false);
-							jQuery(".checkforselect").prop("checked", true);
-						}
-					}
-				});
-				</script>';
-
-				print '<table class="nobordernopadding"><tr>';
-				print '<td>';
-				$tmp  = $tmp.'<label for="radio_deposit">'.$langs->trans("InvoiceDeposit").'</label>';
-				// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
-				$desc = $form->textwithpicto($tmp, $langs->transnoentities("InvoiceDepositDesc"), 1, 'help', '', 0, 3, 'depositonsmartphone');
-				print $desc;
+			if ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid))) {
+				/*print '<td class="nowrap" style="padding-left: 5px">';
+				$arraylist = array(
+					//'amount' => $langs->transnoentitiesnoconv('FixAmount', $langs->transnoentitiesnoconv('Deposit')),
+					//'variable' => $langs->transnoentitiesnoconv('VarAmountOneLine', $langs->transnoentitiesnoconv('Deposit')),
+					'variablealllines' => $langs->transnoentitiesnoconv('VarAmountAllLines')
+				);
+				print $form->selectarray('typestandard', $arraylist, GETPOST('typestandard', 'aZ09'), 0, 0, 0, '', 1);
+				print '</td>';*/
+				print '<td class="nowrap" style="padding-left: 15px">';
+				print '<span class="opacitymedium">'.$langs->trans('PercentOfOriginalObject').'</span>:<input class="right" placeholder="100%" type="text" id="valuestandardinvoice" name="valuestandardinvoice" size="3" value="'.(GETPOSTISSET('valuestandardinvoice') ? GETPOST('valuestandardinvoice', 'alpha') : '100%').'"/>';
 				print '</td>';
-				if (($origin == 'propal') || ($origin == 'commande')) {
-					print '<td class="nowrap" style="padding-left: 15px">';
-					$arraylist = array(
-						'amount' => $langs->transnoentitiesnoconv('FixAmount', $langs->transnoentitiesnoconv('Deposit')),
-						'variable' => $langs->transnoentitiesnoconv('VarAmountOneLine', $langs->transnoentitiesnoconv('Deposit')),
-						'variablealllines' => $langs->transnoentitiesnoconv('VarAmountAllLines')
-					);
-					$typedeposit = GETPOST('typedeposit', 'aZ09');
-					$valuedeposit = GETPOSTINT('valuedeposit');
-					if (empty($typedeposit) && !empty($objectsrc->deposit_percent)) {
-						$origin_payment_conditions_deposit_percent = getDictionaryValue('c_payment_term', 'deposit_percent', $objectsrc->cond_reglement_id);
-						if (!empty($origin_payment_conditions_deposit_percent)) {
-							$typedeposit = 'variable';
-						}
-					}
-					if (empty($valuedeposit) && $typedeposit == 'variable' && !empty($objectsrc->deposit_percent)) {
-						$valuedeposit = $objectsrc->deposit_percent;
-					}
-					print $form->selectarray('typedeposit', $arraylist, $typedeposit, 0, 0, 0, '', 1);
-					print '</td>';
-					print '<td class="nowrap" style="padding-left: 5px">';
-					print '<span class="opacitymedium paddingleft">'.$langs->trans("AmountOrPercent").'</span><input type="text" id="valuedeposit" name="valuedeposit" class="width75 right" value="'.$valuedeposit.'"/>';
-					print '</td>';
-				}
-				print '</tr></table>';
+			}
+			print '</tr></table>';
+			print '</div></div>';
 
-				print '</div></div>';
+			// Prédéfined date
+			$dateinvoice = dol_now();
+		} else {
+			// Standard invoice
+			print '<div class="tagtr listofinvoicetype"><div class="tagtd listofinvoicetype">';
+			$tmp = '<input type="radio" id="radio_standard" name="type" value="0"'.(GETPOSTINT('type') ? '' : ' checked').'> ';
+			$tmp  = $tmp.'<label for="radio_standard" >'.$langs->trans("InvoiceStandardAsk").'</label>';
+			// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
+			$desc = $form->textwithpicto($tmp, $langs->transnoentities("InvoiceStandardDesc"), 1, 'help', '', 0, 3, 'standardonsmartphone');
+			print '<table class="nobordernopadding"><tr>';
+			print '<td>';
+			print $desc;
+			print '</td>';
+			if ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid))) {
+				/*print '<td class="nowrap" style="padding-left: 5px">';
+				$arraylist = array(
+					//'amount' => $langs->transnoentitiesnoconv('FixAmount', $langs->transnoentitiesnoconv('Deposit')),
+					//'variable' => $langs->transnoentitiesnoconv('VarAmountOneLine', $langs->transnoentitiesnoconv('Deposit')),
+					'variablealllines' => $langs->transnoentitiesnoconv('VarAmountAllLines')
+				);
+				print $form->selectarray('typestandard', $arraylist, GETPOST('typestandard', 'aZ09'), 0, 0, 0, '', 1);
+				print '</td>';*/
+				print '<td class="nowrap" style="padding-left: 15px">';
+				print '<span class="opacitymedium">'.$langs->trans('PercentOfOriginalObject').'</span>:<input class="right" placeholder="100%" type="text" id="valuestandardinvoice" name="valuestandardinvoice" size="3" value="'.(GETPOSTISSET('valuestandardinvoice') ? GETPOST('valuestandardinvoice', 'alpha') : '100%').'"/>';
+				print '</td>';
+			}
+			print '</tr></table>';
+			print '</div></div>';
+
+			if ((empty($origin)) || ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid)))) {
+				// Deposit - Down payment
+				if (!getDolGlobalString('INVOICE_DISABLE_DEPOSIT')) {
+					print '<div class="tagtr listofinvoicetype"><div class="tagtd listofinvoicetype">';
+					$tmp = '<input type="radio" id="radio_deposit" name="type" value="3"'.(GETPOSTINT('type') == 3 ? ' checked' : '').'> ';
+					print '<script type="text/javascript">
+					jQuery(document).ready(function() {
+						jQuery("#typestandardinvoice, #valuestandardinvoice").click(function() {
+							jQuery("#radio_standard").prop("checked", true);
+						});
+						jQuery("#typedeposit, #valuedeposit").click(function() {
+							jQuery("#radio_deposit").prop("checked", true);
+						});
+						jQuery("#typedeposit").change(function() {
+							console.log("We change type of down payment");
+							jQuery("#radio_deposit").prop("checked", true);
+							setRadioForTypeOfInvoice();
+						});
+						jQuery("#radio_standard, #radio_deposit, #radio_replacement, #radio_creditnote, #radio_template").change(function() {
+							setRadioForTypeOfInvoice();
+						});
+						function setRadioForTypeOfInvoice() {
+							console.log("Change radio for type of invoice");
+							if (jQuery("#radio_deposit").prop("checked") && (jQuery("#typedeposit").val() == \'amount\' || jQuery("#typedeposit").val() == \'variable\')) {
+								jQuery("#checkforselects").prop("disabled", true);
+								jQuery("#checkforselects").prop("checked", false);
+								jQuery(".checkforselect").prop("disabled", true);
+								jQuery(".checkforselect").prop("checked", false);
+							} else {
+								jQuery("#checkforselects").prop("disabled", false);
+								jQuery("#checkforselects").prop("checked", true);
+								jQuery(".checkforselect").prop("disabled", false);
+								jQuery(".checkforselect").prop("checked", true);
+							}
+						}
+					});
+					</script>';
+
+					print '<table class="nobordernopadding"><tr>';
+					print '<td>';
+					$tmp  = $tmp.'<label for="radio_deposit">'.$langs->trans("InvoiceDeposit").'</label>';
+					// @phan-suppress-next-line PhanPluginSuspiciousParamOrder
+					$desc = $form->textwithpicto($tmp, $langs->transnoentities("InvoiceDepositDesc"), 1, 'help', '', 0, 3, 'depositonsmartphone');
+					print $desc;
+					print '</td>';
+					if (($origin == 'propal') || ($origin == 'commande')) {
+						print '<td class="nowrap" style="padding-left: 15px">';
+						$arraylist = array(
+							'amount' => $langs->transnoentitiesnoconv('FixAmount', $langs->transnoentitiesnoconv('Deposit')),
+							'variable' => $langs->transnoentitiesnoconv('VarAmountOneLine', $langs->transnoentitiesnoconv('Deposit')),
+							'variablealllines' => $langs->transnoentitiesnoconv('VarAmountAllLines')
+						);
+						$typedeposit = GETPOST('typedeposit', 'aZ09');
+						$valuedeposit = GETPOSTINT('valuedeposit');
+						if (empty($typedeposit) && !empty($objectsrc->deposit_percent)) {
+							$origin_payment_conditions_deposit_percent = getDictionaryValue('c_payment_term', 'deposit_percent', $objectsrc->cond_reglement_id);
+							if (!empty($origin_payment_conditions_deposit_percent)) {
+								$typedeposit = 'variable';
+							}
+						}
+						if (empty($valuedeposit) && $typedeposit == 'variable' && !empty($objectsrc->deposit_percent)) {
+							$valuedeposit = $objectsrc->deposit_percent;
+						}
+						print $form->selectarray('typedeposit', $arraylist, $typedeposit, 0, 0, 0, '', 1);
+						print '</td>';
+						print '<td class="nowrap" style="padding-left: 5px">';
+						print '<span class="opacitymedium paddingleft">'.$langs->trans("AmountOrPercent").'</span><input type="text" id="valuedeposit" name="valuedeposit" class="width75 right" value="'.$valuedeposit.'"/>';
+						print '</td>';
+					}
+					print '</tr></table>';
+
+					print '</div></div>';
+				}
 			}
 		}
 
@@ -4625,6 +4640,8 @@ if ($action == 'create') {
 		$newdateinvoice = dol_mktime(0, 0, 0, GETPOSTINT('remonth'), GETPOSTINT('reday'), GETPOSTINT('reyear'), 'tzserver');
 		$date_pointoftax = dol_mktime(0, 0, 0, GETPOSTINT('date_pointoftaxmonth'), GETPOSTINT('date_pointoftaxday'), GETPOSTINT('date_pointoftaxyear'), 'tzserver');
 
+		print '<tr></tr>';
+
 		// Date invoice
 		print '<tr><td class="fieldrequired">'.$langs->trans('DateInvoice').'</td><td colspan="2">';
 		print img_picto('', 'action', 'class="pictofixedwidth"');
@@ -4710,14 +4727,16 @@ if ($action == 'create') {
 			print '</td></tr>';
 		}
 
-		// Project
-		if (isModEnabled('project')) {
-			$langs->load('projects');
-			print '<tr><td>'.$langs->trans('Project').'</td><td colspan="2">';
-			print img_picto('', 'project', 'class="pictofixedwidth"').$formproject->select_projects(($socid > 0 ? $socid : -1), $projectid, 'projectid', 0, 0, 1, 1, 0, 0, 0, '', 1, 0, 'maxwidth500 widthcentpercentminusxx');
-			print ' <a href="'.DOL_URL_ROOT.'/projet/card.php?socid='.$soc->id.'&action=create&status=1&backtopage='.urlencode($_SERVER["PHP_SELF"].'?action=create&socid='.$soc->id.($fac_rec ? '&fac_rec='.$fac_rec : '')).'"><span class="fa fa-plus-circle valignmiddle" title="'.$langs->trans("AddProject").'"></span></a>';
-			print '</td></tr>';
-		}
+		print '<tr></tr>';
+
+		// // Project
+		// if (isModEnabled('project')) {
+		// 	$langs->load('projects');
+		// 	print '<tr><td>'.$langs->trans('Project').'</td><td colspan="2">';
+		// 	print img_picto('', 'project', 'class="pictofixedwidth"').$formproject->select_projects(($socid > 0 ? $socid : -1), $projectid, 'projectid', 0, 0, 1, 1, 0, 0, 0, '', 1, 0, 'maxwidth500 widthcentpercentminusxx');
+		// 	print ' <a href="'.DOL_URL_ROOT.'/projet/card.php?socid='.$soc->id.'&action=create&status=1&backtopage='.urlencode($_SERVER["PHP_SELF"].'?action=create&socid='.$soc->id.($fac_rec ? '&fac_rec='.$fac_rec : '')).'"><span class="fa fa-plus-circle valignmiddle" title="'.$langs->trans("AddProject").'"></span></a>';
+		// 	print '</td></tr>';
+		// }
 
 		// Incoterms
 		if (isModEnabled('incoterm')) {
@@ -4751,6 +4770,8 @@ if ($action == 'create') {
 
 			print $object->showOptionals($extrafields, 'create', $parameters);
 		}
+
+		print '<tr></tr>';
 
 		// Template to use by default
 		print '<tr><td>'.$langs->trans('Model').'</td>';
@@ -4827,6 +4848,8 @@ if ($action == 'create') {
 			// print '<textarea name="note_private" wrap="soft" cols="70" rows="'.ROWS_3.'">'.$note_private.'.</textarea>
 			print '</td></tr>';
 		}
+
+		print '<tr></tr>';
 
 		// Lines from source (TODO Show them also when creating invoice from template invoice)
 		if (!empty($origin) && !empty($originid) && is_object($objectsrc)) {
@@ -4927,7 +4950,7 @@ if ($action == 'create') {
 	 * for each $facture_array {}
 	 */
 
-	print "<br><br>WE HAVE MANY FACTURE<br><br>";
+	print "<br><br>IL Y A PLUSIEURS FACTURES :<br><br>";
 
 	print '<table class="border centpercent tableforfieldcreate">';
 	print "<tr>
@@ -4939,8 +4962,12 @@ if ($action == 'create') {
 	print "</tr>";
 
 	foreach ($affaire->linkedObjects["facture"] as $fact) {
+		$picto = $fact->picto;  // @phan-suppress-current-line PhanUndeclaredProperty
+		$prefix = 'object_';
+		$nophoto = img_picto('No photo', $prefix.$picto);
+
 		print "<tr>
-		<td>".$fact->getNomUrl(1)."</td>
+		<td><a href=".$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&id='.$fact->id.">".$nophoto.' '.$fact->ref."</a></td>
 		<td>".$fact->total_ht."</td>
 		<td>".$fact->total_ttc."</td>
 		<td>".printBagde($fact->array_options["options_aff_status"], 'mini')."</td>
@@ -4950,14 +4977,16 @@ if ($action == 'create') {
 
 	print '</table>';
 } else if ($action == 'no_create') {
-	/**
-	 * TODO
-	 * a table with each cmde
-	 * button fusion
-	 * button create new affaire
-	 */
-
-	 print "<br><br>IL N'Y A PAS ".(isset($affaire->linkedObjects["commande"]) ? "DE FACTURE" : "DE COMMANDE")." ASSOCIÉ À CETTE AFFAIRE <br><br> ON NE CRÉER PAS UNE FACTURE COMME ÇA !!!!";
+	$order = checkCommandeExist($affaire);
+	if (is_array($order)) {
+		print "<br><br>IL Y A PLUSIEURS COMMANDES ASSOCIÉES À CETTE AFFAIRE CE N'EST PAS POSSIBLE<br><br> On créer une facture à partir d'une commande !";
+	} else if ($order > 0) {
+		print "<br><br>IL N'Y A PAS DE FACTURE ASSOCIÉE À CETTE AFFAIRE <br><br> On créer une facture à partir de la commande !";
+	} else if ($order < 0) {
+		print "<br><br>UN PROBLÈME EST SURVENU !";
+	} else {
+		print "<br><br>IL N'Y A PAS DE COMMANDE ASSOCIÉE À CETTE AFFAIRE <br><br> On créer une facture à partir d'une commande !";
+	}
 } else if ($action == 'confirm_changeStatus') {
 	/**
 	 * TODO

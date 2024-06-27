@@ -88,7 +88,7 @@ dol_include_once('/affaire/lib/affaire.lib.php');
 $langs->loadLangs(array("affaire@affaire", "other"));
 
 // Get parameters
-$id = GETPOSTINT('id');
+$id = GETPOSTINT('id') ? GETPOSTINT('id') : GETPOSTINT('affaire');
 $ref = GETPOST('ref', 'alpha');
 $lineid   = GETPOSTINT('lineid');
 
@@ -132,6 +132,50 @@ if (empty($action) && empty($id) && empty($ref)) {
 
 // Load object
 include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be include, not include_once.
+
+if (isModEnabled('affaire')) {
+	// Workflow
+	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$workflow = $db->fetch_object($resql);
+	} else {
+		dol_print_error($db);
+	}
+
+	// Fetch this step
+	$thisStepName = 'Affaire'; // <-- this has to be modofied when dictionnary change
+
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $object->fk_workflow_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$thisStep = $db->fetch_object($resql);
+			$defaultStepStatus = $thisStep->fk_default_status;
+		} else {
+			setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+		}
+	} else {
+		dol_print_error($db);
+	}
+
+	// Fetch all status of this step : affaire
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $object->fk_workflow_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$thisStatusArray = array();
+		if ($resql->num_rows > 0) {
+			while ($res = $db->fetch_object($resql)) {
+				$thisStatusArray[$res->rowid] = $res;
+			}
+		} else {
+			setEventMessages($langs->trans("BeleBele"), null, 'mesg');
+		}
+	} else {
+		dol_print_error($db);
+	}
+}
+
 
 // There is several ways to check permission.
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
@@ -269,6 +313,35 @@ if (empty($reshook)) {
 	// 		$display_step_error = $db->lasterror;
 	// 	}
 	// }
+	
+	if ($action == 'changeStatus') {
+        $newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
+        if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
+        if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
+
+        $error = 0;
+		$urlsToOpen = array();
+
+        // Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
+            if (empty($error)) {
+                $result = change_status($object, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow);			
+                if ($result) {
+                    setEventMessages("COULDN'T CHANGE STATUS", null, 'errors');
+                    if (is_string($result)) setEventMessages($result, null, 'errors');
+                }
+            } else {
+                setEventMessages($error, null, 'errors');
+            }
+
+
+        $_SESSION['urlsToOpen'] = $urlsToOpen;
+
+        $path = $_SERVER["PHP_SELF"].'?id='.$id;
+        $path .= $object ? "&affaire=$object->id" : '';
+        $path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
+        header('Location: '.$path);
+        exit;
+    }
 }
 
 
@@ -594,15 +667,15 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 			// Modify
 			print dolGetButtonAction('', $langs->trans('Modify'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=edit&token='.newToken(), '', $permissiontoadd);
 
-			// Validate
-			if ($object->status == $object::STATUS_DRAFT) {
-				if (empty($object->table_element_line) || (is_array($object->lines) && count($object->lines) > 0)) {
-					print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', $permissiontoadd);
-				} else {
-					$langs->load("errors");
-					print dolGetButtonAction($langs->trans("ErrorAddAtLeastOneLineFirst"), $langs->trans("Validate"), 'default', '#', '', 0);
-				}
-			}
+			// // Validate
+			// if ($object->status == $object::STATUS_DRAFT) {
+			// 	if (empty($object->table_element_line) || (is_array($object->lines) && count($object->lines) > 0)) {
+			// 		print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', $permissiontoadd);
+			// 	} else {
+			// 		$langs->load("errors");
+			// 		print dolGetButtonAction($langs->trans("ErrorAddAtLeastOneLineFirst"), $langs->trans("Validate"), 'default', '#', '', 0);
+			// 	}
+			// }
 
 			// Clone
 			// if ($permissiontoadd) {
@@ -627,15 +700,39 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 			}
 			*/
 
-			// Delete (with preloaded confirm popup)
-			$deleteUrl = $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken();
-			$buttonId = 'action-delete-no-ajax';
-			if ($conf->use_javascript_ajax && empty($conf->dol_use_jmobile)) {	// We can use preloaded confirm if not jmobile
-				$deleteUrl = '';
-				$buttonId = 'action-delete';
+			// Change status
+			if (isModEnabled('affaire') && $object) {
+				$arrayofstatusforbutaction = array();
+
+				// Fetch all status for this step
+				foreach ($thisStatusArray as $key => $rstatus) {
+					$labeltoshow = $rstatus->label;
+					if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
+					if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
+						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/affaire/affaire_card.php?affaire='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+					} else {
+						$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $rstatus->label, 'url'=> '/custom/affaire/affaire_card.php?affaire='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+					}
+				}
+
+				$params = array('backtopage' => $_SERVER['PHP_SELF'].'?token='.newToken().'&affaire='.$object->id);
+
+				print dolGetButtonAction('', $langs->trans("ChangeStatus"), 'default', $arrayofstatusforbutaction, 'changeStatusButton', 1, $params);
 			}
-			$params = array();
-			print dolGetButtonAction('', $langs->trans("Delete"), 'delete', $deleteUrl, $buttonId, $permissiontodelete, $params);
+
+			// Delete (with preloaded confirm popup)
+			if (empty(checkCanDeleteAffaire($object))) {
+				$deleteUrl = $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken();
+				$buttonId = 'action-delete-no-ajax';
+				if ($conf->use_javascript_ajax && empty($conf->dol_use_jmobile)) {	// We can use preloaded confirm if not jmobile
+					$deleteUrl = '';
+					$buttonId = 'action-delete';
+				}
+				$params = array();
+				print dolGetButtonAction('', $langs->trans("Delete"), 'delete', $deleteUrl, $buttonId, $permissiontodelete, $params);
+			} else {
+				print dolGetButtonAction($langs->trans("Impossible de supprimer l'affaire, elle est lié à d'autre objets"), $langs->trans('Delete'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+			}
 		}
 		print '</div>'."\n";
 	}

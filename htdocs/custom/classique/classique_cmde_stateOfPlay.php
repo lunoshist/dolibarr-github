@@ -208,7 +208,9 @@ if (isModEnabled('affaire')) {
 			// If no commande linked, let's create one 
 			$INFO["Object"] .= "(No commande)";
 			
-			if (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_ORDER_FROM_SCRATCH')) {
+			if (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_SCRATCH')) {
+				$action = "create";
+			} else if (empty(checkPropalExist($affaire)) && getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_SCRATCH_IF_NO_PROPAL')) {
 				$action = "create";
 			} else {
 				$action = "no_create";
@@ -970,18 +972,21 @@ if (empty($reshook)) {
 		// Link to a project
 		$object->setProject(GETPOSTINT('projectid'));
 	} elseif ($action == 'add' && $usercancreate) {
-		if ($res = checkCommandeExist($affaire)) {
-			if ($res > 0) {
-				if ($res != $object->id) {
-					setEventMessages($langs->trans('Une commande exitait déjà, ajouter les lignes à celle ci ou créer une autre affaire', $langs->transnoentities('Date')), null, 'errors');
-					$path = $_SERVER["PHP_SELF"].'?id='.$res."&affaire=$affaire->id";
-					header('Location: '.$path);
-					exit;
-				}
-			} else {
-				setEventMessages($langs->trans('Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire', $langs->transnoentities('Date')), null, 'errors');
+		$order = checkCommandeExist($affaire);
+		if (!empty($order)) {
+			if (is_array($order)) {
+				setEventMessages("Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire", null, 'errors');
 				$action = 'too_many_cmde';
 				$error++;
+			}
+			if ($order < 0) {
+				$error = "ERROR SQL : ".$affaire->db->lasterror();
+			}
+			if ($order > 0) {
+				setEventMessages('Une commande existe déjà, ajouter les lignes à celle ci ou créer une autre affaire', null, 'errors');
+				$path = $_SERVER["PHP_SELF"].'?id='.$res."&affaire=$affaire->id";
+				header('Location: '.$path);
+				exit;
 			}
 		}
 
@@ -991,6 +996,12 @@ if (empty($reshook)) {
 
 		if ($datecommande == '') {
 			setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentities('Date')), null, 'errors');
+			$action = 'create';
+			$error++;
+		}
+
+		if (getDolGlobalInt("CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE") && $date_delivery == '') {
+			setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentities('DateDeliveryPlanned')), null, 'errors');
 			$action = 'create';
 			$error++;
 		}
@@ -2409,23 +2420,14 @@ if (isModEnabled('project')) {
 	$formproject = new FormProjets($db);
 }
 
-// if ($res = checkCommandeExist($affaire)) {
-// 	if ($res > 0) {
-// 		if ($res != $object->id) {
-// 			$path = $_SERVER["PHP_SELF"].'?id='.$res."&affaire=$affaire->id";
-// 			header('Location: '.$path);
-// 			exit;
-// 		}
-// 	} else {
-// 		$action = 'too_many_cmde';
-// 	}
-// }
-
 // Mode creation
 if ($action == 'create' && $usercancreate) {
 	print load_fiche_titre($langs->trans('CreateOrder'), '', 'order');
 
 	$soc = new Societe($db);
+	if (empty($socid) && getDolGlobalInt('USE_AFFAIRE_THIRDPARTY_FOR_ORDER') && ($affaire->fk_soc > 0)) {
+		$socid = $affaire->fk_soc;
+	}
 	if ($socid > 0) {
 		$res = $soc->fetch($socid);
 	}
@@ -2606,6 +2608,8 @@ if ($action == 'create' && $usercancreate) {
 		print '<tr><td>'.$langs->trans('RefCustomer').'</td><td>';
 		if (getDolGlobalString('MAIN_USE_PROPAL_REFCLIENT_FOR_ORDER') && !empty($origin) && !empty($originid)) {
 			print '<input type="text" name="ref_client" value="'.$ref_client.'"></td>';
+		} else if (getDolGlobalString('USE_AFFAIRE_TITLE_FOR_ORDER_REFCLIENT') && !empty($affaire->label)) {
+			print '<input type="text" name="ref_client" value="'.$affaire->label.'"></td>';
 		} else {
 			print '<input type="text" name="ref_client" value="'.GETPOST('ref_client').'"></td>';
 		}
@@ -2665,6 +2669,8 @@ if ($action == 'create' && $usercancreate) {
 			print '</td></tr>';
 		}
 
+		print '<tr></tr>';
+
 		// Date
 		print '<tr><td class="fieldrequired">'.$langs->trans('Date').'</td><td>';
 		print img_picto('', 'action', 'class="pictofixedwidth"');
@@ -2672,7 +2678,7 @@ if ($action == 'create' && $usercancreate) {
 		print '</td></tr>';
 
 		// Date delivery planned
-		print '<tr><td>'.$langs->trans("DateDeliveryPlanned").'</td>';
+		print '<tr><td'.(getDolGlobalInt("CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE") ?  ' class="fieldrequired"' : '').'>'.$langs->trans("DateDeliveryPlanned").'</td>';
 		print '<td colspan="3">';
 		$date_delivery = ($date_delivery ? $date_delivery : $object->delivery_date);
 		print img_picto('', 'action', 'class="pictofixedwidth"');
@@ -2685,6 +2691,25 @@ if ($action == 'create' && $usercancreate) {
 		print img_picto('', 'clock', 'class="pictofixedwidth"');
 		$form->selectAvailabilityDelay((GETPOSTISSET('availability_id') ? GETPOST('availability_id') : $availability_id), 'availability_id', '', 1, 'maxwidth200 widthcentpercentminusx');
 		print '</td></tr>';
+
+		// Shipping Method
+		if (isModEnabled('shipping')) {
+			print '<tr><td>'.$langs->trans('SendingMethod').'</td><td>';
+			print img_picto('', 'object_dolly', 'class="pictofixedwidth"');
+			$form->selectShippingMethod(((GETPOSTISSET('shipping_method_id') && GETPOSTINT('shipping_method_id') != 0) ? GETPOST('shipping_method_id') : $shipping_method_id), 'shipping_method_id', '', 1, '', 0, 'maxwidth200 widthcentpercentminusx');
+			print '</td></tr>';
+		}
+
+		// Warehouse
+		if (isModEnabled('stock') && getDolGlobalString('WAREHOUSE_ASK_WAREHOUSE_DURING_ORDER')) {
+			require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
+			$formproduct = new FormProduct($db);
+			print '<tr><td>'.$langs->trans('Warehouse').'</td><td>';
+			print img_picto('', 'stock', 'class="pictofixedwidth"').$formproduct->selectWarehouses((GETPOSTISSET('warehouse_id') ? GETPOST('warehouse_id') : $warehouse_id), 'warehouse_id', '', 1, 0, 0, '', 0, 0, array(), 'maxwidth500 widthcentpercentminusxx');
+			print '</td></tr>';
+		}
+
+		print '<tr></tr>';
 
 		// Terms of payment
 		print '<tr><td class="nowrap">'.$langs->trans('PaymentConditionsShort').'</td><td>';
@@ -2705,41 +2730,22 @@ if ($action == 'create' && $usercancreate) {
 			print '</td></tr>';
 		}
 
-		// Shipping Method
-		if (isModEnabled('shipping')) {
-			print '<tr><td>'.$langs->trans('SendingMethod').'</td><td>';
-			print img_picto('', 'object_dolly', 'class="pictofixedwidth"');
-			$form->selectShippingMethod(((GETPOSTISSET('shipping_method_id') && GETPOSTINT('shipping_method_id') != 0) ? GETPOST('shipping_method_id') : $shipping_method_id), 'shipping_method_id', '', 1, '', 0, 'maxwidth200 widthcentpercentminusx');
-			print '</td></tr>';
-		}
+		print '<tr></tr>';
 
-		// Warehouse
-		if (isModEnabled('stock') && getDolGlobalString('WAREHOUSE_ASK_WAREHOUSE_DURING_ORDER')) {
-			require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
-			$formproduct = new FormProduct($db);
-			print '<tr><td>'.$langs->trans('Warehouse').'</td><td>';
-			print img_picto('', 'stock', 'class="pictofixedwidth"').$formproduct->selectWarehouses((GETPOSTISSET('warehouse_id') ? GETPOST('warehouse_id') : $warehouse_id), 'warehouse_id', '', 1, 0, 0, '', 0, 0, array(), 'maxwidth500 widthcentpercentminusxx');
-			print '</td></tr>';
-		}
-
-		// Source / Channel - What trigger creation
-		print '<tr><td>'.$langs->trans('Channel').'</td><td>';
-		print img_picto('', 'question', 'class="pictofixedwidth"');
-		$form->selectInputReason((GETPOSTISSET('demand_reason_id') ? GETPOST('demand_reason_id') : $demand_reason_id), 'demand_reason_id', '', 1, 'maxwidth200 widthcentpercentminusx');
-		print '</td></tr>';
-
+		print '<tr></tr>';
+		
 		// TODO How record was recorded OrderMode (llx_c_input_method)
 
-		// Project
-		if (isModEnabled('project')) {
-			$langs->load("projects");
-			print '<tr>';
-			print '<td>'.$langs->trans("Project").'</td><td>';
-			print img_picto('', 'project', 'class="pictofixedwidth"').$formproject->select_projects(($soc->id > 0 ? $soc->id : -1), (GETPOSTISSET('projectid') ? GETPOST('projectid') : $projectid), 'projectid', 0, 0, 1, 1, 0, 0, 0, '', 1, 0, 'maxwidth500 widthcentpercentminusxx');
-			print ' <a href="'.DOL_URL_ROOT.'/projet/card.php?socid='.$soc->id.'&action=create&status=1&backtopage='.urlencode($_SERVER["PHP_SELF"].'?action=create&socid='.$soc->id).'"><span class="fa fa-plus-circle valignmiddle" title="'.$langs->trans("AddProject").'"></span></a>';
-			print '</td>';
-			print '</tr>';
-		}
+		// // Project
+		// if (isModEnabled('project')) {
+		// 	$langs->load("projects");
+		// 	print '<tr>';
+		// 	print '<td>'.$langs->trans("Project").'</td><td>';
+		// 	print img_picto('', 'project', 'class="pictofixedwidth"').$formproject->select_projects(($soc->id > 0 ? $soc->id : -1), (GETPOSTISSET('projectid') ? GETPOST('projectid') : $projectid), 'projectid', 0, 0, 1, 1, 0, 0, 0, '', 1, 0, 'maxwidth500 widthcentpercentminusxx');
+		// 	print ' <a href="'.DOL_URL_ROOT.'/projet/card.php?socid='.$soc->id.'&action=create&status=1&backtopage='.urlencode($_SERVER["PHP_SELF"].'?action=create&socid='.$soc->id).'"><span class="fa fa-plus-circle valignmiddle" title="'.$langs->trans("AddProject").'"></span></a>';
+		// 	print '</td>';
+		// 	print '</tr>';
+		// }
 
 		// Incoterms
 		if (isModEnabled('incoterm')) {
@@ -2779,6 +2785,13 @@ if ($action == 'create' && $usercancreate) {
 
 			print $object->showOptionals($extrafields, 'create', $parameters);
 		}
+
+
+		// Source / Channel - What trigger creation
+		print '<tr><td>'.$langs->trans('Channel').'</td><td>';
+		print img_picto('', 'question', 'class="pictofixedwidth"');
+		$form->selectInputReason((GETPOSTISSET('demand_reason_id') ? GETPOST('demand_reason_id') : $demand_reason_id), 'demand_reason_id', '', 1, 'maxwidth200 widthcentpercentminusx');
+		print '</td></tr>';
 
 		// Template to use by default
 		print '<tr><td>'.$langs->trans('DefaultModel').'</td>';
@@ -2909,7 +2922,7 @@ if ($action == 'create' && $usercancreate) {
 	 * button create new affaire
 	 */
 
-	print "<br><br>WE HAVE MANY COMMANDE !!!!<br><br>Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire<br><br>";
+	print "<br><br>IL Y A PLUSIEURS COMMANDES : !!!!<br><br>Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire<br><br>";
 
 	print '<table class="border centpercent tableforfieldcreate">';
 	print "<tr>
@@ -2921,8 +2934,12 @@ if ($action == 'create' && $usercancreate) {
 	print "</tr>";
 
 	foreach ($affaire->linkedObjects["commande"] as $comm) {
+		$picto = $comm->picto;  // @phan-suppress-current-line PhanUndeclaredProperty
+		$prefix = 'object_';
+		$nophoto = img_picto('No photo', $prefix.$picto);
+
 		print "<tr>
-		<td>".$comm->getNomUrl(1)."</td>
+		<td><a href=".$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&id='.$comm->id.">".$nophoto.' '.$comm->ref."</a></td>
 		<td>".$comm->total_ht."</td>
 		<td>".$comm->total_ttc."</td>
 		<td>".printBagde($comm->array_options["options_aff_status"], 'mini')."</td>
@@ -2939,7 +2956,7 @@ if ($action == 'create' && $usercancreate) {
 	 * button create new affaire
 	 */
 
-	 print "<br><br>IL N'Y A PAS DE COMMANDE ASSOCIÉ À CETTE AFFAIRE <br><br> ON NE CRÉER PAS UNE COMMANDE COMME ÇA !!!!";
+	 print "<br><br>IL N'Y A PAS DE COMMANDE ASSOCIÉ À CETTE AFFAIRE <br><br> On créer la commande en signant une proposition commerciale";
 } else if ($action == 'confirm_changeStatus') {
 	/**
 	 * TODO
@@ -3955,7 +3972,7 @@ if ($action == 'create' && $usercancreate) {
 					}
 
 					// Create shipment
-					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SHIPEMENT_FROM_ORDER')) {
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_EXPE_FROM_ORDER')) {
 						if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && ($object->getNbOfProductsLines() > 0 || getDolGlobalString('STOCK_SUPPORTS_SERVICES'))) {
 							if ((getDolGlobalInt('MAIN_SUBMODULE_EXPEDITION') && $user->hasRight('expedition', 'creer')) || (getDolGlobalInt('MAIN_SUBMODULE_DELIVERY') && $user->hasRight('expedition', 'delivery', 'creer'))) {
 								$steplabel = empty(getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'expe' : getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$workflow->rowid);
@@ -3983,7 +4000,7 @@ if ($action == 'create' && $usercancreate) {
 						
 					// Create bill
 					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INVOICE_FROM_ORDER')) {
-						$steplabel = empty(getDolGlobalString('STEP_FACTURE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'facture' : getDolGlobalString('STEP_FACTURE_FOR_WORKFLOW_'.$workflow->rowid);
+						$steplabel = empty(getDolGlobalString('STEP_INVOICE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'facture' : getDolGlobalString('STEP_INVOICE_FOR_WORKFLOW_'.$workflow->rowid);
 						
 						$arrayforbutaction[] = array(
 							'lang' => 'bills',

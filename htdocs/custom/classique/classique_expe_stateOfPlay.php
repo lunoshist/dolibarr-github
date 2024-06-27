@@ -196,7 +196,7 @@ if (isModEnabled('affaire')) {
 			// If no expedition linked, let's create one 
 			$INFO["Object"] .= "(No expedition)";
 			
-			if (isset($affaire->linkedObjects["commande"]) && (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_ORDER_FROM_SCRATCH'))) {
+			if (isset($affaire->linkedObjects["commande"]) && (GETPOST('automatic') || getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_EXPE_FROM_SCRATCH'))) {
 				$action = "create";
 	
 				if (!empty(GETPOSTINT('origin')) && GETPOSTINT('origin') != 'commande'){
@@ -2303,7 +2303,7 @@ if ($action == 'create') {
 	 * for each $expedition_array {}
 	 */
 
-	print "<br><br>WE HAVE MANY EXPEDITION<br><br>";
+	print "<br><br>IL Y A PLUSIEURS EXPÉDITIONS :<br><br>";
 
 	print '<table class="border centpercent tableforfieldcreate">';
 	print "<tr>
@@ -2313,9 +2313,13 @@ if ($action == 'create') {
 		<td>Date création</td>";
 	print "</tr>";
 
-	foreach ($affaire->linkedObjects["facture"] as $fact) {
+	foreach ($affaire->linkedObjects["facture"] as $expe) {
+		$picto = $expe->picto;  // @phan-suppress-current-line PhanUndeclaredProperty
+		$prefix = 'object_';
+		$nophoto = img_picto('No photo', $prefix.$picto);
+
 		print "<tr>
-		<td>".$fact->getNomUrl(1)."</td>";
+		<td><a href=".$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&id='.$expe->id.">".$nophoto.' '.$expe->ref."</a></td>";
 		if ($object->shipping_method_id > 0) {
 			// Get code using getLabelFromKey
 			$code = $langs->getLabelFromKey($db, $object->shipping_method_id, 'c_shipment_mode', 'rowid', 'code');
@@ -2324,10 +2328,10 @@ if ($action == 'create') {
 			print "<td></td>";
 		}
 		print 
-		"<td>".$fact->total_ht."</td>
-		<td>".$fact->total_ttc."</td>
-		<td>".printBagde($fact->array_options["options_aff_status"], 'mini')."</td>
-		<td>".dol_print_date($fact->date_creation, 'day')."</td>";
+		"<td>".$expe->total_ht."</td>
+		<td>".$expe->total_ttc."</td>
+		<td>".printBagde($expe->array_options["options_aff_status"], 'mini')."</td>
+		<td>".dol_print_date($expe->date_creation, 'day')."</td>";
 		print "</tr>";
 	}
 
@@ -2359,7 +2363,16 @@ if ($action == 'create') {
 	if (isset($errorCreate)) {
 		print $errorCreate;
 	} else {
-		print "<br><br>IL N'Y A PAS ".(isset($affaire->linkedObjects["commande"]) ? "D'EXPÉDITION" : "DE COMMANDE")." ASSOCIÉ À CETTE AFFAIRE <br><br> ON NE CRÉER PAS UNE EXPÉDITION COMME ÇA !!!!";
+		$order = checkCommandeExist($affaire);
+	if (is_array($order)) {
+		print "<br><br>IL Y A PLUSIEURS COMMANDES ASSOCIÉES À CETTE AFFAIRE CE N'EST PAS POSSIBLE<br><br> On créer une expédition à partir d'une commande !";
+	} else if ($order > 0) {
+		print "<br><br>IL N'Y A PAS D'EXPÉDITION ASSOCIÉE À CETTE AFFAIRE <br><br> On créer une expédition à partir de la commande !";
+	} else if ($order < 0) {
+		print "<br><br>UN PROBLÈME EST SURVENU !";
+	} else {
+		print "<br><br>IL N'Y A PAS DE COMMANDE ASSOCIÉE À CETTE AFFAIRE <br><br> On créer une expédition à partir d'une commande !";
+	}
 	}
 } else if ($action == 'confirm_changeStatus') {
 	/**

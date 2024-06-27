@@ -168,19 +168,20 @@ if (!$permissiontoread) {
 $res = $object->fetch($id);
 
 // Fetch step of affaire
-$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $object->fk_step AND fk_workflow_type = $object->fk_workflow_type";
-$resql = $db->query($sql);
-if ($resql) {
-	if ($resql->num_rows > 0) {
-		$affaireStep = $db->fetch_object($resql);
+$affaireStep = $object->getStep();
+$affaireStatus = $object->getStatus();
 
-		if (strtolower($affaireStep->label_short) == 'affaire') {
+if (strtolower($affaireStep->label_short) == 'affaire') {
+	$code = $affaireStatus->fk_type;
+	switch (true) {
+		case (0 <= $code && $code <= 99):
+			// CREATION
 			// 1- Fetch steps in good order
-			$sql = "SELECT rowid, label_short, position FROM llx_c_affaire_steps WHERE fk_workflow_type = $object->fk_workflow_type ORDER BY position";
+			$sql = "SELECT rowid, label_short, position FROM llx_c_affaire_steps WHERE fk_workflow_type = $object->fk_workflow_type ORDER BY position ASC";
 			$result = $db->query($sql);
 			if ($result) {
 				// 2- Fetch the first real step ...
-				while (empty($newAffaireStatus)) {
+				while (empty($path)) {
 					$rstep = $db->fetch_object($result);
 					if (is_null($rstep)) break;
 					if (!$rstep->position) continue;
@@ -190,19 +191,49 @@ if ($resql) {
 					// REDIRECT
 					$path = '/classique/classique_'.$rstepLabel.'_stateOfPlay.php?affaire='.$object->id;
 					$path = dol_buildpath($path, 1);
-					header('Location: '.$path);
-					exit();
 				}
 			} else {
 				$error--;
 				dol_print_error($db);
 			}
-		}
-	} else {
-		setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			break;
+		
+		case (300 <= $code && $code <= 399):
+			// // REDIRECT
+			// $path = '/affaire/affaire_card.php?affaire='.$object->id;
+			// $path = dol_buildpath($path, 1);
+			
+			// CLOTURER
+			// 1- Fetch steps in last to first order
+			$sql = "SELECT rowid, label_short, position FROM llx_c_affaire_steps WHERE fk_workflow_type = $object->fk_workflow_type ORDER BY position DESC";
+			$result = $db->query($sql);
+			if ($result) {
+				// 2- Fetch the first real step ...
+				while (empty($path)) {
+					$rstep = $db->fetch_object($result);
+					if (is_null($rstep)) break;
+					if (!$rstep->position) continue;
+					$rstepLabel = strtolower($rstep->label_short);
+					$rstepRowid = strtolower($rstep->rowid);
+
+					// REDIRECT
+					$path = '/classique/classique_'.$rstepLabel.'_stateOfPlay.php?affaire='.$object->id;
+					$path = dol_buildpath($path, 1);
+				}
+			} else {
+				$error--;
+				dol_print_error($db);
+			}
+			break;
+		
+		default:
+			// REDIRECT
+			$path = '/affaire/affaire_workflow.php?affaire='.$object->id;
+			$path = dol_buildpath($path, 1);
+			break;
 	}
-} else {
-	dol_print_error($db);
+	header('Location: '.$path);
+	exit();
 }
 
 

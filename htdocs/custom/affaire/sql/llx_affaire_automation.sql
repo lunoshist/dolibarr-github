@@ -12,17 +12,18 @@ CREATE TABLE `llx_affaire_automation` (
   conditions text,
   automation_type varchar (255),
   new_step text,
-  new_status text
+  new_status text,
+  priority integer
 ) ENGINE=InnoDB;
 
 --
 -- Déchargement des données de la table `llx_c_affaire_status_types`
 --
 
-INSERT INTO `llx_affaire_automation` (`fk_workflow_type`, `origin_step`, `origin_status`, `conditions`, `automation_type`, `new_step`, `new_status`) VALUES
-(1, 2, 'TYPE:200', '', 'System', 'closeOtherPropal', 7),
-(1, 2, 'TYPE:200', '', 'System', 'createOrder', 10),
-(1, 3, 'TYPE:100', '', 'System', 'generateProd', 14),
-(1, 3, 'TYPE:200', '', 'changeStatus', 'Prod', 15),
-(1, 4, 'TYPE:200', '', 'changeStatus', 'Expe', 22,
-(1, 4, 'TYPE:200', '', 'changeStatus', 'Facture', 29);
+INSERT INTO `llx_affaire_automation` (`fk_workflow_type`, `origin_step`, `origin_status`, `conditions`, `automation_type`, `new_step`, `new_status`, `priority`) VALUES
+(2, 8, 'TYPE:200', '', 'System', 'closeOtherPropal', 41, 1),
+(2, 8, 'TYPE:200', 'FUNCTION:checkCommandeExist($affaire):>=:0', 'System', 'NOcreateOrder', 44, 2),
+(2, 9, 'TYPE:100', '', 'System', 'NOgenerateProd', 55, 1),
+(2, 9, 'TYPE:200', 'TYPE:prod:<:100', 'changeStatus', 'Prod', 56, 1),
+(2, 10, 'TYPE:200', 'TYPE:expe:<:100', 'changeStatusStep', 'Expe', 63, 1),
+(2, 10, 'TYPE:200', 'TYPE:facture:<:100', 'changeStatusStep', 'Facture', 73, 2);

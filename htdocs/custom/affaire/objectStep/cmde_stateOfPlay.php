@@ -149,7 +149,7 @@ if (isModEnabled('affaire')) {
 			$_SESSION['get_data'] = $_GET;
 
 			
-			$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
+			$steplabel = empty(getDolGlobalString('STEP_SALE_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_SALE_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
 			$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php';
 			$path = dol_buildpath($path, 1);
 			header('Location: '.$path);

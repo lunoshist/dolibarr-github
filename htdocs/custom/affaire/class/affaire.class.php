@@ -121,8 +121,8 @@ class Affaire extends CommonObject
 	public $fields=array(
 		"rowid" => array("type"=>"integer", "label"=>"TechnicalID", "enabled"=>"1", 'position'=>1, 'notnull'=>1, "visible"=>"0", "noteditable"=>"1", "index"=>"1", "css"=>"left", "comment"=>"Id"),
 		"ref" => array("type"=>"varchar(128)", "label"=>"Ref", "enabled"=>"1", 'position'=>20, 'notnull'=>1, "visible"=>"5", "index"=>"1", "searchall"=>"1", "validate"=>"1", "comment"=>"Reference of object"),
-		"label" => array("type"=>"varchar(255)", "label"=>"Title", "enabled"=>"1", 'position'=>30, 'notnull'=>0, "visible"=>"1", "searchall"=>"1", "css"=>"minwidth300", "cssview"=>"wordbreak", "help"=>"Help text", "validate"=>"1",),
-		"fk_soc" => array("type"=>"integer:societe:societe/class/societe.class.php", "label"=>"ThirdParty", "enabled"=>"isModEnabled('societe')", 'position'=>60, 'notnull'=>-1, "visible"=>"1", "index"=>"1", "css"=>"maxwidth500 widthcentpercentminusxx", "csslist"=>"tdoverflowmax150", "help"=>"OrganizationEventLinkToThirdParty", "validate"=>"1",),
+		"label" => array("type"=>"varchar(255)", "label"=>"Title", "enabled"=>"1", 'position'=>30, 'notnull'=>0, "visible"=>"1", "searchall"=>"1", "css"=>"minwidth300", "cssview"=>"wordbreak", "validate"=>"1",),
+		"fk_soc" => array("type"=>"integer:societe:societe/class/societe.class.php:1:(client:=:1) or (client:=:2)", "label"=>"ThirdParty", "enabled"=>"isModEnabled('societe')", 'position'=>60, 'notnull'=>-1, "visible"=>"1", "index"=>"1", "css"=>"maxwidth500 widthcentpercentminusxx", "csslist"=>"tdoverflowmax150", "validate"=>"1",),
 		"description" => array("type"=>"text", "label"=>"Description", "enabled"=>"1", 'position'=>40, 'notnull'=>0, "visible"=>"-4", "validate"=>"1",),
 		"note_public" => array("type"=>"html", "label"=>"NotePublic", "enabled"=>"1", 'position'=>70, 'notnull'=>0, "visible"=>"-2", "cssview"=>"wordbreak", "validate"=>"1",),
 		"note_private" => array("type"=>"html", "label"=>"NotePrivate", "enabled"=>"1", 'position'=>75, 'notnull'=>0, "visible"=>"-2", "cssview"=>"wordbreak", "validate"=>"1",),
@@ -486,6 +486,15 @@ class Affaire extends CommonObject
 	 */
 	public function delete(User $user, $notrigger = 0)
 	{
+		//  Delete llx_affaire_affaire_status
+		$sql = "DELETE FROM llx_affaire_affaire_status WHERE fk_affaire = ".$this->id;
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_print_error($this->db);
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+
 		return $this->deleteCommon($user, $notrigger);
 		//return $this->deleteCommon($user, $notrigger, 1);
 	}

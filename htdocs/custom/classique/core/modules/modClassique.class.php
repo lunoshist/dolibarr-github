@@ -382,7 +382,7 @@ class modClassique extends DolibarrModules
 		$this->menu[$r++]=array(
             'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
             'type'=>'left',
-            'titre'=>'New Affaire Classique',
+            'titre'=>'Nouvelle Affaire',
             'mainmenu'=>'affaire',
             'leftmenu'=>'classique_new',
             'url'=>'/classique/classique_create.php?action=create',
