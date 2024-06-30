@@ -524,7 +524,7 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 	global $db, $user;
 	$error = 0;
 
-	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = 'TYPE:$newStatus->fk_type') ORDER BY";
+	$sql = "SELECT fk_workflow_type, origin_step, origin_status, conditions, automation_type, new_step, new_status FROM llx_affaire_automation WHERE fk_workflow_type = $workflow->rowid AND (origin_step = $step->rowid OR origin_step = $newStatus->fk_step) AND (origin_status = $newStatus->rowid OR origin_status = 'TYPE:$newStatus->fk_type') ORDER BY priority";
 	$resql = $db->query($sql);
 	if ($resql) {
 		while (!$error && $r = $db->fetch_object($resql)) {
@@ -1079,8 +1079,9 @@ function checkCanDeleteAffaire($affaire) {
  * @param string|int $defaultStepStatus		default status for object projet
  * @return integer|string|Project			$Project if OK, 1 or $error if not OK
  */
-function generateProject($id, $element, $object='', $affaire=false, $defaultStepStatus='') {
+function generateProject($id, $element, $object='', $affaire=false, $defaultStepStatus='', $leader=0, $groupid=0, $addToTask=0) {
 	global $db, $user, $langs, $conf;
+	$langs->load("projects");
 	require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 	require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 	$error = 0;
@@ -1097,37 +1098,42 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 		setEventMessage("IMPOSSIBLE DE CREER LE PROJET : La date livraison est vide dans la commande ou proposition.",'errors');
 		return $error--; 
 	}
+	// Check Leader
+	if (getDolGlobalInt('PROJECT_LEADER_MUST_BE_DEFINED') && empty($leader)) {
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->trans("TypeContact_project_internal_PROJECTLEADER")), null, 'errors');
+		$error--;
+	}
 
 	$Projet = new Project($db);
 	if ($object->fk_project) {
 		$Projet->fetch($object->fk_project);
-	}
-
-	// REF
-	if (getDolGlobalInt("USE_CMDE_REF_FOR_PROJECT_REF")) {
-		$CmdeRef=explode("-",$object->ref);
-		$Projet->ref = 'P_' . $CmdeRef[0];
 	} else {
-		//Generate next ref
-		$defaultref = '';
-		$obj = !getDolGlobalString('PROJECT_ADDON') ? 'mod_project_simple' : $conf->global->PROJECT_ADDON;
-		// Search template files
-		$file = '';
-		$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
-		foreach ($dirmodels as $reldir) {
-			$file = dol_buildpath($reldir."core/modules/project/".$obj.'.php', 0);
-			if (file_exists($file)) {
-				dol_include_once($reldir."core/modules/project/".$obj.'.php');
-				$modProject = new $obj();
-				$defaultref = $modProject->getNextValue(is_object($object->fk_soc) ? $object->fk_soc : null, '');
-				break;
-			}
-		}
-		if (is_numeric($defaultref) && $defaultref <= 0) {
+		// REF
+		if (getDolGlobalInt("USE_CMDE_REF_FOR_PROJECT_REF")) {
+			$CmdeRef=explode("-",$object->ref);
+			$Projet->ref = 'P_' . $CmdeRef[0];
+		} else {
+			//Generate next ref
 			$defaultref = '';
-		}
+			$obj = !getDolGlobalString('PROJECT_ADDON') ? 'mod_project_simple' : $conf->global->PROJECT_ADDON;
+			// Search template files
+			$file = '';
+			$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
+			foreach ($dirmodels as $reldir) {
+				$file = dol_buildpath($reldir."core/modules/project/".$obj.'.php', 0);
+				if (file_exists($file)) {
+					dol_include_once($reldir."core/modules/project/".$obj.'.php');
+					$modProject = new $obj();
+					$defaultref = $modProject->getNextValue(is_object($object->fk_soc) ? $object->fk_soc : null, '');
+					break;
+				}
+			}
+			if (is_numeric($defaultref) && $defaultref <= 0) {
+				$defaultref = '';
+			}
 
-		$Projet->ref = $defaultref;
+			$Projet->ref = $defaultref;
+		}	
 	}
 	
 	// Delivery date
@@ -1237,44 +1243,6 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 		}
 		$db->free($result2);
 	}
-
-	// Add every body or a specifique groupe as contact
-	if (getDolGlobalInt('ADD_EVERYONE_AS_CONTACT_ON_PROJECT_CREATION')) {
-		$sql = "SELECT u.rowid ";
-		$sql.= 'FROM '.MAIN_DB_PREFIX.'user AS u ';
-		$sql.= 'WHERE u.statut=1';
-		$resql=$db->query($sql);
-		if ($resql && $resql->num_rows > 0) {
-			while ($obj2 = $db->fetch_object($resql)) {
-				// Declaration comme intervenant  161=PROJECTCONTRIBUTOR INTERNAL
-				$sql2 = 'INSERT INTO ' . MAIN_DB_PREFIX . 'element_contact (statut, element_id, fk_c_type_contact, fk_socpeople)';
-				$sql2 .= ' VALUES (4, "' . $ProjetRowid . '", 161, "' . $obj2->rowid . '")';
-				$sql2 .= ' ON DUPLICATE KEY UPDATE ';
-				$sql2 .= ' statut = VALUES(statut), ';
-				$sql2 .= ' element_id = VALUES(element_id), ';
-				$sql2 .= ' fk_c_type_contact = VALUES(fk_c_type_contact), ';
-				$sql2 .= ' fk_socpeople = VALUES(fk_socpeople)';
-
-				$result2=$db->query($sql2);
-				$db->free($result2);
-			}
-		}
-		$db->free($resql);
-	} else if (getDolGlobalString('ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION')) {
-		/**
-		 * TODO
-		 * add a the groupe of developper or manufacturer as contact 
-		 * suggested implementation :
-		 * group = getDolGlobalString('ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION')
-		 * or extrafield of commande 
-		 */
-	}
-
-	// Project Leader
-	// TODO -> setprojectleader with a new (extra)field that can appear on commande creation
-	// if ($object->fk_project_leader && getDolGlobalInt("SET_PROJECT_LEADER_ON_CREATION")) {
-	// 	setProjectLeader($Projet, $object->fk_project_leader);
-	// }
 
 
 	// // Mise a jour du status a termine des extrafiels existants
@@ -1448,6 +1416,154 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 			}
 		}
 	}
+
+	// Add every body or a specifique groupe as contact
+	if (getDolGlobalInt('FORCE_ADD_EVERYONE_AS_CONTACT_ON_PROJECT_CREATION')) {
+		$sql = "SELECT u.rowid ";
+		$sql.= 'FROM '.MAIN_DB_PREFIX.'user AS u ';
+		$sql.= 'WHERE u.statut=1';
+		$resql=$db->query($sql);
+		if ($resql && $resql->num_rows > 0) {
+			while ($obj2 = $db->fetch_object($resql)) {
+				// Declaration comme intervenant  161=PROJECTCONTRIBUTOR INTERNAL
+				$sql2 = 'INSERT INTO ' . MAIN_DB_PREFIX . 'element_contact (statut, element_id, fk_c_type_contact, fk_socpeople)';
+				$sql2 .= ' VALUES (4, "' . $ProjetRowid . '", 161, "' . $obj2->rowid . '")';
+				$sql2 .= ' ON DUPLICATE KEY UPDATE ';
+				$sql2 .= ' statut = VALUES(statut), ';
+				$sql2 .= ' element_id = VALUES(element_id), ';
+				$sql2 .= ' fk_c_type_contact = VALUES(fk_c_type_contact), ';
+				$sql2 .= ' fk_socpeople = VALUES(fk_socpeople)';
+
+				$result2=$db->query($sql2);
+				$db->free($result2);
+			}
+		}
+		$db->free($resql);
+	} else if ($groupid && $groupid > 0) {
+		$typeid = 161; // Declaration comme intervenant  161=PROJECTCONTRIBUTOR INTERNAL
+		$contactarray = array();
+		$errorgroup = 0;
+		$errorgrouparray = array();
+
+		
+		require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
+		$usergroup = new UserGroup($db);
+		$result = $usergroup->fetch($groupid);
+		if ($result > 0) {
+			$tmpcontactarray = $usergroup->listUsersForGroup();
+			if ($contactarray <= 0) {
+				$error++;
+			} else {
+				foreach ($tmpcontactarray as $tmpuser) {
+					$contactarray[] = $tmpuser->id;
+				}
+			}
+		} else {
+			$error++;
+		}
+
+		if (!$error && $ProjetRowid > 0) {
+			foreach ($contactarray as $key => $contactid) {
+				$result = $Projet->add_contact($contactid, $typeid, 'internal');
+
+				if ($result == 0) {
+					// if ($groupid > 0) {
+					// 	$errorgroup++;
+					// 	$errorgrouparray[] = $contactid;
+					// } else {
+					// 	$langs->load("errors");
+					// 	setEventMessages($langs->trans("ErrorThisContactIsAlreadyDefinedAsThisType"), null, 'errors');
+					// }
+				} elseif ($result < 0) {
+					if ($Projet->error == 'DB_ERROR_RECORD_ALREADY_EXISTS') {
+						// if ($groupid > 0) {
+						// 	$errorgroup++;
+						// 	$errorgrouparray[] = $contactid;
+						// } else {
+						// 	$langs->load("errors");
+						// 	setEventMessages($langs->trans("ErrorThisContactIsAlreadyDefinedAsThisType"), null, 'errors');
+						// }
+					} else {
+						setEventMessages($Projet->error, $Projet->errors, 'errors');
+					}
+				}
+
+				$taskstatic = new Task($db);
+				$task_array = $taskstatic->getTasksArray(0, 0, $Projet->id, 0, 0);
+				if ($addToTask && !empty($task_array)) {
+					foreach ($task_array as $key => $tasksToAffect) {
+						$result = $tasksToAffect->add_contact($contactid, 181, 'internal'); // 181 => TASKEXECUTIVE => Intervenant
+						if ($result < 0) {
+							if ($tasksToAffect->error == 'DB_ERROR_RECORD_ALREADY_EXISTS') {
+								// $langs->load("errors");
+								// setEventMessages($langs->trans("ErrorThisContactIsAlreadyDefinedAsThisType"), null, 'errors');
+							} else {
+								setEventMessages($tasksToAffect->error, $tasksToAffect->errors, 'errors');
+							}
+						}
+					}
+				}
+			}
+		}
+		// if ($errorgroup > 0) {
+		// 	$langs->load("errors");
+		// 	if ($errorgroup == count($contactarray)) {
+		// 		setEventMessages($langs->trans("ErrorThisGroupIsAlreadyDefinedAsThisType"), null, 'errors');
+		// 	} else {
+		// 		$tmpuser = new User($db);
+		// 		foreach ($errorgrouparray as $key => $value) {
+		// 			$tmpuser->fetch($value);
+		// 			setEventMessages($langs->trans("ErrorThisContactXIsAlreadyDefinedAsThisType", dolGetFirstLastname($tmpuser->firstname, $tmpuser->lastname)), null, 'errors');
+		// 		}
+		// 	}
+		// }
+	}
+
+	// Project Leader
+	if ($leader && $leader > 0) {
+		$typeid = 160; // Declaration du chef de projet  160=PROJECTLEADER
+		
+		if (getDolGlobalInt('ONLY_ONE_LEADER')) {
+			// Suppression des anciens chefs de projet
+			$sqldel='DELETE FROM '.MAIN_DB_PREFIX.'element_contact';
+			$sqldel.= ' WHERE  element_id = '.$ProjetRowid;
+			$sqldel.= ' AND fk_c_type_contact = '.$typeid;
+			$ressqldel=$db->query($sqldel);
+			$db->free($ressqldel);
+		}
+
+		$result = $Projet->add_contact($leader, $typeid, 'internal');
+		if ($result < 0 && $Projet->error != 'DB_ERROR_RECORD_ALREADY_EXISTS') {
+			setEventMessages($Projet->error, $Projet->errors, 'errors');
+		}
+
+		$taskstatic = new Task($db);
+		$task_array = $taskstatic->getTasksArray(0, 0, $Projet->id, 0, 0);
+		if ($addToTask && !empty($task_array)) {
+			foreach ($task_array as $key => $tasksToAffect) {
+
+				if (getDolGlobalInt('ONLY_ONE_LEADER')) {
+					// Suppression des anciens chefs de projet
+					$sqldel='DELETE FROM '.MAIN_DB_PREFIX.'element_contact';
+					$sqldel.= ' WHERE  element_id = '.$tasksToAffect->id;
+					$sqldel.= ' AND fk_c_type_contact = 180';
+					$ressqldel=$db->query($sqldel);
+					$db->free($ressqldel);
+				}
+
+				$result = $tasksToAffect->add_contact($leader, 180, 'internal'); // 180 => TASKEXECUTIVE => Responsable
+				if ($result < 0) {
+					if ($tasksToAffect->error == 'DB_ERROR_RECORD_ALREADY_EXISTS') {
+						// $langs->load("errors");
+						// setEventMessages($langs->trans("ErrorThisContactIsAlreadyDefinedAsThisType"), null, 'errors');
+					} else {
+						setEventMessages($tasksToAffect->error, $tasksToAffect->errors, 'errors');
+					}
+				}
+			}
+		}
+	}
+
 
 	if ($error) {
 		$db->rollback();
@@ -1836,4 +1952,44 @@ function aff_show_input_field($extra, $key, $value, $moreparam = '', $keysuffix 
 		$out .= $form->textwithpicto('', $help, 1, 'help', '', 0, 3);
 	}*/
 	return $out;
+}
+
+/**
+ * 
+ */
+function fetchAllStatusOfStep($step, $affaire=null){
+	global $db, $langs;
+	$langs->load("errors");
+
+	if (is_string($step)) {
+		$thisStep = $affaire->getStep(0, '', $step);
+	} else if (is_object($step)) {
+		$thisStep = $step;
+	} else {
+		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
+		return -1;
+	}
+
+	if (!is_object($thisStep) || !isset($thisStep->rowid)) {
+		setEventMessages($langs->trans("L'étape est incorrect ou n'a pas été trouver dans ce workflow"), null, 'errors');
+		return -1;
+	}
+	
+	// Fetch all status of this step
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' ORDER BY fk_type";
+	$resql = $db->query($sql);
+	if ($resql) {
+		$thisStatusArray = array();
+		if ($resql->num_rows > 0) {
+			while ($res = $db->fetch_object($resql)) {
+				$thisStatusArray[$res->rowid] = $res;
+			}
+		} else {
+			setEventMessages($langs->trans("Il n'y a pas de status pour cette étape"), null, 'mesg');
+		}
+		return $thisStatusArray;
+	} else {
+		dol_print_error($db);
+		return -1;
+	}
 }

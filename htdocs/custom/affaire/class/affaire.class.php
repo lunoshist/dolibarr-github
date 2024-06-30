@@ -1408,7 +1408,7 @@ class Affaire extends CommonObject
 		if ($step) {
 			$allStatus = $this->getAllStatus();
 
-			$result = $allStatus[$step];
+			$result = $allStatus[strtolower($step)];
 		} else {
 			// Fetch status of affaire
 			$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $this->fk_status AND (fk_step = $this->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $this->fk_workflow_type OR fk_workflow_type = 1)";

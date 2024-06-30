@@ -213,9 +213,7 @@ if (empty($reshook)) {
 
         $_SESSION['urlsToOpen'] = $urlsToOpen;
 
-        $path = $_SERVER["PHP_SELF"].'?id='.$id;
-        $path .= $affaire ? "&affaire=$affaire->id" : '';
-        $path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
+        $path = $_SERVER["PHP_SELF"].'?affaire='.$affaire->id;
         header('Location: '.$path);
         exit;
     }

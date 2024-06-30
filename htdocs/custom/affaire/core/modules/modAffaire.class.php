@@ -457,6 +457,34 @@ class modAffaire extends DolibarrModules
             'target'=>'',
             'user'=>2,
         );
+		$this->menu[$r++]=array(
+			'fk_menu'=>'fk_mainmenu=affaire',
+			'type'=>'left',
+			'titre'=>'SUIVI',
+			'mainmenu'=>'affaire',
+			'leftmenu'=>'suivi',
+			'url'=>'/affaire/suivi/planDeChargeFab.php',
+			'langs'=>'affaire@affaire',
+			'position'=>1000+$r,
+			'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+			'target'=>'',
+			'user'=>2,
+		);
+        $this->menu[$r++]=array(
+            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=suivi',
+            'type'=>'left',
+            'titre'=>'Plan de charge',
+            'mainmenu'=>'affaire',
+            'leftmenu'=>'plan_charge_fab',
+            'url'=>'/affaire/suivi/planDeChargeFab.php',
+            'langs'=>'affaire@affaire',
+            'position'=>1000+$r,
+            'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+            'target'=>'',
+            'user'=>2,
+        );
         // $this->menu[$r++]=array(
         //     'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=affaire',
         //     'type'=>'left',

@@ -69,7 +69,7 @@ dol_include_once('/affaire/lib/affaire_affaire.lib.php');
 dol_include_once('/affaire/lib/affaire.lib.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array('orders', 'sendings', 'companies', 'bills', 'propal', 'deliveries', 'products', 'other'));
+$langs->loadLangs(array('orders', 'sendings', 'companies', 'bills', 'propal', 'deliveries', 'products', 'other', 'project'));
 
 if (isModEnabled('incoterm')) {
 	$langs->load('incoterm');
@@ -450,6 +450,10 @@ if (empty($reshook)) {
 		$status_for = GETPOST('status_for', 'aZ09');
 		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
 		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
+		if (isset($_SESSION['createUrl'])) {
+			$createUrl = $_SESSION['createUrl'];
+			unset($_SESSION['createUrl']);
+		}
 
 		$error = 0;
 
@@ -871,10 +875,55 @@ if (empty($reshook)) {
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
 		$path .= $affaire ? "&affaire=$affaire->id" : '';
 		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
+		
+		if (!empty($createUrl)) $path = $createUrl;
+
 		header('Location: '.$path);
 		exit;
 	} else if ($action == 'changeStatus') {
 		$action = 'confirm_changeStatus';
+	}
+
+	if ($action == 'generateProject') {
+		$langs->load("projects");
+
+		$leader = GETPOST('leader');
+		if (getDolGlobalInt('PROJECT_LEADER_MUST_BE_DEFINED') && (empty($leader) || $leader < 0)) {
+			setEventMessages($langs->trans("ErrorFieldRequired", $langs->trans("TypeContact_project_internal_PROJECTLEADER")), null, 'errors');
+			$action = 'confirm_generateProject';
+			$error++;
+		}
+		
+		$newStatus = GETPOST('newStatus');
+		if (empty($newStatus)) {
+			setEventMessages($langs->trans("ErrorFieldRequired", $langs->trans("Nouveau Status")), null, 'errors');
+			$action = 'confirm_generateProject';
+			$error++;
+		}
+
+		if (!$error) {
+			$result = generateProject($object->id, $object->element, $object, $affaire, $newStatus, $leader, GETPOST('groupid'), GETPOST('addToTask'));
+			if (is_string($result) || (is_numeric($result) && $result <= 0)) {
+				$error = $result;
+			} else if (is_object($result)) {
+				$steplabel = empty(getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$workflow->rowid)) ? 'prod' : getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$workflow->rowid);
+				$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$result->id.'&token='.newToken();
+				$path .= '&action=changeStatus&newStatus='.$newStatus.'&status_for=both';
+				$prod_page = dol_buildpath($path, 1);
+
+				if ($affaire->getStatus($thisStep->label_short)->fk_type != 100) {
+					header('Location: '.$prod_page);
+					exit;
+				} else {
+					$_SESSION["createUrl"] = $prod_page;
+					$path = $_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&id='.$result->id.'&token='.newToken();
+					$path .= '&action=changeStatus&newStatus='.getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROD_FROM_ORDER').'&status_for=both';
+
+					header('Location: '.$path);
+					exit;
+				}
+			}
+		}
 	}
 
 	// Action clone object
@@ -3251,6 +3300,59 @@ if ($action == 'create' && $usercancreate) {
 			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmCloneOrder', $object->ref), 'confirm_clone', $formquestion, 'yes', 1);
 		}
 
+		// Generate project
+		if ($action == 'confirm_generateProject') {
+			$steplabel = empty(getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$workflow->rowid)) ? 'prod' : getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$workflow->rowid);
+			$path = '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&amp;action=create&automatic=1&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid;
+
+			$arrayOfObjectStatus = fetchAllStatusOfStep($steplabel, $affaire);
+			$arrayOfStatus = array();
+			foreach ($arrayOfObjectStatus as $key => $value) {
+				$arrayOfStatus[$key] = $value->label;
+			}
+
+			// Create an array for form
+			$disable = ((getDolGlobalInt('FORCE_LEADER_BY_DEFAULT') || getDolGlobalString('FORCE_LEADER_BY_DEFAULT')) ? 1 : 0);
+			if (GETPOST('leader')) {
+				$selected = GETPOST('leader');
+			} else if (getDolGlobalString('FORCE_LEADER_BY_DEFAULT') == '__user__' || getDolGlobalInt('USER_WHO_GENERATE_IS_LEADER_BY_DEFAULT')) {
+				$selected = $user->id;
+			} else if (getDolGlobalInt('FORCE_LEADER_BY_DEFAULT')) {
+				$selected = getDolGlobalInt('FORCE_LEADER_BY_DEFAULT');
+			} else {
+				$selected = '';
+			}
+
+			$formquestion = array(
+				'text' => $langs->trans("Vous vous appréter à générer le projet"),
+				array('type' => 'separator',),
+				// ($selected = '', $htmlname = 'userid', $show_empty = 0, $exclude = null, $disabled = 0, $include = '', $enableonly = '', $force_entity = '', $maxlength = 0, $showstatus = 0, $morefilter = '', $show_every = 0, $enableonlytext = '', $morecss = '', $notdisabled = 0, $outputmode = 0, $multiple = false, $forcecombo = 0)
+				array('type' => 'other', 'name' => 'leader', 'label' => $langs->trans("TypeContact_project_internal_PROJECTLEADER"), 'value' => $form->select_dolusers($selected, 'leader', 1, array(1, 10), $disable, null, 0, 0, 56, 0, '', 0, '', 'minwidth100imp widthcentpercentminusxx maxwidth400 userselectcontact', 1, 0, false, 0)),
+			);
+			
+			if (getDolGlobalInt('FORCE_ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION')) {
+				$formquestion[] = array('type' => 'other', 'name' => 'groupid', 'label' => 'Ajouter un groupe comme '.$langs->trans("TypeContact_project_internal_PROJECTCONTRIBUTOR"), 'value' => $form->select_dolgroups(getDolGlobalInt('FORCE_ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION'), 'groupid', 1, '', 1, '', array(), '0', false, 'minwidth100imp widthcentpercentminusxx maxwidth400 groupselectcontact'));
+			} else {
+				$formquestion[] = array('type' => 'other', 'name' => 'groupid', 'label' => 'Ajouter un groupe comme '.$langs->trans("TypeContact_project_internal_PROJECTCONTRIBUTOR"), 'value' => $form->select_dolgroups(0, 'groupid', 1, '', 0, '', array(), '0', false, 'minwidth100imp widthcentpercentminusxx maxwidth400 groupselectcontact'));
+			}
+			$formquestion[] = array('type' => 'separator',);
+			
+			if (getDolGlobalInt('FORCE_ADD_TO_TASK_BY_DEFAULT')) {
+				$formquestion[] = array('type' => 'hidden', 'name' => 'addToTask', "value" => '1');
+				$addinfo = 'Les contacts seront aussi ajoutés aux taches';
+			} else {
+				$formquestion[] = array('type' => 'checkbox', 'name' => 'addToTask', 'label' => 'Ajouter également aux taches', 'value' => getDolGlobalInt('PRESELECTED_ADD_TO_TASK_BY_DEFAULT'));
+				$addinfo = '';
+				$formquestion[] = array('type' => 'separator',);
+			}
+			
+			$formquestion[] = array('type' => 'separator',);
+			$formquestion[] = array('type' => 'other', 'name' => 'newStatus', 'label' => $langs->trans("Nouveau Status Production"), 'value' => $form->selectarray('newStatus', $arrayOfStatus, '', 0));
+			$formquestion[] = array('type' => 'separator',);
+
+			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('Production'), $addinfo, 'generateProject', $formquestion, 'yes', 1, 350);
+		}
+
 		// Call Hook formConfirm
 		$parameters = array('formConfirm' => $formconfirm, 'lineid' => $lineid);
 		// Note that $action and $object may be modified by hook
@@ -3935,40 +4037,63 @@ if ($action == 'create' && $usercancreate) {
 					$arrayforbutaction = array();
 
 					// Create a purchase order
-					$arrayforbutaction[] = array('lang' => 'orders', 'enabled' => (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0), 'perm' => $usercancreatepurchaseorder, 'label' => 'AddPurchaseOrder', 'url' => '/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id);
-					/*if (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0) {
-						if ($usercancreatepurchaseorder) {
-							print dolGetButtonAction('', $langs->trans('AddPurchaseOrder'), 'default', DOL_URL_ROOT.'/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id, '');
-						}
-					}*/
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SUPLLIER_ORDER_FROM_ORDER')) {
+						$arrayforbutaction[] = array('lang' => 'orders', 'enabled' => (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0), 'perm' => $usercancreatepurchaseorder, 'label' => 'AddPurchaseOrder', 'url' => '/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id);
+						/*if (isModEnabled("supplier_order") && $object->statut > Commande::STATUS_DRAFT && $object->getNbOfServicesLines() > 0) {
+							if ($usercancreatepurchaseorder) {
+								print dolGetButtonAction('', $langs->trans('AddPurchaseOrder'), 'default', DOL_URL_ROOT.'/fourn/commande/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id, '');
+							}
+						}*/
+					}
 
 					// Create intervention
-					$arrayforbutaction[] = array('lang' => 'interventions', 'enabled' => (isModEnabled("intervention") && $object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0), 'perm' => $user->hasRight('ficheinter', 'creer'), 'label' => 'AddIntervention', 'url' => '/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
-					/*if (isModEnabled('ficheinter')) {
-						$langs->load("interventions");
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INTERVENTION_FROM_ORDER')) {
+						$arrayforbutaction[] = array('lang' => 'interventions', 'enabled' => (isModEnabled("intervention") && $object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0), 'perm' => $user->hasRight('ficheinter', 'creer'), 'label' => 'AddIntervention', 'url' => '/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
+						/*if (isModEnabled('ficheinter')) {
+							$langs->load("interventions");
 
-						if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0) {
-							if ($user->hasRight('ficheinter', 'creer')) {
-								print dolGetButtonAction('', $langs->trans('AddIntervention'), 'default', DOL_URL_ROOT.'/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-							} else {
-								print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('AddIntervention'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+							if ($object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED && $object->getNbOfServicesLines() > 0) {
+								if ($user->hasRight('ficheinter', 'creer')) {
+									print dolGetButtonAction('', $langs->trans('AddIntervention'), 'default', DOL_URL_ROOT.'/fichinter/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
+								} else {
+									print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('AddIntervention'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+								}
 							}
-						}
-					}*/
+						}*/
+					}
 
 					// Create contract
-					$arrayforbutaction[] = array('lang' => 'contracts', 'enabled' => (isModEnabled("contract") && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)), 'perm' => $user->hasRight('contrat', 'creer'), 'label' => 'AddContract', 'url' => '/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
-					/*if (isModEnabled('contrat') && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)) {
-						$langs->load("contracts");
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_CONTRACT_FROM_ORDER')) {
+						$arrayforbutaction[] = array('lang' => 'contracts', 'enabled' => (isModEnabled("contract") && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)), 'perm' => $user->hasRight('contrat', 'creer'), 'label' => 'AddContract', 'url' => '/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid);
+						/*if (isModEnabled('contrat') && ($object->statut == Commande::STATUS_VALIDATED || $object->statut == Commande::STATUS_SHIPMENTONPROCESS || $object->statut == Commande::STATUS_CLOSED)) {
+							$langs->load("contracts");
 
-						if ($user->hasRight('contrat', 'creer')) {
-							print dolGetButtonAction('', $langs->trans('AddContract'), 'default', DOL_URL_ROOT.'/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
-						}
-					}*/
+							if ($user->hasRight('contrat', 'creer')) {
+								print dolGetButtonAction('', $langs->trans('AddContract'), 'default', DOL_URL_ROOT.'/contrat/card.php?action=create&amp;origin='.$object->element.'&amp;originid='.$object->id.'&amp;socid='.$object->socid, '');
+							}
+						}*/
+					}
 
 					$numshipping = 0;
 					if (isModEnabled('shipping')) {
 						$numshipping = $object->countNbOfShipments();
+					}
+
+					// Generate Project / Lancer la prodution
+					if (getDolGlobalInt('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROD_FROM_ORDER')) {
+						if (isModEnabled('project') && $object->statut > Commande::STATUS_DRAFT && $object->statut < Commande::STATUS_CLOSED) {
+							// if ($object->getNbOfProductsLines() > 0) {
+								$enable = true;
+							// }
+						}
+						
+						$arrayforbutaction[] = array(
+							'lang' => 'affaire',
+							'enabled' => $enable ?? false,
+							'perm' => $user->hasRight('project', 'creer'),
+							'label' => (empty(checkProjectExist($affaire)) ? 'Lancer production' : 'MAJ production'),
+							'url' => '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?action=confirm_generateProject&id='.$object->id.'&affaire='.$affaire->id.'&token='.newToken()
+						);
 					}
 
 					// Create shipment
@@ -4032,7 +4157,7 @@ if ($action == 'create' && $usercancreate) {
 					// TODO
 					if ($usercancreate) {
 						// print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER["PHP_SELF"].'?action=clone&amp;token='.newToken().'&amp;id='.$object->id.'&amp;socid='.$object->socid, '');
-						print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+						// print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 					}
 									
 					// Change status
@@ -4094,7 +4219,7 @@ if ($action == 'create' && $usercancreate) {
 			$compatibleImportElementsList = false;
 			if ($usercancreate
 				&& $object->statut == Commande::STATUS_DRAFT) {
-				$compatibleImportElementsList = array('commande', 'propal', 'facture', 'affaire'); // import from linked elements
+				$compatibleImportElementsList = array('commande', 'propal', 'facture'); // import from linked elements
 			}
 			$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem, $compatibleImportElementsList);
 

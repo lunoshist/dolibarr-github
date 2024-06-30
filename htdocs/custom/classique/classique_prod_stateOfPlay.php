@@ -7,6 +7,15 @@
 
 // Load Dolibarr environment
 require '../../main.inc.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/project.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/doleditor.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.formprojet.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/modules/project/modules_project.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 
 dol_include_once('/affaire/class/affaire.class.php');
 dol_include_once('/affaire/lib/affaire_affaire.lib.php');
@@ -227,9 +236,7 @@ if (empty($reshook)) {
 
         $_SESSION['urlsToOpen'] = $urlsToOpen;
 
-        $path = $_SERVER["PHP_SELF"].'?id='.$id;
-        $path .= $affaire ? "&affaire=$affaire->id" : '';
-        $path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
+        $path = $_SERVER["PHP_SELF"].'?affaire='.$affaire->id;
         header('Location: '.$path);
         exit;
     }
@@ -325,8 +332,65 @@ if ($action == 'no_project') {
 	}
 
 	print "</div>";
+
+
+	// Project
+	print "PROJET  :  ".$project->getNomUrl(1);
+	print '<br>';
+	
+	// Taches et leur status
+	$taskstatic = new Task($db);
+	// $usert = null, $userp = null, $projectid = 0, $socid = 0, $mode = 0, $filteronproj = '', $filteronprojstatus = '-1', $morewherefilter = '', $filteronprojuser = 0, $filterontaskuser = 0, $extrafields = null, $includebilltime = 0, $search_array_options = array(), $loadextras = 0, $loadRoleMode = 1, $sortfield = '', $sortorder = ''
+	$task_array = $taskstatic->getTasksArray(0, 0, $project->id, 0, 0, '', '', '', '', '', null, 0, array(), 1);
+	foreach ($task_array as $task) {
+		print '<br><br><div style="padding-left: 15px">';
+		print $task->getNomUrl(1)." - ".$task->label." : <span style=COLOR:".colorOfStatut($task->array_options["options_statut_fab"],"fab").">".statut_fab_label($task->array_options["options_statut_fab"])."</span>";
+		print '</div>';
+	}
 }
 
 // End of page
 llxFooter();
 $db->close();
+
+
+function colorOfStatut($statut,$type)
+{	
+	switch($statut)
+	{
+		case 0:
+			return "red";
+		case 2:
+		case 3:
+			return "orange";
+		case 1:
+		case 4:
+			return "green";
+			
+	}
+	
+}
+
+function statut_fab_label($option) //a:1:{s:7:"options";a:6:{i:0;s:17:"Att. mise en fab.";i:1;s:11:"En cours...";i:2;s:17:"Att. info. client";i:3;s:16:"Att. fournisseur";i:4;s:9:"Terminée";s:0:"";N;}}
+{
+	global $db;
+	
+	$sql = 'SELECT *';
+	$sql.= ' FROM '.MAIN_DB_PREFIX.'extrafields';
+	$sql.= ' WHERE elementtype="projet_task" AND name="statut_fab"';
+	$resql = $db->query($sql);
+	if($resql)
+	{
+		$obj = $db->fetch_object($resql);
+		$liste=explode('{',$obj->param);
+		$liste=$liste[2];
+		$liste=explode('i:',$liste);
+		
+		for($i=1;$i<sizeof($liste);$i++)$tab[$i-1]=explode('"',$liste[$i])[1];
+		return $tab[$option];
+	}
+	else
+	{
+		print "error extrafield2Tab";
+	}
+}
