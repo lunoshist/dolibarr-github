@@ -358,7 +358,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			dol_print_error($db);
 		}
 		$db->free($resql);
-	} else {
+	} else if (!is_object($newStatus)) {
 		$error--;
 		setEventMessages($langs->trans("InvalidStatusProviden"), null, 'errors');
 	}
@@ -367,10 +367,10 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, active FROM llx_c_affaire_steps WHERE ";
 		if (is_numeric($step)) { 
 			$sql .= "rowid = $step "; 
-		} else if (is_string($step)) {
-			$sql .= "label_short = '$step' ";
 		} else if (empty($step)) {
 			$sql .= "rowid = '$newStatus->fk_step' ";
+		} else if (is_string($step)) {
+			$sql .= "label_short = '$step' ";
 		} else {
 			$error--;
 			setEventMessages($langs->trans("InvalidStepProviden"), null, 'errors');
@@ -398,7 +398,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	if ($error) {
 		return $error;
 	}
-	$db->commit();
+	// $db->commit();
 
 	if ($step->label_short != 'Affaire') {
 		//CHANGE STATUS
@@ -480,7 +480,7 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 
 
 	if ($error){
-		$db->rollback();
+		// $db->rollback();
 		return $error;
 	}
 
@@ -501,10 +501,10 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	$error = look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
 
 	if ($error) {
-		$db->rollback();
+		// $db->rollback();
 		return $error;
 	} else {
-		$db->commit();
+		// $db->commit();
 		return 0;
 	}
 }
@@ -996,19 +996,37 @@ function checkCommandeExist($affaire) {
  * Check if affaire already have a propal linked
  * 
  * @param Affaire $affaire
- * @return int -1 if KO : many propal | 0 if no propal | $id if propal 
+ * @return int|array -1 if KO | 0 if no object | $id if object | array of $id if many object
  */
 function checkPropalExist($affaire) {
 	return checkObjectLinkToAffaire($affaire, 'propal');
 }
 /**
- * Check if affaire already have a prooject linked
+ * Check if affaire already have a project linked
  * 
  * @param Affaire $affaire
- * @return int -1 if KO : many prooject | 0 if no prooject | $id if prooject 
+ * @return int|array -1 if KO | 0 if no object | $id if object | array of $id if many object
  */
 function checkProjectExist($affaire) {
 	return checkObjectLinkToAffaire($affaire, 'project');
+}
+/**
+ * Check if affaire already have a expedition linked
+ * 
+ * @param Affaire $affaire
+ * @return int|array -1 if KO | 0 if no object | $id if object | array of $id if many object
+ */
+function checkExpeExist($affaire) {
+	return checkObjectLinkToAffaire($affaire, 'shipping');
+}
+/**
+ * Check if affaire already have a facture linked
+ * 
+ * @param Affaire $affaire
+ * @return int|array -1 if KO | 0 if no object | $id if object | array of $id if many object
+ */
+function checkFactureExist($affaire) {
+	return checkObjectLinkToAffaire($affaire, 'facture');
 }
 
 /**
@@ -1031,10 +1049,11 @@ function checkObjectLinkToAffaire($affaire, $objectTYPE='') {
 			while ($res = $affaire->db->fetch_object($resql)) {
 				if ($res->sourcetype == $affaire->db->escape($affaire->element)) {
 					$array_of_id[] = $res->fk_target;
-				} else {
+				} else if ($res->targettype == $affaire->db->escape($affaire->element)) {
 					$array_of_id[] = $res->fk_source;
+				} else {
+					$array_of_id[] = -1;
 				}
-				$array_of_id[] = -1;
 			}
 			return $array_of_id;
 		} else if ($resql->num_rows < 1) {

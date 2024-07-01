@@ -908,17 +908,39 @@ if (empty($reshook)) {
 	} else if ($action == 'changeStatus') {
 		$action = 'confirm_changeStatus';
 	}
-	if ($action == 'setStandard') {
-		$sql = "UPDATE llx_facture SET type = '0' WHERE rowid = ".$object->id;
-		$resql = $db->query($sql);
-		if ($resql) {
-			// set to default status
-			$path = $_SERVER["PHP_SELF"].'?id='.$id.'affaire='.$affaire->id.'&facid='.$object->id.'&token='.newToken();
-			$path .= '&action=changeStatus&newStatus=defaultStatus&status_for=both';
-			header('Location: '.$path);
-			exit;
-		} else {
-			dol_print_error($db);
+	if ($action == 'confirm_setStandard' && $confirm == 'yes' && $permissiontoadd) {
+		$newdate = dol_mktime(0, 0, 0, GETPOSTINT('invoicedatemonth'), GETPOSTINT('invoicedateday'), GETPOSTINT('invoicedateyear'), 'tzserver');
+		if (empty($newdate)) {
+			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Date")), null, 'errors');
+			$action = 'setStandard';
+			$error ++;
+		}
+		if ($newdate > (dol_now('tzuserrel') + getDolGlobalInt('INVOICE_MAX_FUTURE_DELAY'))) {
+			if (!getDolGlobalString('INVOICE_MAX_FUTURE_DELAY')) {
+				setEventMessages($langs->trans("WarningInvoiceDateInFuture"), null, 'warnings');
+				$action = 'setStandard';
+				$error ++;
+			} else {
+				setEventMessages($langs->trans("WarningInvoiceDateTooFarInFuture"), null, 'warnings');
+				$action = 'setStandard';
+				$error ++;
+			}
+		}
+
+		if (!$error) {
+			$sql = "UPDATE llx_facture SET type = '0' WHERE rowid = ".$object->id;
+			$resql = $db->query($sql);
+			if ($resql) {
+				$cameFromProforma = true;
+				$action = 'setinvoicedate';
+				// // set to default status
+				// $path = $_SERVER["PHP_SELF"].'?id='.$id.'affaire='.$affaire->id.'&facid='.$object->id.'&token='.newToken();
+				// $path .= '&action=changeStatus&newStatus=defaultStatus&status_for=both';
+				// header('Location: '.$path);
+				// exit;
+			} else {
+				dol_print_error($db);
+			}
 		}
 	}
 
@@ -1192,6 +1214,12 @@ if (empty($reshook)) {
 		if ($result < 0) {
 			setEventMessages($object->error, $object->errors, 'errors');
 			$action = 'editinvoicedate';
+		} else if ($cameFromProforma) {
+			// set to default status
+			$path = $_SERVER["PHP_SELF"].'?id='.$id.'affaire='.$affaire->id.'&facid='.$object->id.'&token='.newToken();
+			$path .= '&action=changeStatus&newStatus=defaultStatus&status_for=both';
+			header('Location: '.$path);
+			exit;
 		}
 	} elseif ($action == 'setdate_pointoftax' && $usercancreate) {
 		$object->fetch($id);
@@ -5541,6 +5569,25 @@ if ($action == 'create') {
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmCloneInvoice', $object->ref), 'confirm_clone', $formquestion, 'yes', 1, 250);
 	}
 
+	// SET STANDARD
+	if ($action == "setStandard") {
+		$formquestion = array(
+			array('type' => 'date', 'name' => 'invoicedate', 'label' => $langs->trans("Date"), 'value' => dol_now()),
+			array('type' => 'separator')
+		);
+
+		$formconfirm = $form->formconfirm(
+			$_SERVER['PHP_SELF'].'?affaire='.$affaire->id.'&id='.$object->id.'&token='.newToken(),
+			$langs->trans('Transformer en facture Standard'),
+			$langs->trans('Cette facture est une facture proforma. Confirmez-vous vouloir passer cette facture en standard ?'),
+			'confirm_setStandard',
+			$formquestion,
+			'yes',
+			1,
+			250
+		);
+	}
+
 	if ($action == "remove_file_comfirm") {
 		$file = GETPOST('file', 'alpha');
 
@@ -7039,7 +7086,7 @@ if ($action == 'create') {
 			} else if ($object->type == Facture::TYPE_PROFORMA) {
 				// SET Standart
 				$params = array();
-				print dolGetButtonAction($langs->trans('SetStandard'), '', 'default', $_SERVER['PHP_SELF'].'?affaire='.$affaire->id.'&id='.$object->id.'&amp;action=setStandard&token='.newToken(), '', true, $params);
+				print dolGetButtonAction($langs->trans('transformer en Standard'), '', 'default', $_SERVER['PHP_SELF'].'?affaire='.$affaire->id.'&id='.$object->id.'&amp;action=setStandard&token='.newToken(), '', true, $params);
 			} else {
 				$params = array(
 					'attr' => array(
@@ -7217,7 +7264,7 @@ if ($action == 'create') {
 				if (($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA) && $usercancreate) {
 					unset($params['attr']['title']);
 					//print dolGetButtonAction($langs->trans('ToClone'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=clone&amp;object=invoice', '', true, $params);
-					print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+					//print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 				}
 
 				// Clone as predefined / Create template

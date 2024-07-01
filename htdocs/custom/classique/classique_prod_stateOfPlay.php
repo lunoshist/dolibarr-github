@@ -149,22 +149,22 @@ if (isModEnabled('affaire')) {
 			dol_print_error($db);
 		}
 		
-		// Fetch all status of this step : prod
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			$thisStatusArray = array();
-			if ($resql->num_rows > 0) {
-				while ($res = $db->fetch_object($resql)) {
-					$thisStatusArray[$res->rowid] = $res;
-				}
-			} else {
-				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
+		// // Fetch all status of this step : prod
+		// $sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
+		// $resql = $db->query($sql);
+		// if ($resql) {
+		// 	$thisStatusArray = array();
+		// 	if ($resql->num_rows > 0) {
+		// 		while ($res = $db->fetch_object($resql)) {
+		// 			$thisStatusArray[$res->rowid] = $res;
+		// 		}
+		// 	} else {
+		// 		setEventMessages($langs->trans("BeleBele"), null, 'mesg');
+		// 	}
+		// } else {
+		// 	dol_print_error($db);
+		// }
+		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire);
 
 		// Fetch status of affaire for this step
 		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);

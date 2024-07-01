@@ -92,7 +92,7 @@ class modAffaire extends DolibarrModules
 		// Define some features supported by module (triggers, login, substitutions, menus, css, etc...)
 		$this->module_parts = array(
 			// Set this to 1 if module has its own trigger directory (core/triggers)
-			'triggers' => 0,
+			'triggers' => 1,
 			// Set this to 1 if module has its own login method file (core/login)
 			'login' => 0,
 			// Set this to 1 if module has its own substitution function file (core/substitutions)
@@ -373,7 +373,7 @@ class modAffaire extends DolibarrModules
 			'leftmenu'=>'affaire_affaire_list',
 			'url'=>'/affaire/affaire_list.php',
 			'langs'=>'affaire@affaire', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position'=>40 + $r,
+			'position'=>10 + $r,
 			'enabled'=>'isModEnabled("affaire")', // Define condition to show or hide menu entry. Use 'isModEnabled("affaire")' if entry must be visible if module is enabled.
 			'perms'=>'1', // Use 'perms'=>'$user->hasRight("affaire", "affaire", "read")' if you want your menu with a permission rules
 			'target'=>'',

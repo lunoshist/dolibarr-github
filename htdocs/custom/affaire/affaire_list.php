@@ -77,6 +77,11 @@ if (!$res) {
 	die("Include of main fails");
 }
 
+
+dol_include_once('/affaire/class/affaire.class.php');
+dol_include_once('/affaire/lib/affaire_affaire.lib.php');
+dol_include_once('/affaire/lib/affaire.lib.php');
+
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
@@ -802,6 +807,10 @@ while ($i < $imaxinloop) {
 				print '>';
 				if ($key == 'status') {
 					print $object->getLibStatut(5);
+				} elseif ($key == 'fk_status') {
+					print $object->printStatus();
+				} elseif ($key == 'fk_step') {
+					print $object->printStep();
 				} elseif ($key == 'rowid') {
 					print $object->showOutputField($val, $key, $object->id, '');
 				} else {

@@ -622,6 +622,23 @@ if (empty($reshook)) {
 
 		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
 		if ($status_for == 'both' || $status_for == 'step') {
+			// Ne pas mettre l'étape à terminé si il reste des expes en cours
+			$status = $affaire->getStatus('', $newStatus);
+			$array_of_expe = checkExpeExist($affaire);
+			if ($status->fk_type >= 200 && is_array($array_of_expe)) {
+				foreach ($array_of_expe as $key => $expe) {
+					$sql = "SELECT aff_status FROM `llx_expedition_extrafields` WHERE `fk_object` = ".$expe;
+					$resql = $db->query($sql);
+					if ($resql) {
+						$res = $db->fetch_object($resql);
+						$rStatus = $affaire->getStatus('', $res->aff_status);
+
+						if ($rStatus->fk_type < 200) {
+							$error = "Une expédition est toujours en cours";
+						}
+					}
+				}
+			}
 			if (empty($error)) {
 				$result = change_status($affaire, $newStatus, $condition='', $step=$thisStep, $previousStatus=$thisStatus ?? '', $workflow, $object);			
 				if ($result) {
@@ -1078,7 +1095,7 @@ if (empty($reshook)) {
 
 		if (!$error) {
 			if ($object->update($user) >= 0) {
-				header("Location: card.php?id=".$object->id);
+				header("Location: ".$_SERVER["PHP_SELF"]."?id=".$object->id);
 				exit;
 			}
 			setEventMessages($object->error, $object->errors, 'errors');
@@ -2308,47 +2325,38 @@ if ($action == 'create') {
 	print '<table class="border centpercent tableforfieldcreate">';
 	print "<tr>
 		<td>REF</td>
-		<td>Méthode expédition</td>
+		<td>Qté / Produits</td>
 		<td>Status</td>
 		<td>Date création</td>";
 	print "</tr>";
 
-	foreach ($affaire->linkedObjects["facture"] as $expe) {
+	foreach ($expedition_array as $expe) {
 		$picto = $expe->picto;  // @phan-suppress-current-line PhanUndeclaredProperty
 		$prefix = 'object_';
 		$nophoto = img_picto('No photo', $prefix.$picto);
 
 		print "<tr>
 		<td><a href=".$_SERVER["PHP_SELF"].'?affaire='.$affaire->id.'&id='.$expe->id.">".$nophoto.' '.$expe->ref."</a></td>";
-		if ($object->shipping_method_id > 0) {
-			// Get code using getLabelFromKey
-			$code = $langs->getLabelFromKey($db, $object->shipping_method_id, 'c_shipment_mode', 'rowid', 'code');
-			print "<td>".$langs->trans("SendingMethod".strtoupper($code))."</td>";
-		} else {
+		// if ($object->shipping_method_id > 0) {
+		// 	// Get code using getLabelFromKey
+		// 	$code = $langs->getLabelFromKey($db, $object->shipping_method_id, 'c_shipment_mode', 'rowid', 'code');
+		// 	print "<td>".$langs->trans("SendingMethod".strtoupper($code))."</td>";
+		// } else {
+		// 	print "<td></td>";
+		// }
+		print "<td></td>";
+		print "<td>".printBagde($expe->array_options["options_aff_status"], 'mini')."</td>";
+		print "<td>".dol_print_date($expe->date_creation, 'day')."</td>";
+		print "</tr>";
+		
+		foreach ($expe->lines as $key => $line) {
+			print "<tr>";
 			print "<td></td>";
+			print "<td>$line->qty_shipped / $line->ref</td>";
+			print "</tr>";
 		}
-		print 
-		"<td>".$expe->total_ht."</td>
-		<td>".$expe->total_ttc."</td>
-		<td>".printBagde($expe->array_options["options_aff_status"], 'mini')."</td>
-		<td>".dol_print_date($expe->date_creation, 'day')."</td>";
-		print "</tr>";
-	}
 
-	print '</table>';
-
-	print '<table class="border centpercent tableforfieldcreate">';
-
-	foreach ($affaire->linkedObjects["shipping"] as $expe) {
-		print "<tr>
-		<td>".$expe->getNomUrl(1)."</td>
-		<td>$expe->date_creation</td>";
-		if ($object->shipping_method_id > 0) {
-			// Get code using getLabelFromKey
-			$code = $langs->getLabelFromKey($db, $object->shipping_method_id, 'c_shipment_mode', 'rowid', 'code');
-			print "<td>".$langs->trans("SendingMethod".strtoupper($code))."</td>";
-		}
-		print "</tr>";
+		print "<tr></tr>";
 	}
 
 	print '</table>';
@@ -3368,14 +3376,14 @@ if ($action == 'create') {
 					}
 				}
 
-				// Create bill
-				if (isModEnabled('invoice') && ($object->status == Expedition::STATUS_VALIDATED || $object->status == Expedition::STATUS_CLOSED)) {
-					if ($user->hasRight('facture', 'creer')) {
-						if (getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT') !== '0') {
-							print dolGetButtonAction('', $langs->trans('CreateBill'), 'default', DOL_URL_ROOT.'/compta/facture/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid, '');
-						}
-					}
-				}
+				// // Create bill
+				// if (isModEnabled('invoice') && ($object->status == Expedition::STATUS_VALIDATED || $object->status == Expedition::STATUS_CLOSED)) {
+				// 	if ($user->hasRight('facture', 'creer')) {
+				// 		if (getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT') !== '0') {
+				// 			print dolGetButtonAction('', $langs->trans('CreateBill'), 'default', DOL_URL_ROOT.'/compta/facture/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid, '');
+				// 		}
+				// 	}
+				// }
 
 				// This is just to generate a delivery receipt
 				//var_dump($object->linkedObjectsIds['delivery']);

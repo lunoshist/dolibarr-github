@@ -1404,14 +1404,22 @@ class Affaire extends CommonObject
 		return $result;
 	}
 
-	public function getStatus($step='') {
+	public function getStatus($step='', $rowid='') {
 		if ($step) {
 			$allStatus = $this->getAllStatus();
 
+			if (is_numeric($step)) {
+				$step = $this->getStep($step)->label_short;
+			}
+
 			$result = $allStatus[strtolower($step)];
 		} else {
-			// Fetch status of affaire
-			$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $this->fk_status AND (fk_step = $this->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $this->fk_workflow_type OR fk_workflow_type = 1)";
+			if ($rowid) {
+				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $rowid";
+			} else {
+				// Fetch status of affaire
+				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $this->fk_status AND (fk_step = $this->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $this->fk_workflow_type OR fk_workflow_type = 1)";
+			}
 			$resql = $this->db->query($sql);
 			if ($resql) {
 				if ($resql->num_rows > 0) {
@@ -1429,6 +1437,18 @@ class Affaire extends CommonObject
 		}
 
 		return $result;
+	}
+
+	function printStep() {
+		$Step = $this->getStep();
+
+		return $Step->label;
+	}
+
+	function printStatus() {
+		$Status = $this->getStatus();
+
+		return printBagde($Status, 'mini');
 	}
 }
 
