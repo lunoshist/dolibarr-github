@@ -2804,6 +2804,11 @@ class Propal extends CommonObject
 			$result = $this->call_trigger('PROPAL_MODIFY', $user);
 			if ($result < 0) {
 				$error++;
+			} else {
+				$result = $this->call_trigger('PROPAL_SET_DRAFT', $user);
+				if ($result < 0) {
+					$error++;
+				}
 			}
 			// End call triggers
 		}

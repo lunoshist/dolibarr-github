@@ -18,6 +18,7 @@
  * Copyright (C) 2023	   Lenin Rivas       	 <lenin.rivas777@gmail.com>
  * Copyright (C) 2023	   William Mead			 <william.mead@manchenumerique.fr>
  * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024	   Lucas Noirie			 <lunoshist@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,8 +36,8 @@
 
 
 /**
- * \file 		htdocs/comm/propal/card.php
- * \ingroup 	propale
+ * \file 		htdocs/custom/classique/classique_propal_stateOfPlay.php
+ * \ingroup 	affaire
  * \brief 		Page of commercial proposals card and list
  */
 
@@ -121,19 +122,11 @@ if (isModEnabled('affaire')) {
 
 
 	// Workflow
-	$workflow_array = array();
-	// $workflow = (object)array("rowid"=>2, "label"=>'classique');
-	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
-	$resql = $db->query($sql);
-	if ($resql) {
-		$res = $db->fetch_object($resql);
-		$workflow_array["rowid"] = $res->rowid;
-		$workflow_array["label"] = $res->label;
-		$workflow = (object)$workflow_array;
-	} else {
-		dol_print_error($db);
-	}
+	$modName = 'Classique';
+	$workflow = fetchWorkflow($modName);
 	$INFO["Workflow"] .= "<br> > $workflow->label [$workflow->rowid]";
+
+
 
 	// Get affaire
 	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
@@ -143,7 +136,7 @@ if (isModEnabled('affaire')) {
 
 		$affaireID = getLinkedAff($object);
 	}
-	
+
 	// Load affaire
 	if ($affaireID > 0) {
 		$affaire = new Affaire($db);
@@ -155,21 +148,15 @@ if (isModEnabled('affaire')) {
 				header('Location: '.$path);
 				exit();
 			}
-
-			/* TODO the associated function
-			dol_tabs($affaire);
-			dol_banner($affaire);
-			dol_workflow_tabs($affaire->fk_workflow_type);
-			*/
 		} else {
 			setEventMessages($affaire->error, $affaire->errors, 'errors');
 			$action = '';
 		}
 	}
 	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
-	$INFO["Banner"]["ref"] = $affaire->ref;
 	
 
+	
 	// Get the propal linked to the affaire 
 	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
 	if (empty($id) && $action != "create" && $action != "add") {
@@ -200,13 +187,11 @@ if (isModEnabled('affaire')) {
 	} else if ($id) {
 		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["propal"]).")  :  ";
 	}
-	
 
 	// load propal
 	$object = new Propal($db);
 	$extrafields = new ExtraFields($db);
 	$extrafields->fetch_name_optionals_label($object->table_element);
-	
 	if ($id > 0 || !empty($ref)) {
 		$ret = $object->fetch($id, $ref);
 		if ($ret > 0) {
@@ -222,117 +207,38 @@ if (isModEnabled('affaire')) {
 	$INFO["Object"] .= "<br> > $object->ref [$id]";
 
 
+
 	if ($affaire) {
 		// Fetch step of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStep = $db->fetch_object($resql);
-				$defaultStepStatus = $affaireStep->fk_default_status;
-				// var_dump($affaireStep);
-				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
-				$INFO["Banner"]["step"] = $affaireStep;
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStep = $affaire->getStep();
+		$defaultStepStatus = $affaireStep->fk_default_status;
+		$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
+
 
 		// Fetch status of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatus = $db->fetch_object($resql);
-				// var_dump($affaireStatus);
-				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
-				$INFO["Banner"]["status"] = $affaireStatus;
-			} else {
-				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				$INFO["Affaire"] .= "<br> > aff_Status: NoSuchStatusForThisStepInThisWorkflow";
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStatus = $affaire->getStatus();
+		$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
+		
 
 
 		// Fetch affaire status of each step
-		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatusbyStep = $db->fetch_object($resql);
-			} else {
-				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStatusbyStep = $affaire->getAllStatus();
+
 
 
 		// Fetch this step
-		$thisStepName = 'Propal'; // <-- this has to be modified when dictionnary change
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStep = $db->fetch_object($resql);
-				$defaultStepStatus = $thisStep->fk_default_status;
-				// var_dump($thisStep);
-				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				
-				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$thisStepName = 'Propal'; // <-- this and the name of file has to be modified when dictionnary change
+		$thisStep = fetchStep(0, $thisStepName, $workflow);
+		$defaultStepStatus = $thisStep->fk_default_status;
+		$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
 		
-		// Fetch all status of this step : propal
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
-		$resql = $db->query($sql);
-		if ($resql) {
-			$thisStatusArray = array();
-			if ($resql->num_rows > 0) {
-				while ($res = $db->fetch_object($resql)) {
-					$thisStatusArray[$res->rowid] = $res;
-				}
-			} else {
-				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
-
 		// Fetch status of affaire for this step
-		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
-		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
+		$thisStatus = $affaireStatusbyStep[strtolower($thisStep->label_short)];
+		$INFO["Page"] .= "<br> > Status : ".($thisStatus->label ?? '')." [".($thisStatus->rowid ?? '')."]";
 		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStatus = $db->fetch_object($resql);
-				// var_dump($thisStatus);
-				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
-			} else {
-				if ($action == ('add' || 'create')) {
-					//setEventMessages($langs->trans("PropalNotCreated - NoStatus"), null, 'mesgs');
-				} else {
-					setEventMessages($langs->trans("PropalHasNoStatus"), null, 'errors');
-				}
-			}
-		} else {
-			dol_print_error($db);
-		}
+		// Fetch all status of this step 
+		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire->fk_workflow_type);
+		
 
 		// Fetch status of object propal
 		if ($id) {
@@ -341,10 +247,10 @@ if (isModEnabled('affaire')) {
 			if ($resql) {
 				if ($resql->num_rows > 0) {
 					$ObjectStatus = $db->fetch_object($resql);
-					$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
-					// var_dump($ObjectStatus);
-					// print(json_encode($ObjectStatus, JSON_PRETTY_PRINT));
-					$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+					if ($ObjectStatus->aff_status) {
+						$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
+						$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+					}
 				} else {
 					$INFO["Object"] .= "<br> > No Status";
 				}
@@ -352,13 +258,15 @@ if (isModEnabled('affaire')) {
 				dol_print_error($db);
 			}
 		}
-	}
+	}	
 } else {
 	$object = new Propal($db);
 	$extrafields = new ExtraFields($db);
+
+	// fetch optionals attributes and labels
 	$extrafields->fetch_name_optionals_label($object->table_element);
-	
-	// Load propal
+
+	// Load object
 	if ($id > 0 || !empty($ref)) {
 		$ret = $object->fetch($id, $ref);
 		if ($ret > 0) {
@@ -372,9 +280,7 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
-	$INFO["Object"] .= "<br> > $object->ref [$id]";
 }
-
 
 // Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
 $hookmanager->initHooks(array('propalcard', 'globalcard'));
@@ -462,361 +368,18 @@ if (empty($reshook)) {
 
 		// Change object status ($propal->aff_status & Propal::STATUS)
 		if ($status_for == 'both' || $status_for == 'object') {
-			$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
-			$resql = $db->query($sql);
-			if ($resql) {
-				$obj = $db->fetch_object($resql);
-				$code = intval($obj->fk_type);
-				$soc= $object->thirdparty;
-				
-				if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('PROPAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
-					switch (true) {
-						case ($code < 0):
-							// CANCELED
-							$confirm = GETPOST('confirm', 'aZ09');
-							if (!$confirm && $object->status > Propal::STATUS_DRAFT && $usercanclose) {
-								$action = 'chstatus_confirm_canceled';
-								$error = 'need_confirm';
-							} else if ($confirm == 'yes' && $object->status > Propal::STATUS_DRAFT  && $usercanclose) {
-								// Cancel proposal
-								$result = $object->setCancel($user);
-								if ($result <= 0) {
-									$langs->load("errors");
-									$error = $object->error;
-								}
-							} else if ($object->statut != Propal::STATUS_CANCELED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_CANCELED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							break;
-						case (0 <= $code && $code <= 99):
-							// REOPEN if needed
-							if ($object->statut != Propal::STATUS_VALIDATED && ((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED))) && $usercanclose) {
-								// prevent browser refresh from reopening proposal several times
-								if ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED) {
-									$db->begin();
-	
-									$newstatus = (getDolGlobalInt('PROPAL_SKIP_ACCEPT_REFUSE') ? Propal::STATUS_DRAFT : Propal::STATUS_VALIDATED);
-									$result = $object->reopen($user, $newstatus);
-									if ($result < 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
-										$error++;
-									} else {
-										$object->statut = $newstatus;
-										$object->status = $newstatus;
-									}
-	
-									if (!$error) {
-										$db->commit();
-									} else {
-										$db->rollback();
-									}
-								}
-							}
-							// DRAFT
-							if ($object->statut == Propal::STATUS_VALIDATED && $usercancreate) {
-								$object->setDraft($user);
+			$object->oldcopy = dol_clone($object, 2);
+			$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
 
-								if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-									// Define output language
-									$outputlangs = $langs;
-									if (getDolGlobalInt('MAIN_MULTILANGS')) {
-										$outputlangs = new Translate("", $conf);
-										$newlang = (GETPOST('lang_id', 'aZ09') ? GETPOST('lang_id', 'aZ09') : $object->thirdparty->default_lang);
-										$outputlangs->setDefaultLang($newlang);
-									}
-									$ret = $object->fetch($id); // Reload to get new records
-									if ($ret > 0) {
-										$object->fetch_thirdparty();
-									}
-									$object->generateDocument($object->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
-								}
-							} else if ($object->statut != Propal::STATUS_DRAFT) {
-								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_DRAFT) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							break;
-						case (100 <= $code && $code <= 199):
-							// REOPEN
-							if (((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED))) && $usercanclose) {
-								// prevent browser refresh from reopening proposal several times
-								if ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED) {
-									$db->begin();
-	
-									$newstatus = (getDolGlobalInt('PROPAL_SKIP_ACCEPT_REFUSE') ? Propal::STATUS_DRAFT : Propal::STATUS_VALIDATED);
-									$result = $object->reopen($user, $newstatus);
-									if ($result < 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
-										$error++;
-									} else {
-										$object->statut = $newstatus;
-										$object->status = $newstatus;
-									}
-	
-									if (!$error) {
-										$db->commit();
-									} else {
-										$db->rollback();
-									}
-								}
-							}
-							// VALIDATED
-							else if ((($object->statut == Propal::STATUS_DRAFT && $object->total_ttc >= 0 && count($object->lines) > 0)
-							|| ($object->statut == Propal::STATUS_DRAFT && getDolGlobalString('PROPAL_ENABLE_NEGATIVE') && count($object->lines) > 0)) && $usercanvalidate) {
-								$error = 0;
-	
-								// We verify whether the object is provisionally numbering
-								$ref = substr($object->ref, 1, 4);
-								if ($ref == 'PROV' || $ref == '') {
-									$numref = $object->getNextNumRef($soc);
-									if (empty($numref)) {
-										$error++;
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								} else {
-									$numref = $object->ref;
-								}
-						
-								// mandatoryPeriod
-								$nbMandated = 0;
-								foreach ($object->lines as $line) {
-									$res = $line->fetch_product();
-									if ($res  > 0) {
-										if ($line->product->isService() && $line->product->isMandatoryPeriod() && (empty($line->date_start) || empty($line->date_end))) {
-											$nbMandated++;
-											break;
-										}
-									}
-								}
-								if ($nbMandated > 0) {
-									setEventMessages($langs->trans("mandatoryPeriodNeedTobeSetMsgValidate"), null, 'errors');
-								}
-	
-								$idwarehouse = GETPOSTINT('idwarehouse');
-								$result = $object->valid($user);
-								if ($result > 0 && getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE')) {
-									$result = $object->closeProposal($user, $object::STATUS_SIGNED);
-								}
-								if ($result >= 0) {
-									if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-										$outputlangs = $langs;
-										$newlang = '';
-										if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-											$newlang = GETPOST('lang_id', 'aZ09');
-										}
-										if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-											$newlang = $object->thirdparty->default_lang;
-										}
-										if (!empty($newlang)) {
-											$outputlangs = new Translate("", $conf);
-											$outputlangs->setDefaultLang($newlang);
-										}
-										$model = $object->model_pdf;
-										$ret = $object->fetch($id); // Reload to get new records
-										if ($ret > 0) {
-											$object->fetch_thirdparty();
-										}
-	
-										$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-									}
-								} else {
-									$langs->load("errors");
-									if (count($object->errors) > 0) {
-										setEventMessages($object->error, $object->errors, 'errors');
-									} else {
-										setEventMessages($langs->trans($object->error), null, 'errors');
-									}
-								}
-							} else if ($object->total_ttc <= 0 || count($object->lines) < 0) {
-								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) car elle ne contient pas de ligne ";
-							} else if ($object->statut != Propal::STATUS_VALIDATED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							break;
-						case (200 <= $code && $code <= 299):
-							// SIGNED
-							// CHECK COMMANDE ASSOCIED TO AFFAIRE
-							$check = checkCommandeExist($affaire);
-							if (is_array($check)) {
-								$error = "Plusieurs commande exitent déjà, UNE AFFAIRE CORESPOND À UNE SEULE COMMANDE, réunissez toute les commande en une ou créez une autre affaire";
-								break;
-							}
-							if ($check < 0) {
-								$error = "ERROR SQL : ".$affaire->db->lasterror();
-								break;
-							}
-							if ($check > 0) {
-								$object->fetchObjectLinked($object->id, $object->element, $object->id, $object->element);
-								if (isset($object->linkedObjects["commande"])) {
-									$key = key($object->linkedObjects["commande"]);
-									if ($object->linkedObjects["commande"][$key]->id != $check) {
-										if (!getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_ALLOW_SEVERAL_PROPAL_SIGNED')) {
-											$error = "Impossible de mettre ce status, la commande associé à l'affaire n'est pas issu de cette proposition commerciale ! ";
-											break;
-										}
-									}
-									$warning = "Warning : commande will not be updated.";
-								} else {
-									$error = "Impossible de mettre ce status, la commande associé à l'affaire n'est pas issu de cette proposition commerciale ! ";
-									break;
-								}
-							}
-
-							// change the status
-							// prevent browser refresh from closing proposal several times
-							if ($object->statut == $object::STATUS_VALIDATED || $object->statut == $object::STATUS_NOTSIGNED || (getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') && $object->statut == $object::STATUS_DRAFT)) {
-								$db->begin();
-				
-								$result = $object->closeProposal($user, Propal::STATUS_SIGNED);
-								if ($result < 0) {
-									setEventMessages($object->error, $object->errors, 'errors');
-									$error++;
-								}
-				
-								$deposit = null;
-				
-								$deposit_percent_from_payment_terms = getDictionaryValue('c_payment_term', 'deposit_percent', $object->cond_reglement_id);
-				
-								if (
-									!$error && GETPOSTINT('statut') == $object::STATUS_SIGNED && GETPOSTINT('generate_deposit') == 'on'
-									&& !empty($deposit_percent_from_payment_terms) && isModEnabled('invoice') && $user->hasRight('facture', 'creer')
-								) {
-									require_once DOL_DOCUMENT_ROOT . '/compta/facture/class/facture.class.php';
-				
-									$date = dol_mktime(0, 0, 0, GETPOSTINT('datefmonth'), GETPOSTINT('datefday'), GETPOSTINT('datefyear'));
-									$forceFields = array();
-				
-									if (GETPOSTISSET('date_pointoftax')) {
-										$forceFields['date_pointoftax'] = dol_mktime(0, 0, 0, GETPOSTINT('date_pointoftaxmonth'), GETPOSTINT('date_pointoftaxday'), GETPOSTINT('date_pointoftaxyear'));
-									}
-				
-									$deposit = Facture::createDepositFromOrigin($object, $date, GETPOSTINT('cond_reglement_id'), $user, 0, GETPOSTINT('validate_generated_deposit') == 'on', $forceFields);
-				
-									if ($deposit) {
-										setEventMessage('DepositGenerated');
-										$locationTarget = DOL_URL_ROOT . '/compta/facture/card.php?id=' . $deposit->id;
-									} else {
-										$error++;
-										setEventMessages($object->error, $object->errors, 'errors');
-									}
-								}
-				
-								if (!$error) {
-									$db->commit();
-				
-									if ($deposit && !getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-										$ret = $deposit->fetch($deposit->id); // Reload to get new records
-										$outputlangs = $langs;
-				
-										if (getDolGlobalInt('MAIN_MULTILANGS')) {
-											$outputlangs = new Translate('', $conf);
-											$outputlangs->setDefaultLang($deposit->thirdparty->default_lang);
-											$outputlangs->load('products');
-										}
-				
-										$result = $deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
-				
-										if ($result < 0) {
-											setEventMessages($deposit->error, $deposit->errors, 'errors');
-										}
-									}
-								} else {
-									$db->rollback();
-									$action = '';
-								}
-							} else if ($object->statut != Propal::STATUS_SIGNED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_SIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							
-							break;
-						case (300 <= $code && $code <= 349):
-							// BILLED
-							if ($object->statut == Propal::STATUS_SIGNED && !getDolGlobalString('PROPOSAL_ARE_NOT_BILLABLE') && $usercanclose) {
-								$db->begin();
-
-								$result = $object->classifyBilled($user, 0, '');
-								if ($result < 0) {
-									setEventMessages($object->error, $object->errors, 'errors');
-									$error++;
-								}
-						
-								if (!$error) {
-									$db->commit();
-								} else {
-									$db->rollback();
-								}
-							}
-							break;
-						case (350 <= $code && $code <= 399):
-							// NOTSIGNED
-							// prevent browser refresh from closing proposal several times
-							if ($object->statut == $object::STATUS_VALIDATED || ((getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') || GETPOST('automatic')) && $object->statut == $object::STATUS_DRAFT)) {
-								$db->begin();
-				
-								$result = $object->closeProposal($user, Propal::STATUS_NOTSIGNED);
-								if ($result < 0) {
-									setEventMessages($object->error, $object->errors, 'errors');
-									$error++;
-								}
-				
-								$deposit = null;
-				
-								$deposit_percent_from_payment_terms = getDictionaryValue('c_payment_term', 'deposit_percent', $object->cond_reglement_id);
-	
-								if (!$error) {
-									$db->commit();
-				
-									if ($deposit && !getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-										$ret = $deposit->fetch($deposit->id); // Reload to get new records
-										$outputlangs = $langs;
-				
-										if (getDolGlobalInt('MAIN_MULTILANGS')) {
-											$outputlangs = new Translate('', $conf);
-											$outputlangs->setDefaultLang($deposit->thirdparty->default_lang);
-											$outputlangs->load('products');
-										}
-				
-										$result = $deposit->generateDocument($deposit->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
-				
-										if ($result < 0) {
-											setEventMessages($deposit->error, $deposit->errors, 'errors');
-										}
-									}
-								} else {
-									$db->rollback();
-									$action = '';
-								}
-							} else if ($object->statut != Propal::STATUS_NOTSIGNED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Propal::STATUS_NOTSIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							break;
-					}
-				}
-
-				if (empty($error)) {
-					$object->oldcopy = dol_clone($object, 2);
-					$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
-
-					$object->array_options["options_".$attribute_name] = $newStatus;
-					$result = $object->updateExtraField($attribute_name, 'PROPAL_MODIFY');
-					if ($result < 0) {
-						setEventMessages($object->error, $object->errors, 'errors');
-						$error--;
-					}
-					if ($error) {
-						$action = 'edit_extras';
-					}
-				}
-			} else {
-				$error = $langs->trans("StatusNotFound");
+			$object->array_options["options_".$attribute_name] = $newStatus;
+			$result = $object->updateExtraField($attribute_name, 'PROPAL_MODIFY');
+			if ($result < 0) {
+				setEventMessages($object->error, $object->errors, 'errors');
+				$error--;
 			}
-
-			if (empty($error) && $close_window) {
-				echo "<script>window.close();</script>";
-				exit();
+			if ($error) {
+				$action = 'edit_extras';
 			}
-		}
-		
-		if ($error && $error != 'need_confirm') {
-			setEventMessages($error, null, 'errors');
 		}
 
 		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
@@ -830,16 +393,11 @@ if (empty($reshook)) {
 			}
 		}
 
-		if ($warning) {
-			setEventMessages($warning, null, 'warnings');
-		}
-
 		$_SESSION['urlsToOpen'] = $urlsToOpen;
 
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
 		$path .= $affaire ? "&affaire=$affaire->id" : '';
 		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
-		$path .= ($action == 'chstatus_confirm_canceled') ? "&action=$action&newStatus=$newStatus&status_for=$status_for&close_window=$close_window" : '';
 		
 		if (!empty($createUrl)) $path = $createUrl;
 
@@ -1465,7 +1023,7 @@ if (empty($reshook)) {
 					$error++;
 				} else {
 					// Needed if object linked modified by trigger (because linked objects can't be fetched two times : linkedObjectsFullLoaded)
-					$locationTarget = DOL_URL_ROOT . '/comm/propal/card.php?id=' . $object->id;
+					$locationTarget = $_SERVER["PHP_SELF"].'?id=' . $object->id;
 				}
 
 				$deposit = null;
@@ -2481,9 +2039,9 @@ $now = dol_now();
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
-	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print dol_workflow_tabs($affaire, $thisStep, $workflow);
 } else {
-	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print affaireBanner($affaire, $thisStep, $workflow);
 }
 
 injectOpenUrlsScript();
@@ -2617,14 +2175,14 @@ if ($action == 'create') {
 	print '<input type="hidden" name="action" value="add">';
 	print '<input type="hidden" name="changecompany" value="0">';	// will be set to 1 by javascript so we know post is done after a company change
 	print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
-	if ($affaire) {
-		print '<input type="hidden" name="affaire" value="'.$affaire->id.'">'; 
-	}
 	if ($origin != 'project' && $originid) {
 		print '<input type="hidden" name="origin" value="'.$origin.'">';
 		print '<input type="hidden" name="originid" value="'.$originid.'">';
 	} elseif ($origin == 'project' && !empty($projectid)) {
 		print '<input type="hidden" name="projectid" value="'.$projectid.'">';
+	}
+	if ($affaire) {
+		print '<input type="hidden" name="affaire" value="'.$affaire->id.'">'; 
 	}
 
 	print dol_get_fiche_head();
@@ -2640,7 +2198,6 @@ if ($action == 'create') {
 		print '<tr class="field_ref"><td class="titlefieldcreate fieldrequired">'.$langs->trans('Ref').'</td><td class="valuefieldcreate">'.$langs->trans("Draft").'</td></tr>';
 
 		// Ref customer
-		
 		print '<tr class="field_ref_client"><td class="titlefieldcreate">'.$langs->trans('RefCustomer').'</td><td class="valuefieldcreate">';
 		if (getDolGlobalString('USE_AFFAIRE_TITLE_FOR_PROPAL_REFCLIENT') && !empty($affaire->label)) {
 			print '<input type="text" name="ref_client" value="'.$affaire->label.'"></td>';
@@ -2880,6 +2437,7 @@ if ($action == 'create') {
 		// // Other attributes
 		// include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_add.tpl.php';
 
+
 		// Lines from source
 		if (!empty($origin) && !empty($originid) && is_object($objectsrc)) {
 			// TODO for compatibility
@@ -3075,32 +2633,32 @@ if ($action == 'create') {
 	if ($action == 'clone') {
 		// Create an array for form
 		$filter = '(s.client:IN:1,2,3)';
+		$formquestion = array(
+			// 'text' => $langs->trans("ConfirmClone"),
+			// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
+			array('type' => 'other', 'name' => 'socid', 'label' => $langs->trans("SelectThirdParty"), 'value' => $form->select_company(GETPOSTINT('socid'), 'socid', $filter, '', 0, 0, null, 0, 'maxwidth300')),
+			$formquestion[] = array('type' => 'separator',),
+			array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans('PuttingPricesUpToDate'), 'value' => 0),
+			array('type' => 'checkbox', 'name' => 'update_desc', 'label' => $langs->trans('PuttingDescUpToDate'), 'value' => 0),
+		);
 		if (isModEnabled('affaire')) {
-			$formquestion = array(
-				'text' => $langs->trans("CLONER : signifie que vous répliquer cette proposition à l'identique, en conservant les liens (Ex: lier à la même affaire)"),
-				array('type' => 'separator',),
-				array('type' => 'hidden', "name" => 'PROPAL_CLONE_DATE_DELIVERY', "value" => '1'),
-				// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
-				array('type' => 'other', 'name' => 'socid', 'label' => $langs->trans("SelectThirdParty"), 'value' => $form->select_company(GETPOSTINT('socid'), 'socid', $filter, '', 0, 0, null, 0, 'maxwidth300')),
-				array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans('PuttingPricesUpToDate'), 'value' => 0),
-				array('type' => 'checkbox', 'name' => 'update_desc', 'label' => $langs->trans('PuttingDescUpToDate'), 'value' => 0),
-			);
-		} else {
-			$formquestion = array(
-				// 'text' => $langs->trans("ConfirmClone"),
-				'text' => $langs->trans("CLONER : signifie que vous répliquer cette proposition à l'identique, en conservant les liens (Ex: lier à la même affaire)"),
-				array('type' => 'separator',),
-				// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
-				array('type' => 'other', 'name' => 'socid', 'label' => $langs->trans("SelectThirdParty"), 'value' => $form->select_company(GETPOSTINT('socid'), 'socid', $filter, '', 0, 0, null, 0, 'maxwidth300')),
-				array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans('PuttingPricesUpToDate'), 'value' => 0),
-				array('type' => 'checkbox', 'name' => 'update_desc', 'label' => $langs->trans('PuttingDescUpToDate'), 'value' => 0),
-			);
+			$formquestion[] = array('type' => 'separator',);
+			$formquestion[] = array('type' => 'separator',);
+			$formquestion[] = array('type' => 'other', 'label' => $langs->trans('IMPOSSIBLE POUR LE MOMENT : '), 'value' => null);
+			// $formquestion[] = array('type' => 'separator',);
+			$formquestion[] = array('type' => 'checkbox', 'name' => 'link_AFF', 'label' => $langs->trans('Lier à une autre affaire'), 'value' => 0);
+			$formquestion[] = array('type' => 'other', 'name' => 'link_AFFbis', 'label' => $langs->trans('(existante ou pas encore créée)'), 'value' => null);
+			// $formquestion[] = array('type' => 'checkbox', 'name' => 'new_AFF', 'label' => $langs->trans('Créer une nouvelle affaire'), 'value' => 0);
+			// $formquestion[] = array('type' => 'other', 'name' => 'new_AFFbis', 'label' => $langs->trans('(autrement la propal sera lié à l\'affaire actuelle)'), 'value' => null);
+			// $formquestion[] = array('type' => 'text', 'name' => 'new_AFF_label', 'label' => $langs->trans('Titre de la nouvelle affaire (si création)'), 'value' => $affaire->label);
+			$formquestion[] = array('type' => 'separator',);
 		}
+
 		if (getDolGlobalString('PROPAL_CLONE_DATE_DELIVERY') && !empty($object->delivery_date)) {
 			$formquestion[] = array('type' => 'date', 'name' => 'date_delivery', 'label' => $langs->trans("DeliveryDate"), 'value' => $object->delivery_date);
 		}
 		// Incomplete payment. We ask if reason = discount or other
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmClonePropal', $object->ref), 'confirm_clone', $formquestion, 'yes', 1, 320);
+		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmClonePropal', $object->ref), 'confirm_clone', $formquestion, 'yes', 1, 450);
 	}
 
 	if ($action == 'closeas') {
@@ -3256,21 +2814,6 @@ if ($action == 'create') {
 	} elseif ($action == 'cancel') {
 		// Confirm cancel
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans("CancelPropal"), $langs->trans('ConfirmCancelPropal', $object->ref), 'confirm_cancel', '', 0, 1);
-	} elseif ($action == 'confirm_createOrder') {
-		$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
-		$cmde_page = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'&token='.newToken();
-		$cmde_page = dol_buildpath($cmde_page, 1);
-		$_SESSION["createUrl"] = $cmde_page;
-		$path =  $_SERVER["PHP_SELF"].'?action=changeStatus&newStatus='.getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL').'&status_for=both&id='.$object->id.'&affaire='.$affaire->id.'&token='.newToken();
-
-		$formconfirm = $form->formconfirm($path, $langs->trans("CreateOrder"), $langs->trans('Cette proposition aura dorénavant le status signé'), 'changeStatus', '', 0, 1);
-	} elseif ($action == 'chstatus_confirm_canceled') {
-		// Confirm cancel
-		$newStatus = GETPOSTINT('newStatus');
-		$close_window = GETPOSTINT('close_window');
-		$status_for = GETPOST('status_for', 'aZ09');
-
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id.'&affaire='.$affaire->id.'&action=changeStatus&newStatus='.$newStatus.'&status_for='.$status_for.'&close_window='.$close_window.'&token='.newToken(), $langs->trans("CancelPropal"), $langs->trans('ConfirmCancelPropal', $object->ref), 'changeStatus', '', 0, 1);
 	} elseif ($action == 'delete') {
 		// Confirm delete
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('DeleteProp'), $langs->trans('ConfirmDeleteProp', $object->ref), 'confirm_delete', '', 0, 1);
@@ -3876,10 +3419,6 @@ if ($action == 'create') {
 			print '</table>';
 		}
 
-		if ($object->statut != Propal::STATUS_DRAFT) {
-			print $langs->trans('Go_back_to_draft_to_edit');
-		}
-
 		print '</div>';
 
 		print "</form>\n";
@@ -4013,9 +3552,27 @@ if ($action == 'create') {
 				// Delete
 				print dolGetButtonAction($langs->trans("Delete"), '', 'delete', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken(), 'delete', $usercandelete);
 			} else if ($action != 'editline') {
+				// Validate
+				if (($object->statut == Propal::STATUS_DRAFT && $object->total_ttc >= 0 && count($object->lines) > 0)
+					|| ($object->statut == Propal::STATUS_DRAFT && getDolGlobalString('PROPAL_ENABLE_NEGATIVE') && count($object->lines) > 0)) {
+					if ($usercanvalidate) {
+						print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=validate&token='.newToken().'">'.(!getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE') ? $langs->trans('Validate') : $langs->trans('ValidateAndSign')).'</a>';
+					} else {
+						print '<a class="butActionRefused classfortooltip" href="#">'.$langs->trans('Validate').'</a>';
+					}
+				}
+				// Create event
+				/*if (isModEnabled('agenda') && !empty($conf->global->MAIN_ADD_EVENT_ON_ELEMENT_CARD)) 	// Add hidden condition because this is not a "workflow" action so should appears somewhere else on page.
+				{
+					print '<a class="butAction" href="' . DOL_URL_ROOT . '/comm/action/card.php?action=create&amp;origin=' . $object->element . '&amp;originid=' . $object->id . '&amp;socid=' . $object->socid . '">' . $langs->trans("AddAction") . '</a></div>';
+				}*/
+				// Edit
+				if ($object->statut == Propal::STATUS_VALIDATED && $usercancreate) {
+					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=modif&token='.newToken().'">'.$langs->trans('Modify').'</a>';
+				}
+
 				// ReOpen
-				// if (((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED))) && $usercanclose) {
-				if (((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED))) && $usercanclose) {
+				if (((getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && $object->statut == Propal::STATUS_NOTSIGNED) || (!getDolGlobalString('PROPAL_REOPEN_UNSIGNED_ONLY') && ($object->statut == Propal::STATUS_SIGNED || $object->statut == Propal::STATUS_NOTSIGNED || $object->statut == Propal::STATUS_BILLED || $object->statut == Propal::STATUS_CANCELED))) && $usercanclose) {
 					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=reopen&token='.newToken().(!getDolGlobalString('MAIN_JUMP_TAG') ? '' : '#reopen').'"';
 					print '>'.$langs->trans('ReOpen').'</a>';
 				}
@@ -4028,23 +3585,25 @@ if ($action == 'create') {
 				}
 
 				// Create a sale order
-				if (isModEnabled('order') && ($object->statut == Propal::STATUS_VALIDATED || $object->statut == Propal::STATUS_SIGNED)) {
-					if ($usercancreateorder) {
-						if (empty(checkCommandeExist($affaire)) && getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL')) {
-							// $steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
-							// $cmde_page = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'&token='.newToken();
-							// $cmde_page = dol_buildpath($cmde_page, 1);
-							// $_SESSION["createUrl"] = $cmde_page;
-							// $path =  $_SERVER["PHP_SELF"].'?action=changeStatus&newStatus='.getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL').'&status_for=both&id='.$object->id.'&affaire='.$affaire->id.'&token='.newToken();
-							// print '<a class="butAction" href="'.$path.'">'.$langs->trans("AddOrder").'</a>';
-							print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=confirm_createOrder&id='.$object->id.'&affaire='.$affaire->id.'&token='.newToken().'">'.$langs->trans("AddOrder").'</a>';
-						} else if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL')) {
-							print dolGetButtonAction($langs->trans('Une commande existe déjà'), $langs->trans('AddOrder'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+				if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL')) {
+					if (isModEnabled('order') && $object->statut == Propal::STATUS_SIGNED) {
+						if ($usercancreateorder) {
+							// print '<a class="butAction" href="'.DOL_URL_ROOT.'/commande/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("AddOrder").'</a>';
+							if (empty(checkCommandeExist($affaire))) {
+								$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
+								$cmde_page = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'&token='.newToken();
+								$path = dol_buildpath($cmde_page, 1);
+								
+								print '<a class="butAction" href="'.$path.'">'.$langs->trans("AddOrder").'</a>';
+							} else {
+								print dolGetButtonAction($langs->trans('Une commande existe déjà'), $langs->trans('AddOrder'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+							}
 						}
 					}
 				}
 
 				// Create a purchase order
+				// if (getDolGlobalString('WORKFLOW_CAN_CREATE_PURCHASE_ORDER_FROM_PROPOSAL')) {
 				if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PURCHASE_ORDER_FROM_PROPOSAL')) {
 					if ($object->statut == Propal::STATUS_SIGNED && isModEnabled("supplier_order")) {
 						if ($usercancreatepurchaseorder) {
@@ -4070,21 +3629,51 @@ if ($action == 'create') {
 					}
 				}
 
-				// Create PROFORMA
-				if ($object->status > Propal::STATUS_DRAFT && getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROFORMA_FROM_PROPOSAL')) {
-					$steplabel = empty(getDolGlobalString('STEP_INVOICE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'facture' : getDolGlobalString('STEP_INVOICE_FOR_WORKFLOW_'.$workflow->rowid);
-					$path = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php';
-					$path.= '?affaire='.$affaire->id.'&action=create&type=4&newStatus='.getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_PROFORMA_FROM_PROPOSAL').'&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'&token='.newToken();
-					$page = dol_buildpath($path, 1);
-					print '<a class="butAction" href="'.$page.'">'.$langs->trans("Créer Proforma").'</a>';
-					//print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Proforma'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+				// Create an invoice and classify billed
+				if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INVOICE_FROM_PROPOSAL')) {
+					if ($object->statut == Propal::STATUS_SIGNED && !getDolGlobalString('PROPOSAL_ARE_NOT_BILLABLE')) {
+						if (isModEnabled('invoice') && $usercancreateinvoice) {
+							print '<a class="butAction" href="'.DOL_URL_ROOT.'/compta/facture/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("CreateBill").'</a>';
+						}
+
+						$arrayofinvoiceforpropal = $object->getInvoiceArrayList();
+						if ((is_array($arrayofinvoiceforpropal) && count($arrayofinvoiceforpropal) > 0) || !getDolGlobalString('WORKFLOW_PROPAL_NEED_INVOICE_TO_BE_CLASSIFIED_BILLED')) {
+							if ($usercanclose) {
+								print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=classifybilled&token='.newToken().'&socid='.$object->socid.'">'.$langs->trans("ClassifyBilled").'</a>';
+							} else {
+								print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("NotEnoughPermissions").'">'.$langs->trans("ClassifyBilled").'</a>';
+							}
+						}
+					}
 				}
 
-				// TODO
+				if (!getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE')) {
+					// Close as accepted/refused
+					if ($object->statut == Propal::STATUS_VALIDATED) {
+						if ($usercanclose) {
+							print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=closeas&token='.newToken().(!getDolGlobalString('MAIN_JUMP_TAG') ? '' : '#close').'"';
+							print '>'.$langs->trans('SetAcceptedRefused').'</a>';
+						} else {
+							print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("NotEnoughPermissions").'"';
+							print '>'.$langs->trans('SetAcceptedRefused').'</a>';
+						}
+					}
+				} else {
+					// Set not signed (close)
+					if ($object->statut == Propal::STATUS_DRAFT && $usercanclose) {
+						print '<a class="butAction" href="' . $_SERVER["PHP_SELF"] . '?id=' . $object->id . '&token='.newToken().'&action=closeas&token='.newToken() . (!getDolGlobalString('MAIN_JUMP_TAG') ? '' : '#close') . '"';
+						print '>' . $langs->trans('SetRefusedAndClose') . '</a>';
+					}
+				}
+
+				// Cancel propal
+				if ($object->status > Propal::STATUS_DRAFT && $usercanclose) {
+					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=cancel&token='.newToken().'">'.$langs->trans("CancelPropal").'</a>';
+				}
+
 				// Clone
 				if ($usercancreate) {
-					print '<a class="butAction  classfortooltip" title="CLONER : signifie que vous répliquer cette proposition à l\'identique, en conservant les liens (Ex: lier à la même affaire)" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object='.$object->element.'">'.$langs->trans("ToClone").'</a>';
-					// print dolGetButtonAction($langs->trans('Will come soon'), $langs->trans('Dupliquer'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+					print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object='.$object->element.'">'.$langs->trans("ToClone").'</a>';
 				}
 
 				// Change status
@@ -4103,7 +3692,8 @@ if ($action == 'create') {
 	
 					$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
 	
-					$infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: propal $object->ref");
+					// $infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: propal $object->ref");
+					$infobulle = '';
 					print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 				}
 
@@ -4139,7 +3729,7 @@ if ($action == 'create') {
 
 		$compatibleImportElementsList = false;
 		if ($user->hasRight('propal', 'creer') && $object->statut == Propal::STATUS_DRAFT) {
-			$compatibleImportElementsList = array('commande', 'propal', 'facture', 'affaire'); // import from linked elements
+			$compatibleImportElementsList = array('commande', 'propal', 'facture'); // import from linked elements
 		}
 		$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem, $compatibleImportElementsList);
 

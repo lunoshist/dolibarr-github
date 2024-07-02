@@ -1306,65 +1306,23 @@ class Affaire extends CommonObject
 	}
 
 	/**
-	 * Function to fetch step (of this affaire or another)
-	 * 
-	 * @param int $rowid			filter on rowid
-	 * @param string $object		'propal'|'order'|'prod'|'expe'|'invoice'  filter to get the step corresponding to an object
-	 * @param string $label_short	
+	 * Fetch step of this affaire
 	 * 
 	 * @return object|null $step
 	 */
-	public function getStep($rowid=0, $object='', $label_short='') {
-		if ($object) {
-			$label_short = getDolGlobalString('STEP_'.strtoupper('$object').'_FOR_WORKFLOW_'.$this->fk_workflow_type);
-		} 
-		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE fk_workflow_type = $this->fk_workflow_type";
-		if ($label_short) {
-			$sql.= " AND label_short = '$label_short'";
-		} else if ($rowid) {
-			$sql.= " AND rowid = $rowid";
-		} else {
-			// Fetch this step
-			$sql.= " AND rowid = ".$this->fk_step;
-		}			
-		$resql = $this->db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$Step = $this->db->fetch_object($resql);
-				return $Step;
-			} else {
-				global $langs;
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-				return null;
-			}
-		} else {
-			dol_print_error($this->db);
-			return null;
-		}
+	public function getStep() {
+		$this->fetch($this->id);
+		return fetchStep($this->fk_step);
 	}
 
-
-	public function getAllStatusOfStep() {
-		// Fetch all status of this step : propal
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
-		$resql = $this->db->query($sql);
-		if ($resql) {
-			$thisStatusArray = array();
-			if ($resql->num_rows > 0) {
-				while ($res = $this->db->fetch_object($resql)) {
-					$thisStatusArray[$res->rowid] = $res;
-				}
-			} else {
-				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
-			}
-		} else {
-			dol_print_error($this->db);
-		}
-	}
-
+	/**
+	 * Fetch all status of this affaire
+	 * 
+	 * @return array[object|null]| $status
+	 */
 	public function getAllStatus() {
 		global $langs;
+		$this->fetch($this->id);
 
 		// Fetch affaire status of each step
 		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $this->id";
@@ -1385,16 +1343,7 @@ class Affaire extends CommonObject
 			if (preg_match('/^fk_status_(.*)/', $key, $matches)) {
 				$step = $matches[1];
 				if (is_numeric($rowid)) {
-					$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $rowid AND fk_workflow_type = $this->fk_workflow_type";
-					$resql = $this->db->query($sql);
-					if ($resql) {
-						if ($resql->num_rows > 0) {
-							$thisStatus = $this->db->fetch_object($resql);
-							$result[$step] = $thisStatus;
-						}
-					} else {
-						dol_print_error($this->db);
-					}
+					$result[$step] = fetchStatus($rowid, '', $this->fk_workflow_type);
 				} else {
 					$result[$step] = $rowid;
 				}
@@ -1404,49 +1353,38 @@ class Affaire extends CommonObject
 		return $result;
 	}
 
-	public function getStatus($step='', $rowid='') {
-		if ($step) {
+	/**
+	 * Fetch status of this affaire
+	 * 
+	 * @param string|int $step 	filter on a step (rowid or label_short of the step)
+	 * 
+	 * @return object|null $status
+	 */
+	public function getStatus($step='') {
+		$this->fetch($this->id);
+		if (!empty($step)) {
 			$allStatus = $this->getAllStatus();
 
 			if (is_numeric($step)) {
-				$step = $this->getStep($step)->label_short;
+				$step = fetchStep($step)->label_short;
 			}
 
 			$result = $allStatus[strtolower($step)];
 		} else {
-			if ($rowid) {
-				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $rowid";
-			} else {
-				// Fetch status of affaire
-				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $this->fk_status AND (fk_step = $this->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $this->fk_workflow_type OR fk_workflow_type = 1)";
-			}
-			$resql = $this->db->query($sql);
-			if ($resql) {
-				if ($resql->num_rows > 0) {
-					$Status = $this->db->fetch_object($resql);
-					$result = $Status;
-				} else {
-					global $langs;
-					setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-					$result = null;
-				}
-			} else {
-				dol_print_error($this->db);
-				$result = null;
-			}
+			$result = fetchStatus($this->fk_status);
 		}
 
 		return $result;
 	}
 
-	function printStep() {
+	function printThisStep() {
 		$Step = $this->getStep();
 
-		return $Step->label;
+		return printStep($Step->label);
 	}
 
-	function printStatus() {
-		$Status = $this->getStatus();
+	function printThisStatus($step='') {
+		$Status = $this->getStatus($step);
 
 		return printBagde($Status, 'mini');
 	}

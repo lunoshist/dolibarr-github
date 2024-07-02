@@ -623,7 +623,7 @@ if (empty($reshook)) {
 		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
 		if ($status_for == 'both' || $status_for == 'step') {
 			// Ne pas mettre l'étape à terminé si il reste des expes en cours
-			$status = $affaire->getStatus('', $newStatus);
+			$status = fetchStatus($newStatus);
 			$array_of_expe = checkExpeExist($affaire);
 			if ($status->fk_type >= 200 && is_array($array_of_expe)) {
 				foreach ($array_of_expe as $key => $expe) {
@@ -631,7 +631,7 @@ if (empty($reshook)) {
 					$resql = $db->query($sql);
 					if ($resql) {
 						$res = $db->fetch_object($resql);
-						$rStatus = $affaire->getStatus('', $res->aff_status);
+						$rStatus = fetchStatus($res->aff_status);
 
 						if ($rStatus->fk_type < 200) {
 							$error = "Une expédition est toujours en cours";
@@ -1424,9 +1424,9 @@ llxHeader('', $title, $help_url);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
-	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print dol_workflow_tabs($affaire, $thisStep, $workflow);
 } else {
-	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print affaireBanner($affaire, $thisStep, $workflow);
 }
 
 injectOpenUrlsScript();

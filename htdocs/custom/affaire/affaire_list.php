@@ -808,9 +808,9 @@ while ($i < $imaxinloop) {
 				if ($key == 'status') {
 					print $object->getLibStatut(5);
 				} elseif ($key == 'fk_status') {
-					print $object->printStatus();
+					print $object->printThisStatus();
 				} elseif ($key == 'fk_step') {
-					print $object->printStep();
+					print $object->printThisStep();
 				} elseif ($key == 'rowid') {
 					print $object->showOutputField($val, $key, $object->id, '');
 				} else {

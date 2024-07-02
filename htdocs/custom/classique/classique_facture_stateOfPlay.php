@@ -3886,9 +3886,9 @@ llxHeader('', $title, $help_url);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
-	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print dol_workflow_tabs($affaire, $thisStepName, $workflow);
 } else {
-	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print affaireBanner($affaire, $thisStep, $workflow);
 }
 
 injectOpenUrlsScript();

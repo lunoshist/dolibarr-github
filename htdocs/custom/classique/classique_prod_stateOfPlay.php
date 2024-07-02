@@ -164,7 +164,7 @@ if (isModEnabled('affaire')) {
 		// } else {
 		// 	dol_print_error($db);
 		// }
-		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire);
+		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire->fk_workflow_type);
 
 		// Fetch status of affaire for this step
 		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
@@ -252,9 +252,9 @@ llxHeader("", $title);
 
 if (getDolGlobalInt('DEBUG')) {
 	print implode("\n", $INFO)."<br><br>";
-	print dol_workflow_tabs($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print dol_workflow_tabs($affaire, $thisStep, $workflow);
 } else {
-	print affaireBanner($affaire, $thisStep, $affaireStatusbyStep, $workflow);
+	print affaireBanner($affaire, $thisStep, $workflow);
 }
 
 injectOpenUrlsScript();

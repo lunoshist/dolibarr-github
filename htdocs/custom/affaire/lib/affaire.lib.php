@@ -101,25 +101,14 @@ function getLinkedAff($object) {
  *
  * @param Affaire $affaire
  * @param object $selectedStep 
- * @param array $affaireStatusbyStep
  * @param object
  * @return string
  */
-function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Workflow=null) {
+function dol_workflow_tabs($affaire, $selectedStep, $Workflow=null) {
 	global $langs, $conf, $db;
-	if (!$affaireStatusbyStep) {
-		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatusbyStep = $db->fetch_object($resql);
-			} else {
-				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
-	}
+
+	$affaireStatusbyStep = $affaire->getAllStatus();
+
 	$out = '';
 
 	// TODO if no $workflow rsql  ...
@@ -141,20 +130,10 @@ function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Wo
 				$active = ($Step->rowid == $selectedStep->rowid) ? 'tabactive' : 'tabunactive';
 
 				// Fetch status of this step
-				$fk_status_thisstep = "fk_status_".strtolower($Step->label_short);
-				$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
-				unset($thisStatus);
-
-				$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$Step->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-				$resql2 = $db->query($sql);
-				if ($resql2) {
-					if ($resql2->num_rows > 0) {
-						$thisStatus = $db->fetch_object($resql2);
-					}
-				} else {
-					dol_print_error($db);
+				$thisStatus = null;
+				if (isset($affaireStatusbyStep[strtolower($Step->label_short)])) {
+					$thisStatus = $affaireStatusbyStep[strtolower($Step->label_short)];
 				}
-				$db->free($resql2);
 
 
 				$path = '/'.strtolower($Workflow->label).'/'.strtolower($Workflow->label).'_'.strtolower($Step->label_short).'_stateOfPlay.php?affaire='.$affaire->id;
@@ -174,8 +153,9 @@ function dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep='', $Wo
 	return $out;
 }
 
-function affaireBanner($affaire, $selectedStep=null, $affaireStatusbyStep='', $workflow=null) {
+function affaireBanner($affaire, $selectedStep=null, $workflow=null) {
 	global $langs;
+	$affaire->fetch($affaire->id);
 	$thisStep = $affaire->getStep();
 	$thisStatus = $affaire->getStatus();
 
@@ -230,7 +210,7 @@ function affaireBanner($affaire, $selectedStep=null, $affaireStatusbyStep='', $w
 	$out.= '</div>';
 	//$out.= '<div class="underrefbanner clearboth"></div>';
 
-	$out.= dol_workflow_tabs($affaire, $selectedStep, $affaireStatusbyStep, $workflow);
+	$out.= dol_workflow_tabs($affaire, $selectedStep, $workflow);
 
 	$out.= dol_get_fiche_end();
 	$out.= '</div>';
@@ -288,13 +268,18 @@ function printBagde($Status, $width) {
 	}
 }
 
+function printStep($Step) {
+	return $Step;
+	// TODO mise en forme
+}
+
 /**
  * Change the status of a step of an affaire, 
  * then look for automating (like another status change induced), 
  * finally update affaire status and step
  *
  * @param Affaire $affaire						object affaire to deal with
- * @param object|int $newStatus					rowid, label or obj(rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active) of the new status
+ * @param object|int|string $newStatus			rowid, label, 'no_status' or obj(rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active) of the new status
  * @param string $condition						a status changement might need to match some condition espacially for automation
  * @param object|int|string $step 				step can be precised for optimisation
  * @param object|int|string $previousStatus 	previousStatus can be precised for optimisation
@@ -305,6 +290,7 @@ function printBagde($Status, $width) {
 function change_status($affaire, $newStatus, $condition='', $step='', $previousStatus='', $workflow='', $object='') {
 	global $db, $langs;
 	$error = 0;
+	$look_for_auto = 1;
 
 	/** TODO : hook 'changeStatus'
 	 * Maybe if someone want to personnalyzed comportement of change_status function
@@ -341,8 +327,11 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 		}
 		$db->free($resql);
 	}
+	if ($error) {
+		return $error;
+	}
 	// Status
-	if (!is_object($newStatus) && is_numeric($newStatus) && !$error) {
+	if (is_numeric($newStatus)) {
 		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, active FROM llx_c_affaire_status WHERE rowid = $newStatus AND fk_workflow_type = $affaire->fk_workflow_type";
 		$resql = $db->query($sql);
 		if ($resql) {
@@ -358,6 +347,11 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			dol_print_error($db);
 		}
 		$db->free($resql);
+	} else if ($newStatus == 'no_status') {
+		$look_for_auto = 0;
+		$newStatusArray["rowid"] = "NULL";
+		$newStatusArray["label"] = 'NULL';
+		$newStatus = (object)$newStatusArray;
 	} else if (!is_object($newStatus)) {
 		$error--;
 		setEventMessages($langs->trans("InvalidStatusProviden"), null, 'errors');
@@ -463,10 +457,17 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 			if (empty($newAffaireStatus)) {
 				$reversed = array_reverse($affaireStatus);
 				while (empty($newAffaireStatus)) {
-					$rstep = array_shift($reversed);
+					if (empty($reversed)) {
+						$steplabel = empty(getDolGlobalString('STEP_AFFAIRE_FOR_WORKFLOW_'.$affaire->fk_workflow_type)) ? 'affaire' : getDolGlobalString('STEP_AFFAIRE_FOR_WORKFLOW_'.$affaire->fk_workflow_type);
+						$step = fetchStep(0, $steplabel, $affaire->fk_workflow_type);
+						$newAffaireStep = $step->rowid;
+						$newAffaireStatus = getDolGlobalInt('WORKFLOW_2_AFFAIRE_CREATION_STATUS');
+					} else {
+						$rstep = array_shift($reversed);
 
-					$newAffaireStep = $rstep["rowid"];
-					$newAffaireStatus = $rstep["status"];
+						$newAffaireStep = $rstep["rowid"];
+						$newAffaireStatus = $rstep["status"];
+					}
 				}
 			}
 		} else {
@@ -498,7 +499,9 @@ function change_status($affaire, $newStatus, $condition='', $step='', $previousS
 	$db->free($resql);
 
 	// LOOK FOR AUTOMATING
-	$error = look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
+	if ($look_for_auto) {
+		$error = look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $step, $object);
+	}
 
 	if ($error) {
 		// $db->rollback();
@@ -1973,15 +1976,103 @@ function aff_show_input_field($extra, $key, $value, $moreparam = '', $keysuffix 
 	return $out;
 }
 
+
+
 /**
+ * Fetch the workflow with name or rowid
  * 
+ * @param string $modName	label of worflow (name of the sub-module of the worflow)
+ * @param int $rowid		rowid of worflow
+ * 
+ * @return object|string	 -1 if error | object=>("rowid"=>2, "label"=>'classique')
  */
-function fetchAllStatusOfStep($step, $affaire=null){
+function fetchWorkflow($modName='', $rowid=0) {
+	global $db, $langs;
+
+	if (is_string($modName)) {
+		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = '$modName'";
+	} else if (is_numeric($rowid)) {
+		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE rowid = $rowid";
+	} else {
+		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
+		return -1;
+	}
+
+	$resql = $db->query($sql);
+	if ($resql && $resql->num_rows > 0) {
+		$workflow = $db->fetch_object($resql);
+		return $workflow;
+	} else {
+		dol_print_error($db);
+		return -1;
+	}
+}
+
+/**
+ * Fetch a step with it fields
+ * 
+ * @param int $rowid			fetch from rowid
+ * @param string $label_short	fetch from label_short(need workflow)
+ * @param int|object $workflow	rowid of workflow (can be a object with with a rowid key)
+ * @param string $object		'propal'|'order'|'prod'|'expe'|'invoice'  fetch a step corresponding to an object (need workflow)
+ * 
+ * @return object|null 			$step
+ */
+function fetchStep($rowid=0, $label_short='', $workflow=null, $object=null) {
+	global $db, $langs;
+
+	if (is_object($workflow)) {
+		$workflow = $workflow->rowid;
+	}
+
+	if (($object || $label_short) && !is_numeric($workflow)) {
+		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
+		return null;
+	} else if ($object) {
+		$label_short = getDolGlobalString('STEP_'.strtoupper('$object').'_FOR_WORKFLOW_'.$workflow);
+	} 
+	
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE ";
+	if ($rowid) {
+		$sql.= "rowid = $rowid";
+	} else if ($label_short) {
+		$sql.= "label_short = '$label_short'";
+	} else {
+		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
+		return null;
+	}
+	if ($workflow) {
+		$sql.= " AND fk_workflow_type = $workflow";
+	}
+
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$Step = $db->fetch_object($resql);
+			return $Step;
+		} else {
+			global $langs;
+			setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
+			return null;
+		}
+	} else {
+		dol_print_error($db);
+		return null;
+	}
+}
+
+/**
+ * Fetch all status of a step
+ * 
+ * @param object|int|string $step 	the step in question
+ * @param int|object $workflow		needed if step is string
+ */
+function fetchAllStatusOfStep($step, $workflow=null){
 	global $db, $langs;
 	$langs->load("errors");
 
 	if (is_string($step)) {
-		$thisStep = $affaire->getStep(0, '', $step);
+		$thisStep = fetchStep(0, $step, $workflow);
 	} else if (is_object($step)) {
 		$thisStep = $step;
 	} else {
@@ -1995,7 +2086,7 @@ function fetchAllStatusOfStep($step, $affaire=null){
 	}
 	
 	// Fetch all status of this step
-	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' ORDER BY fk_type";
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid'  AND active = 1 ORDER BY fk_type";
 	$resql = $db->query($sql);
 	if ($resql) {
 		$thisStatusArray = array();
@@ -2010,5 +2101,55 @@ function fetchAllStatusOfStep($step, $affaire=null){
 	} else {
 		dol_print_error($db);
 		return -1;
+	}
+}
+
+/**
+ * Fetch a status with it fields
+ * 
+ * @param int $rowid			fetch from rowid
+ * @param string $label_short	fetch from label_short(need workflow)
+ * @param int|object $workflow	rowid of workflow (can be a object with with a rowid key)
+ * 
+ * @return object|null 			$status
+ */
+function fetchStatus($rowid=0, $label_short='', $workflow=null,) {
+	global $db, $langs;
+
+	if (is_object($workflow)) {
+		$workflow = $workflow->rowid;
+	}
+
+	if ($label_short && !is_numeric($workflow)) {
+		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
+		return null;
+	}
+
+	$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE ";
+	if ($rowid) {
+		$sql.= "rowid = $rowid";
+	} else if ($label_short) {
+		$sql.= "label_short = '$label_short'";
+	} else {
+		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
+		return null;
+	}
+	if ($workflow) {
+		$sql.= " AND fk_workflow_type = $workflow";
+	}
+
+	$resql = $db->query($sql);
+	if ($resql) {
+		if ($resql->num_rows > 0) {
+			$Status = $db->fetch_object($resql);
+			return $Status;
+		} else {
+			global $langs;
+			setEventMessages($langs->trans("NoSuchStatusInThisWorkflow"), null, 'errors');
+			return null;
+		}
+	} else {
+		dol_print_error($db);
+		return null;
 	}
 }
