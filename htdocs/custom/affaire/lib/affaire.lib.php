@@ -1231,8 +1231,9 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 		}
 
 		$res = $ProjetRowid = $Projet->create($user);
+		$result = $Projet->setValid($user);
 
-		if ($res > 0 && $affaire) $res = $Projet->add_object_linked($affaire->element, $affaire->id);
+		if ($res > 0 && $result > 0 && $affaire) $res = $Projet->add_object_linked($affaire->element, $affaire->id);
 	}
 	if ($res <= 0 || $ProjetRowid <= 0) {
 		$error_message = $db->lasterror();

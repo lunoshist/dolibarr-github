@@ -142,15 +142,247 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 				//case 'MYECMDIR_DELETE':
 
 				// Sales orders
-				//case 'ORDER_CREATE':
+				case 'ORDER_CREATE':
+					// TODO mettre le bon client pour l'affaire
 				//case 'ORDER_MODIFY':
-				//case 'ORDER_VALIDATE':
-				//case 'ORDER_DELETE':
-				//case 'ORDER_CANCEL':
+				case 'ORDER_SETDRAFT':
+				case 'ORDER_UNVALIDATE':
+					if (getDolGlobalInt('WORKFLOW_2_ORDER_DRAFT_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_DRAFT_STATUS');
+						$status = fetchStatus($statusID);
+
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la order
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'ORDER_VALIDATE':	
+				case 'ORDER_REOPEN':
+					if (getDolGlobalInt('WORKFLOW_2_ORDER_VALIDATED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_VALIDATED_STATUS');
+						$status = fetchStatus($statusID);
+
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la order
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
 				//case 'ORDER_SENTBYMAIL':
-				//case 'ORDER_CLASSIFY_BILLED':		// TODO Replace it with ORDER_BILLED
-				//case 'ORDER_CLASSIFY_UNBILLED':	// TODO Replace it with ORDER_UNBILLED
-				//case 'ORDER_SETDRAFT':
+				case 'ORDER_BILLED':
+				case 'ORDER_CLASSIFY_BILLED':		// TODO Replace it with ORDER_BILLED
+					if ($object->statut == Commande::STATUS_CLOSED) {
+						$action = 'ORDER_CLOSE_FOR_REAL';
+						return $this->orderCloseForReal($action, $object, $user, $langs, $conf);
+					} else if (getDolGlobalInt('WORKFLOW_2_ORDER_BILLED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_BILLED_STATUS');
+						$status = fetchStatus($statusID);
+
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la order
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'ORDER_CLASSIFY_UNBILLED':	// TODO Replace it with ORDER_UNBILLED
+					if (getDolGlobalInt('WORKFLOW_2_ORDER_UNBILLED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_UNBILLED_STATUS');
+						$status = fetchStatus($statusID);
+
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la order
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'ORDER_CLOSE':		// ~ ORDER_SHIPPED
+					if ($object->billed) {
+						$action = 'ORDER_CLOSE_FOR_REAL';
+						return $this->orderCloseForReal($action, $object, $user, $langs, $conf);
+					} else if (getDolGlobalInt('WORKFLOW_2_ORDER_SHIPPED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_CLOSED_STATUS');
+						$status = fetchStatus($statusID);
+
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la order
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'ORDER_CLOSE_FOR_REAL':
+					return $this->orderCloseForReal($action, $object, $user, $langs, $conf);
+				case 'ORDER_CANCEL':
+					if (getDolGlobalInt('WORKFLOW_2_ORDER_CANCELED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_CANCELED_STATUS');
+						$status = fetchStatus($statusID);
+
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la order
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'ORDER_DELETE':
+					// Check conditions (pour changer le status object, et celui étape)
+					// A- checkConditions($arg, $affaire)
+					// B- Ne pas enlever le status s'il y a une autre commande
+					if (!empty(checkCommandeExist($affaire)) && checkCommandeExist($affaire) != $object->id) {
+						return 0;
+					}
+					
+					// Si l'on arrive là on peut enlever le status de l'étape
+					$steplabel = empty(getDolGlobalString('STEP_SALE_ORDER_FOR_WORKFLOW_'.$affaire->fk_workflow_type)) ? 'cmde' : getDolGlobalString('STEP_SALE_ORDER_FOR_WORKFLOW_'.$affaire->fk_workflow_type);
+					$error = change_status($affaire, 'no_status', '', $steplabel);
+					if (!$error) {
+						return 0;
+					} else {
+						return -1;
+					}
 				//case 'LINEORDER_INSERT':
 				//case 'LINEORDER_UPDATE':
 				//case 'LINEORDER_DELETE':
@@ -591,6 +823,41 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 				//case 'PROJECT_CREATE':
 				//case 'PROJECT_MODIFY':
 				//case 'PROJECT_DELETE':
+				case 'PROJECT_CLOSE':
+					if (getDolGlobalInt('WORKFLOW_2_PROJECT_CLOSED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_PROJECT_CLOSED_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+		
+						// 1 - Mettre à jour le status du project
+						$object->oldcopy = dol_clone($object, 2);
+		
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROJECT_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+		
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
 
 				// Project tasks
 				//case 'TASK_CREATE':
@@ -624,5 +891,57 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 		}
 
 		return 0;
+	}
+
+	public function orderCloseForReal($action, $object, User $user, Translate $langs, Conf $conf) {
+		$affaireID = getLinkedAff($object);
+		if ($affaireID) {
+			$affaire = new Affaire($object->db);
+			$res = $affaire->fetch($affaireID);
+		
+			if (getDolGlobalInt('WORKFLOW_2_ORDER_CLOSED_STATUS')) {
+				dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+				
+				$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_CLOSED_STATUS');
+				$status = fetchStatus($statusID);
+
+				// Check conditions (pour changer le status object, et celui étape)
+				// A- checkConditions($arg, $affaire)
+				// B- Ne pas changer le status s'il est inférieur à 200 (Ex:att régul)
+				$steplabel = empty(getDolGlobalString('STEP_SALE_ORDER_FOR_WORKFLOW_'.$affaire->fk_workflow_type)) ? 'cmde' : getDolGlobalString('STEP_SALE_ORDER_FOR_WORKFLOW_'.$affaire->fk_workflow_type);
+				$conditions = "TYPE:$steplabel:>=:200";
+				$valid = checkConditions($conditions, $affaire);
+				if (!$valid) {
+					return 0;
+				}
+
+				// 1 - Mettre à jour le status de la order
+				$object->oldcopy = dol_clone($object, 2);
+
+				$object->array_options["options_aff_status"] = $statusID;
+				$result = $object->updateExtraField('aff_status', 'ORDER_MODIFY');
+				if ($result < 0) {
+					setEventMessages($object->error, $object->errors, 'errors');
+					return -1;
+				}
+
+
+				// 2 - Mettre à jour le status de l'étape
+				// Check conditions (pour changer le status étape)
+				// A- checkConditions($arg, $affaire)
+				
+				// Si l'on arrive là on peut mettre à jour le status de l'étape
+				$error = change_status($affaire, $status, '', '', '', '', $object);
+				if (!$error) {
+					return 0;
+				} else {
+					return -1;
+				}
+			} else {
+				return 0;
+			}
+		} else {
+			return 0;
+		}
 	}
 }

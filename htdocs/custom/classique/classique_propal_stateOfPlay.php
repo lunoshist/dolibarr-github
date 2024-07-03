@@ -214,12 +214,9 @@ if (isModEnabled('affaire')) {
 		$defaultStepStatus = $affaireStep->fk_default_status;
 		$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
 
-
 		// Fetch status of affaire
 		$affaireStatus = $affaire->getStatus();
 		$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
-		
-
 
 		// Fetch affaire status of each step
 		$affaireStatusbyStep = $affaire->getAllStatus();
@@ -227,11 +224,11 @@ if (isModEnabled('affaire')) {
 
 
 		// Fetch this step
-		$thisStepName = 'Propal'; // <-- this and the name of file has to be modified when dictionnary change
+		$thisStepName = 'Propal'; // <-- this and the name of file have to be modified when dictionnary change
 		$thisStep = fetchStep(0, $thisStepName, $workflow);
 		$defaultStepStatus = $thisStep->fk_default_status;
 		$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
-		
+
 		// Fetch status of affaire for this step
 		$thisStatus = $affaireStatusbyStep[strtolower($thisStep->label_short)];
 		$INFO["Page"] .= "<br> > Status : ".($thisStatus->label ?? '')." [".($thisStatus->rowid ?? '')."]";
@@ -239,6 +236,7 @@ if (isModEnabled('affaire')) {
 		// Fetch all status of this step 
 		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire->fk_workflow_type);
 		
+
 
 		// Fetch status of object propal
 		if ($id) {
@@ -280,6 +278,8 @@ if (isModEnabled('affaire')) {
 			$action = '';
 		}
 	}
+
+	$INFO["Object"] .= "<br> > $object->ref [$id]";
 }
 
 // Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
@@ -322,14 +322,22 @@ if ($reshook < 0) {
 }
 
 if (empty($reshook)) {
-	$backurlforlist = DOL_URL_ROOT.'/comm/propal/list.php';
+	if ($affaire) {
+		$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+	} else {
+		if ($affaire) {
+			$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+		} else {
+			$backurlforlist = DOL_URL_ROOT.'/comm/propal/list.php';
+		}
+	}
 
 	if (empty($backtopage) || ($cancel && empty($id))) {
 		if (empty($backtopage) || ($cancel && strpos($backtopage, '__ID__'))) {
 			if (empty($id) && (($action != 'add' && $action != 'create') || $cancel)) {
 				$backtopage = $backurlforlist;
 			} else {
-				$backtopage = DOL_URL_ROOT.'/comm/propal/card.php?id='.((!empty($id) && $id > 0) ? $id : '__ID__');
+				$backtopage = $_SERVER["PHP_SELF"].'?id='.((!empty($id) && $id > 0) ? $id : '__ID__');
 			}
 		}
 	}
@@ -519,8 +527,14 @@ if (empty($reshook)) {
 		// Delete proposal
 		$result = $object->delete($user);
 		if ($result > 0) {
-			header('Location: '.$_SERVER["PHP_SELF"].'?affaire='.$affaire->id);
-			exit();
+			if ($affaire) {
+				$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+				header("Location: $backurlforlist");
+				exit;
+			} else {
+				header('Location: list.php?restore_lastsearch_values=1');
+				exit;
+			}
 		} else {
 			$langs->load("errors");
 			setEventMessages($object->error, $object->errors, 'errors');
@@ -3630,12 +3644,16 @@ if ($action == 'create') {
 				}
 
 				// Create an invoice and classify billed
-				if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INVOICE_FROM_PROPOSAL')) {
-					if ($object->statut == Propal::STATUS_SIGNED && !getDolGlobalString('PROPOSAL_ARE_NOT_BILLABLE')) {
+				if ($object->statut == Propal::STATUS_SIGNED && !getDolGlobalString('PROPOSAL_ARE_NOT_BILLABLE')) {
+					// Create invoice
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_INVOICE_FROM_PROPOSAL')) {
 						if (isModEnabled('invoice') && $usercancreateinvoice) {
 							print '<a class="butAction" href="'.DOL_URL_ROOT.'/compta/facture/card.php?action=create&origin='.$object->element.'&originid='.$object->id.'&socid='.$object->socid.'">'.$langs->trans("CreateBill").'</a>';
 						}
-
+					}
+					
+					// Classify billed
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CLASSIFY_BILLED_PROPOSAL')) {
 						$arrayofinvoiceforpropal = $object->getInvoiceArrayList();
 						if ((is_array($arrayofinvoiceforpropal) && count($arrayofinvoiceforpropal) > 0) || !getDolGlobalString('WORKFLOW_PROPAL_NEED_INVOICE_TO_BE_CLASSIFIED_BILLED')) {
 							if ($usercanclose) {
@@ -3684,9 +3702,9 @@ if ($action == 'create') {
 						$labeltoshow = $rstatus->label;
 						if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
 						if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
-							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 						} else {
-							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/classique/classique_propal_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+							$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 						}
 					}
 	
