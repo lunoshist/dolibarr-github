@@ -141,7 +141,7 @@ class modClassique extends DolibarrModules
 		// A condition to hide module
 		$this->hidden = getDolGlobalInt('MODULE_CLASSIQUE_DISABLED'); // A condition to disable module;
 		// List of module class names that must be enabled if this module is enabled. Example: array('always'=>array('modModuleToEnable1','modModuleToEnable2'), 'FR'=>array('modModuleToEnableFR')...)
-		$this->depends = array();
+		$this->depends = array('always'=>array('modAffaire'));
 		// List of module class names to disable if this one is disabled. Example: array('modModuleToDisable1', ...)
 		$this->requiredby = array();
 		// List of module class names this module is in conflict with. Example: array('modModuleToDisable1', ...)
@@ -166,7 +166,121 @@ class modClassique extends DolibarrModules
 		// Example: $this->const=array(1 => array('CLASSIQUE_MYNEWCONST1', 'chaine', 'myvalue', 'This is a constant to add', 1),
 		//                             2 => array('CLASSIQUE_MYNEWCONST2', 'chaine', 'myvalue', 'This is another constant to add', 0, 'current', 1)
 		// );
-		$this->const = array();
+		$this->const = array(
+			// --- GENERATE PROJECT --- //
+			0 => array('CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE', 'chaine', '1', 'CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE', 0, 'current', 0),
+			1 => array('USE_CMDE_REF_FOR_PROJECT_REF', 'chaine', '1', 'USE_CMDE_REF_FOR_PROJECT_REF', 0, 'current', 0),
+			2 => array('USE_PRODUCT_FOR_PROJECT_TITLE', 'chaine', '1', 'USE_PRODUCT_FOR_PROJECT_TITLE', 0, 'current', 0),
+			3 => array('GENERATED_PROJECT_ARE_PUBLIC', 'chaine', '0', 'GENERATED_PROJECT_ARE_PUBLIC', 0, 'current', 0),
+			4 => array('PROJECT_LEADER_MUST_BE_DEFINED', 'chaine', '1', 'PROJECT_LEADER_MUST_BE_DEFINED', 0, 'current', 0),
+			5 => array('USER_WHO_GENERATE_IS_LEADER_BY_DEFAULT', 'chaine', '0', 'USER_WHO_GENERATE_IS_LEADER_BY_DEFAULT', 0, 'current', 0),
+			6 => array('FORCE_LEADER_BY_DEFAULT', 'chaine', '0', 'FORCE_LEADER_BY_DEFAULT', 0, 'current', 0), // <--rowid of a user or __user__ to force current user
+			7 => array('ONLY_ONE_LEADER', 'chaine', '1', 'ONLY_ONE_LEADER', 0, 'current', 0),
+			8 => array('FORCE_ADD_EVERYONE_AS_CONTACT_ON_PROJECT_CREATION', 'chaine', '0', 'FORCE_ADD_EVERYONE_AS_CONTACT_ON_PROJECT_CREATION', 0, 'current', 0),
+			9 => array('FORCE_ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION', 'chaine', '7', 'FORCE_ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION', 0, 'current', 0), // <--id of the groupe to add
+			10 => array('FORCE_ADD_TO_TASK_BY_DEFAULT', 'chaine', '1', 'FORCE_ADD_TO_TASK_BY_DEFAULT', 0, 'current', 0),
+			11 => array('PRESELECTED_ADD_TO_TASK_BY_DEFAULT', 'chaine', '1', 'PRESELECTED_ADD_TO_TASK_BY_DEFAULT', 0, 'current', 0),
+			
+
+			// --- AFFAIRE --- //
+			// 12 => array('ASK_FOR_CONFIRMATION', 'chaine', '0', 'ASK_FOR_CONFIRMATION', 0, 'current', 0),
+
+
+			// --- WORKFLOW --- //
+			// --- STEP --- //
+			13 => array('STEP_AFFAIRE_FOR_WORKFLOW_2', 'chaine', 'affaire', 'STEP_AFFAIRE_FOR_WORKFLOW_2', 0, 'current', 0),
+			14 => array('STEP_PROPAL_FOR_WORKFLOW_2', 'chaine', 'propal', 'STEP_PROPAL_FOR_WORKFLOW_2', 0, 'current', 0),
+			15 => array('STEP_SALE_ORDER_FOR_WORKFLOW_2', 'chaine', 'cmde', 'STEP_SALE_ORDER_FOR_WORKFLOW_2', 0, 'current', 0),
+			16 => array('STEP_PROJECT_FOR_WORKFLOW_2', 'chaine', 'prod', 'STEP_PROJECT_FOR_WORKFLOW_2', 0, 'current', 0),
+			17 => array('STEP_PROD_FOR_WORKFLOW_2', 'chaine', 'prod', 'STEP_PROD_FOR_WORKFLOW_2', 0, 'current', 0),
+			18 => array('STEP_EXPE_FOR_WORKFLOW_2', 'chaine', 'expe', 'STEP_EXPE_FOR_WORKFLOW_2', 0, 'current', 0),
+			19 => array('STEP_INVOICE_FOR_WORKFLOW_2', 'chaine', 'facture', 'STEP_INVOICE_FOR_WORKFLOW_2', 0, 'current', 0),
+			
+			// --- PROPAL - STEP --- //
+			20 => array('TIME_BETWEEN_RELAUNCH', 'chaine', '14', 'TIME_BETWEEN_RELAUNCH', 0, 'current', 0), // <- IN DAY
+			21 => array('USE_AFFAIRE_THIRDPARTY_FOR_PROPAL', 'chaine', '1', 'USE_AFFAIRE_THIRDPARTY_FOR_PROPAL', 0, 'current', 0),
+			22 => array('USE_AFFAIRE_TITLE_FOR_PROPAL_REFCLIENT', 'chaine', '1', 'USE_AFFAIRE_TITLE_FOR_PROPAL_REFCLIENT', 0, 'current', 0),
+			23 => array('WORKFLOW_2_ALLOW_SEVERAL_PROPAL_SIGNED', 'chaine', '0', 'WORKFLOW_2_ALLOW_SEVERAL_PROPAL_SIGNED', 0, 'current', 0),
+			24 => array('WORKFLOW_2_CAN_CREATE_PROPAL_FROM_SCRATCH', 'chaine', '1', 'WORKFLOW_2_CAN_CREATE_PROPAL_FROM_SCRATCH', 0, 'current', 0),
+			25 => array('WORKFLOW_2_CAN_CREATE_PROFORMA_FROM_PROPOSAL', 'chaine', '72', 'WORKFLOW_2_CAN_CREATE_PROFORMA_FROM_PROPOSAL', 0, 'current', 0), // <--status proforma
+			26 => array('WORKFLOW_2_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL', 'chaine', '40', 'WORKFLOW_2_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL', 0, 'current', 0), // <--status signé
+			27 => array('WORKFLOW_2_CAN_CREATE_PURCHASE_ORDER_FROM_PROPOSAL', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_PURCHASE_ORDER_FROM_PROPOSAL', 0, 'current', 0),
+			28 => array('WORKFLOW_2_CAN_CREATE_INVOICE_FROM_PROPOSAL', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_INVOICE_FROM_PROPOSAL', 0, 'current', 0),
+			29 => array('WORKFLOW_2_CAN_CLASSIFY_BILLED_PROPOSAL', 'chaine', '1', 'WORKFLOW_2_CAN_CLASSIFY_BILLED_PROPOSAL', 0, 'current', 0),
+
+			// --- CMDE - STEP --- //
+			30 => array('MAIN_USE_PROPAL_REFCLIENT_FOR_ORDER', 'chaine', '1', 'MAIN_USE_PROPAL_REFCLIENT_FOR_ORDER', 0, 'current', 0), // priority over the next
+			31 => array('USE_AFFAIRE_THIRDPARTY_FOR_ORDER', 'chaine', '1', 'USE_AFFAIRE_THIRDPARTY_FOR_ORDER', 0, 'current', 0),
+			32 => array('USE_AFFAIRE_TITLE_FOR_ORDER_REFCLIENT', 'chaine', '1', 'USE_AFFAIRE_TITLE_FOR_ORDER_REFCLIENT', 0, 'current', 0),
+			33 => array('WORKFLOW_2_CAN_CREATE_SALE_ORDER_FROM_SCRATCH', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_SALE_ORDER_FROM_SCRATCH', 0, 'current', 0),
+			34 => array('WORKFLOW_2_CAN_CREATE_SALE_ORDER_FROM_SCRATCH_IF_NO_PROPAL', 'chaine', '1', 'WORKFLOW_2_CAN_CREATE_SALE_ORDER_FROM_SCRATCH_IF_NO_PROPAL', 0, 'current', 0),
+			35 => array('WORKFLOW_2_CAN_CREATE_PROD_FROM_ORDER', 'chaine', '49', 'WORKFLOW_2_CAN_CREATE_PROD_FROM_ORDER', 0, 'current', 0), // <--status production (pour la commande)
+			36 => array('WORKFLOW_2_CAN_CREATE_EXPE_FROM_ORDER', 'chaine', '1', 'WORKFLOW_2_CAN_CREATE_EXPE_FROM_ORDER', 0, 'current', 0),
+			37 => array('WORKFLOW_2_CAN_CREATE_INVOICE_FROM_ORDER', 'chaine', '1', 'WORKFLOW_2_CAN_CREATE_INVOICE_FROM_ORDER', 0, 'current', 0),
+			38 => array('WORKFLOW_2_CAN_CREATE_SUPLLIER_ORDER_FROM_ORDER', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_SUPLLIER_ORDER_FROM_ORDER', 0, 'current', 0),
+			39 => array('WORKFLOW_2_CAN_CREATE_INTERVENTION_FROM_ORDER', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_INTERVENTION_FROM_ORDER', 0, 'current', 0),
+			40 => array('WORKFLOW_2_CAN_CREATE_CONTRACT_FROM_ORDER', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_CONTRACT_FROM_ORDER', 0, 'current', 0),
+			41 => array('WORKFLOW_2_CAN_CLASSIFY_BILLED_ORDER', 'chaine', '1', 'WORKFLOW_2_CAN_CLASSIFY_BILLED_ORDER', 0, 'current', 0),
+			42 => array('WORKFLOW_2_CAN_CLASSIFY_SHIPPED_ORDER', 'chaine', '1', 'WORKFLOW_2_CAN_CLASSIFY_SHIPPED_ORDER', 0, 'current', 0),
+
+			// --- EXPE - STEP --- //
+			43 => array('WORKFLOW_2_CAN_CREATE_EXPE_FROM_SCRATCH', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_EXPE_FROM_SCRATCH', 0, 'current', 0),
+			44 => array('WORKFLOW_2_CAN_CREATE_INVOICE_FROM_EXPE', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_INVOICE_FROM_EXPE', 0, 'current', 0),
+			45 => array('WORKFLOW_2_CAN_CLASSIFY_BILLED_EXPE', 'chaine', '0', 'WORKFLOW_2_CAN_CLASSIFY_BILLED_EXPE', 0, 'current', 0),
+			
+			// --- FACTURE - STEP --- //
+			46 => array('WORKFLOW_2_CAN_CREATE_INVOICE_FROM_SCRATCH', 'chaine', '0', 'WORKFLOW_2_CAN_CREATE_INVOICE_FROM_SCRATCH', 0, 'current', 0),
+
+
+			// --- STATUS --- //
+			47 => array('WORKFLOW_2_AFFAIRE_CREATION_STATUS', 'chaine', '35', 'WORKFLOW_2_AFFAIRE_CREATION_STATUS', 0, 'current', 0),
+			48 => array('WORKFLOW_2_AFFAIRE_CLOSED_STATUS', 'chaine', '36', 'WORKFLOW_2_AFFAIRE_CLOSED_STATUS', 0, 'current', 0),
+
+			49 => array('WORKFLOW_2_PROPAL_DRAFT_STATUS', 'chaine', '37', 'WORKFLOW_2_PROPAL_DRAFT_STATUS', 0, 'current', 0),
+			50 => array('WORKFLOW_2_PROPAL_VALIDATED_STATUS', 'chaine', '38', 'WORKFLOW_2_PROPAL_VALIDATED_STATUS', 0, 'current', 0),
+			51 => array('WORKFLOW_2_PROPAL_SIGNED_STATUS', 'chaine', '40', 'WORKFLOW_2_PROPAL_SIGNED_STATUS', 0, 'current', 0),
+			52 => array('WORKFLOW_2_PROPAL_NOTSIGNED_STATUS', 'chaine', '41', 'WORKFLOW_2_PROPAL_NOTSIGNED_STATUS', 0, 'current', 0),
+			53 => array('WORKFLOW_2_PROPAL_BILLED_STATUS', 'chaine', '42', 'WORKFLOW_2_PROPAL_BILLED_STATUS', 0, 'current', 0),
+			54 => array('WORKFLOW_2_PROPAL_CANCELED_STATUS', 'chaine', '82', 'WORKFLOW_2_PROPAL_CANCELED_STATUS', 0, 'current', 0),
+
+			55 => array('WORKFLOW_2_ORDER_DRAFT_STATUS', 'chaine', '43', 'WORKFLOW_2_ORDER_DRAFT_STATUS', 0, 'current', 0),
+			56 => array('WORKFLOW_2_ORDER_VALIDATED_STATUS', 'chaine', '44', 'WORKFLOW_2_ORDER_VALIDATED_STATUS', 0, 'current', 0),
+			// 57 => array('WORKFLOW_2_ORDER_SHIPPED_STATUS', 'chaine', '0', 'WORKFLOW_2_ORDER_SHIPPED_STATUS', 0, 'current', 0),
+			// 58 => array('WORKFLOW_2_ORDER_BILLED_STATUS', 'chaine', '0', 'WORKFLOW_2_ORDER_BILLED_STATUS', 0, 'current', 0),
+			// 59 => array('WORKFLOW_2_ORDER_UNBILLED_STATUS', 'chaine', '0', 'WORKFLOW_2_ORDER_UNBILLED_STATUS', 0, 'current', 0),
+			60 => array('WORKFLOW_2_ORDER_CLOSED_STATUS', 'chaine', '54', 'WORKFLOW_2_ORDER_CLOSED_STATUS', 0, 'current', 0),
+			61 => array('WORKFLOW_2_ORDER_CANCELED_STATUS', 'chaine', '53', 'WORKFLOW_2_ORDER_CANCELED_STATUS', 0, 'current', 0),
+
+			// 62 => array('WORKFLOW_2_PROJECT_DRAFT_STATUS', 'chaine', '55', 'WORKFLOW_2_PROJECT_DRAFT_STATUS', 0, 'current', 0),
+			// 63 => array('WORKFLOW_2_PROJECT_OPEN_STATUS', 'chaine', '56', 'WORKFLOW_2_PROJECT_OPEN_STATUS', 0, 'current', 0),
+			64 => array('WORKFLOW_2_PROJECT_CLOSED_STATUS', 'chaine', '61', 'WORKFLOW_2_PROJECT_CLOSED_STATUS', 0, 'current', 0),
+
+			65 => array('WORKFLOW_2_PROD_FINISHED_STATUS', 'chaine', '60', 'WORKFLOW_2_PROD_FINISHED_STATUS', 0, 'current', 0),
+
+			66 => array('WORKFLOW_2_EXPEDITION_DRAFT_STATUS', 'chaine', '62', 'WORKFLOW_2_EXPEDITION_DRAFT_STATUS', 0, 'current', 0),
+			67 => array('WORKFLOW_2_EXPEDITION_VALIDATED_STATUS', 'chaine', '64', 'WORKFLOW_2_EXPEDITION_VALIDATED_STATUS', 0, 'current', 0),
+			// 68 => array('WORKFLOW_2_EXPEDITION_BILLED_STATUS', 'chaine', '0', 'WORKFLOW_2_EXPEDITION_BILLED_STATUS', 0, 'current', 0),
+			69 => array('WORKFLOW_2_EXPEDITION_CLOSED_STATUS', 'chaine', '70', 'WORKFLOW_2_EXPEDITION_CLOSED_STATUS', 0, 'current', 0),
+			70 => array('WORKFLOW_2_EXPEDITION_CANCELED_STATUS', 'chaine', '69', 'WORKFLOW_2_EXPEDITION_CANCELED_STATUS', 0, 'current', 0),
+			
+			71 => array('WORKFLOW_2_INVOICE_DRAFT_STATUS', 'chaine', '71', 'WORKFLOW_2_INVOICE_DRAFT_STATUS', 0, 'current', 0),
+			72 => array('WORKFLOW_2_INVOICE_VALIDATED_STATUS', 'chaine', '74', 'WORKFLOW_2_INVOICE_VALIDATED_STATUS', 0, 'current', 0),
+			73 => array('WORKFLOW_2_INVOICE_PAID_STATUS', 'chaine', '78', 'WORKFLOW_2_INVOICE_PAID_STATUS', 0, 'current', 0),
+			74 => array('WORKFLOW_2_INVOICE_ABANDONED_STATUS', 'chaine', '76', 'WORKFLOW_2_INVOICE_ABANDONED_STATUS', 0, 'current', 0),
+
+			// --- TRIGGER --- //
+			75 => array('WORKFLOW_2_ORDER_CLASSIFIED_BILLED_AUTOMATICLY_CLASSIFY_PROPAL_AS_BILLED', 'chaine', '1', 'WORKFLOW_2_ORDER_CLASSIFIED_BILLED_AUTOMATICLY_CLASSIFY_PROPAL_AS_BILLED', 0, 'current', 0),
+			76 => array('WORKFLOW_2_INVOICE_AMOUNT_CLASSIFY_BILLED_ORDER', 'chaine', '1', 'WORKFLOW_2_INVOICE_AMOUNT_CLASSIFY_BILLED_ORDER', 0, 'current', 0),
+			77 => array('WORKFLOW_2_SUM_INVOICES_AMOUNT_CLASSIFY_BILLED_ORDER', 'chaine', '1', 'WORKFLOW_2_SUM_INVOICES_AMOUNT_CLASSIFY_BILLED_ORDER', 0, 'current', 0),
+			78 => array('WORKFLOW_2_SHIPMENT_VALIDATED_AUTOMATICLY_CLASSIFY_ORDER_SHIPPED', 'chaine', '0', 'WORKFLOW_2_SHIPMENT_VALIDATED_AUTOMATICLY_CLASSIFY_ORDER_SHIPPED', 0, 'current', 0),
+			79 => array('WORKFLOW_2_SHIPMENT_CLOSED_AUTOMATICLY_CLASSIFY_ORDER_SHIPPED', 'chaine', '1', 'WORKFLOW_2_SHIPMENT_CLOSED_AUTOMATICLY_CLASSIFY_ORDER_SHIPPED', 0, 'current', 0),
+			80 => array('WORKFLOW_2_ORDER_CLASSIFIED_SHIPPED_AUTOMATICLY_CLASSIFY_PROJECT_CLOSED', 'chaine', '1', 'WORKFLOW_2_ORDER_CLASSIFIED_SHIPPED_AUTOMATICLY_CLASSIFY_PROJECT_CLOSED', 0, 'current', 0),
+			81 => array('WORKFLOW_2_ALL_TASKS_DONE_AUTOMATICLY_CLASSIFY_PROJECT_CLOSED', 'chaine', '0', 'WORKFLOW_2_ALL_TASKS_DONE_AUTOMATICLY_CLASSIFY_PROJECT_CLOSED', 0, 'current', 0),
+			
+			// --- BUG --- //
+			// 105 => array('MAIN_ENABLE_IMPORT_LINKED_OBJECT_LINES', 'chaine', '1', 'MAIN_ENABLE_IMPORT_LINKED_OBJECT_LINES', 0, 'current', 0),
+		);
+
 
 		// Some keys to add into the overwriting translation tables
 		/*$this->overwrite_translation = array(
