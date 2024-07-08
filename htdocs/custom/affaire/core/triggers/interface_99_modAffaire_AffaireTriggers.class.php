@@ -501,7 +501,60 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 				//case 'PROPAL_SENTBYMAIL':
 				case 'PROPAL_BILLED':
 				case 'PROPAL_CLASSIFY_BILLED':		// TODO Replace it with PROPAL_BILLED
+					if (getDolGlobalInt('WORKFLOW_2_PROPAL_BILLED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_PROPAL_BILLED_STATUS');
+						$status = fetchStatus($statusID);
 
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+						// B- Ne pas mettre l'étape à traité si une autre proposition est en cours
+						$array_of_propal = checkPropalExist($affaire);
+						if (is_array($array_of_propal)) {
+							foreach ($array_of_propal as $key => $propal) {
+								if  ($propal == $object->id) {
+									continue;
+								}
+								$sql = "SELECT aff_status FROM `llx_propal_extrafields` WHERE `fk_object` = ".$propal;
+								$resql = $object->db->query($sql);
+								if ($resql) {
+									$res = $object->db->fetch_object($resql);
+									$rStatus = fetchStatus($res->aff_status);
+			
+									if ($rStatus->fk_type < 200) {
+										setEventMessages('Une propal est toujours en cours', null, 'errors');
+										return -1;
+									}
+								}
+							}
+						}
+			
+						// 1 - Mettre à jour le status de la propal
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROPAL_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
 				//case 'PROPAL_CLASSIFY_UNBILLED':		// TODO Replace it with PROPAL_UNBILLED
 				case 'PROPAL_CLOSE_SIGNED':
 					if (getDolGlobalInt('WORKFLOW_2_PROPAL_SIGNED_STATUS')) {
@@ -694,11 +747,78 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 				// Bills
 				//case 'BILL_CREATE':
 				//case 'BILL_MODIFY':
-				//case 'BILL_VALIDATE':
-				//case 'BILL_UNVALIDATE':
+				case 'BILL_UNVALIDATE':		// ~ BILL_SET_DRAFT
+					if (getDolGlobalInt('WORKFLOW_2_INVOICE_DRAFT_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_INVOICE_DRAFT_STATUS');
+						$status = fetchStatus($statusID);
+			
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la facture
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'BILL_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+												
+						// Si l'on arrive là on peut mettre le status de l'étape à payé
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'BILL_UNPAYED':		// ~ BILL_REOPEN
+				case 'BILL_VALIDATE':
+					if (getDolGlobalInt('WORKFLOW_2_INVOICE_VALIDATED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_INVOICE_VALIDATED_STATUS');
+						$status = fetchStatus($statusID);
+			
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la facture
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'BILL_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+												
+						// Si l'on arrive là on peut mettre le status de l'étape à payé
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
 				//case 'BILL_SENTBYMAIL':
-				//case 'BILL_CANCEL':
-				//case 'BILL_DELETE':
 				case 'BILL_PAYED':
 					if (getDolGlobalInt('WORKFLOW_2_INVOICE_PAID_STATUS')) {
 						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
@@ -736,7 +856,7 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 									$res = $object->db->fetch_object($resql);
 									$rStatus = fetchStatus($res->aff_status);
 			
-									if ($rStatus->fk_type <= $status->fk_type) {
+									if ($rStatus->fk_type < 200) {
 										setEventMessages('Une facture est toujours en cours', null, 'warnings');
 										return 0;
 									}
@@ -753,6 +873,61 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 						}
 					} else {
 						break;
+					}
+				case 'BILL_CANCEL':
+					if (getDolGlobalInt('WORKFLOW_2_INVOICE_ABANDONED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_INVOICE_ABANDONED_STATUS');
+						$status = fetchStatus($statusID);
+			
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+			
+						// 1 - Mettre à jour le status de la facture
+						$object->oldcopy = dol_clone($object, 2);
+			
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'BILL_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+			
+			
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						// B- Ne pas mettre le status de l'étape à abandonnée s'il y a une autre facture
+						if (!empty(checkFactureExist($affaire)) && checkFactureExist($affaire) != $object->id) {
+							return 0;
+						}
+												
+						// Si l'on arrive là on peut mettre le status de l'étape à payé
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'BILL_DELETE':
+					// Check conditions (pour changer le status object, et celui étape)
+					// A- checkConditions($arg, $affaire)
+					// B- Ne pas enlever le status s'il y a une autre facture
+					if (!empty(checkFactureExist($affaire)) && checkFactureExist($affaire) != $object->id) {
+						return 0;
+					}
+					
+					// Si l'on arrive là on peut enlever le status de l'étape
+					$steplabel = empty(getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$affaire->fk_workflow_type)) ? 'expe' : getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$affaire->fk_workflow_type);
+					$error = change_status($affaire, 'no_status', '', $steplabel);
+					if (!$error) {
+						return 0;
+					} else {
+						return -1;
 					}
 				//case 'LINEBILL_INSERT':
 				//case 'LINEBILL_UPDATE':
@@ -819,10 +994,69 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 				//case 'CATEGORY_DELETE':
 				//case 'CATEGORY_SET_MULTILANGS':
 
+
+				// Project tasks
+				//case 'TASK_CREATE':
+				case 'TASK_DELETE':
+					// Delete link with object
+					$res = $object->deleteObjectLinked();
+					if ($res < 0) {
+						return -1;
+					} else {
+						return 0;
+					}
+				case 'TASK_MODIFY':
+					dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
+
+					$project = new Project($object->db);
+					if ($project->fetch($object->fk_project) > 0) {
+						if ($project->statut == Project::STATUS_VALIDATED) {
+							$project->getLinesArray(null); // this method does not return <= 0 if fails
+							$projectCompleted = array_reduce(
+								$project->lines,
+								/**
+								 * @param bool $allTasksCompleted
+								 * @param Task $task
+								 * @return bool
+								 */
+								static function ($allTasksCompleted, $task) {
+									return $allTasksCompleted && $task->progress >= 100;
+								},
+								1
+							);
+							if ($projectCompleted) {
+								$action = 'PROD_FINISHED';
+							} else {
+								return 0;
+							}
+						}
+					}
+				// Production
+				case 'PROD_FINISHED':
+					if (getDolGlobalInt('WORKFLOW_2_PROD_FINISHED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_PROD_FINISHED_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+
 				// Projects
 				//case 'PROJECT_CREATE':
 				//case 'PROJECT_MODIFY':
-				//case 'PROJECT_DELETE':
 				case 'PROJECT_CLOSE':
 					if (getDolGlobalInt('WORKFLOW_2_PROJECT_CLOSED_STATUS')) {
 						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
@@ -858,11 +1092,21 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 					} else {
 						break;
 					}
+				case 'PROJECT_DELETE':
+					// Delete linked object
+					$res = $object->deleteObjectLinked();
+					if ($res < 0) {
+						return -1;
+					}
 
-				// Project tasks
-				//case 'TASK_CREATE':
-				//case 'TASK_MODIFY':
-				//case 'TASK_DELETE':
+					// Si l'on arrive là on peut enlever le status de l'étape
+					$steplabel = empty(getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$affaire->fk_workflow_type)) ? 'prod' : getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$affaire->fk_workflow_type);
+					$error = change_status($affaire, 'no_status', '', $steplabel);
+					if (!$error) {
+						return 0;
+					} else {
+						return -1;
+					}
 
 				// Task time spent
 				//case 'TASK_TIMESPENT_CREATE':
@@ -875,12 +1119,220 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 				// Shipping
 				//case 'SHIPPING_CREATE':
 				//case 'SHIPPING_MODIFY':
-				//case 'SHIPPING_VALIDATE':
+				case 'SHIPPING_SET_DRAFT':
+				case 'SHIPMENT_UNVALIDATE':
+					if (getDolGlobalInt('WORKFLOW_2_EXPEDITION_DRAFT_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_EXPEDITION_DRAFT_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+		
+						// 1 - Mettre à jour le status du project
+						$object->oldcopy = dol_clone($object, 2);
+		
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROJECT_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+		
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'SHIPPING_REOPEN':
+				case 'SHIPPING_VALIDATE':
+					if (getDolGlobalInt('WORKFLOW_2_EXPEDITION_VALIDATED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_EXPEDITION_VALIDATED_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+		
+						// 1 - Mettre à jour le status du project
+						$object->oldcopy = dol_clone($object, 2);
+		
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROJECT_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+		
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
 				//case 'SHIPPING_SENTBYMAIL':
-				//case 'SHIPPING_BILLED':
-				//case 'SHIPPING_CLOSED':
-				//case 'SHIPPING_REOPEN':
-				//case 'SHIPPING_DELETE':
+				case 'SHIPPING_BILLED':
+					if (getDolGlobalInt('WORKFLOW_2_EXPEDITION_BILLED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_EXPEDITION_BILLED_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+		
+						// 1 - Mettre à jour le status du project
+						$object->oldcopy = dol_clone($object, 2);
+		
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROJECT_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+		
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'SHIPPING_CLOSED':
+					if (getDolGlobalInt('WORKFLOW_2_EXPEDITION_CLOSED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_EXPEDITION_CLOSED_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+		
+						// 1 - Mettre à jour le status du project
+						$object->oldcopy = dol_clone($object, 2);
+		
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROJECT_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+		
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						// B- Ne pas mettre l'étape à clôturé si une autre expedition est en cours
+						$array_of_expe = checkExpeExist($affaire);
+						if (is_array($array_of_expe)) {
+							foreach ($array_of_expe as $key => $expe) {
+								if  ($expe == $object->id) {
+									continue;
+								}
+								$sql = "SELECT aff_status FROM `llx_expedition_extrafields` WHERE `fk_object` = ".$expe;
+								$resql = $object->db->query($sql);
+								if ($resql) {
+									$res = $object->db->fetch_object($resql);
+									$rStatus = fetchStatus($res->aff_status);
+			
+									if ($rStatus->fk_type < 200) {
+										// setEventMessages('Une expe est toujours en cours !', null, 'mesgs');
+										return -1;
+									}
+								}
+							}
+						}
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'SHIPPING_CANCEL':
+					if (getDolGlobalInt('WORKFLOW_2_EXPEDITION_CANCELED_STATUS')) {
+						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
+						
+						$statusID = getDolGlobalInt('WORKFLOW_2_EXPEDITION_CANCELED_STATUS');
+						$status = fetchStatus($statusID);
+		
+						// Check conditions (pour changer le status object, et celui étape)
+						// A- checkConditions($arg, $affaire)
+		
+						// 1 - Mettre à jour le status du project
+						$object->oldcopy = dol_clone($object, 2);
+		
+						$object->array_options["options_aff_status"] = $statusID;
+						$result = $object->updateExtraField('aff_status', 'PROJECT_MODIFY');
+						if ($result < 0) {
+							setEventMessages($object->error, $object->errors, 'errors');
+							return -1;
+						}
+		
+		
+						// 2 - Mettre à jour le status de l'étape
+						// Check conditions (pour changer le status étape)
+						// A- checkConditions($arg, $affaire)
+						
+						// Si l'on arrive là on peut mettre à jour le status de l'étape
+						$error = change_status($affaire, $status, '', '', '', '', $object);
+						if (!$error) {
+							return 0;
+						} else {
+							return -1;
+						}
+					} else {
+						break;
+					}
+				case 'SHIPPING_DELETE':
+					// Check conditions (pour changer le status object, et celui étape)
+					// A- checkConditions($arg, $affaire)
+					// B- Ne pas enlever le status s'il y a une autre expedition
+					if (!empty(checkExpeExist($affaire)) && checkExpeExist($affaire) != $object->id) {
+						return 0;
+					}
+					
+					// Si l'on arrive là on peut enlever le status de l'étape
+					$steplabel = empty(getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$affaire->fk_workflow_type)) ? 'expe' : getDolGlobalString('STEP_EXPE_FOR_WORKFLOW_'.$affaire->fk_workflow_type);
+					$error = change_status($affaire, 'no_status', '', $steplabel);
+					if (!$error) {
+						return 0;
+					} else {
+						return -1;
+					}
 
 				// and more...
 

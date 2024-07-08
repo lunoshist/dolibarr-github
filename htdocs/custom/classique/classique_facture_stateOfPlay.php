@@ -18,6 +18,7 @@
  * Copyright (C) 2022       Gauthier VERDOL         <gauthier.verdol@atm-consulting.fr>
  * Copyright (C) 2023		Nick Fragoulis
  * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024	   Lucas Noirie			 	<lunoshist@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,8 +35,8 @@
  */
 
 /**
- * \file 	htdocs/compta/facture/card.php
- * \ingroup facture
+ * \file 	htdocs/custom/classique/classique_facture_stateOfPlay.php
+ * \ingroup affaire
  * \brief 	Page to create/see an invoice
  */
 
@@ -143,19 +144,11 @@ if (isModEnabled('affaire')) {
 
 
 	// Workflow
-	$workflow_array = array();
-	// $workflow = (object)array("rowid"=>2, "label"=>'classique');
-	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
-	$resql = $db->query($sql);
-	if ($resql) {
-		$res = $db->fetch_object($resql);
-		$workflow_array["rowid"] = $res->rowid;
-		$workflow_array["label"] = $res->label;
-		$workflow = (object)$workflow_array;
-	} else {
-		dol_print_error($db);
-	}
+	$modName = 'Classique';
+	$workflow = fetchWorkflow($modName);
 	$INFO["Workflow"] .= "<br> > $workflow->label [$workflow->rowid]";
+
+
 
 	// Get affaire
 	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
@@ -188,7 +181,6 @@ if (isModEnabled('affaire')) {
 		}
 	}
 	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
-	$INFO["Banner"]["ref"] = $affaire->ref;
 	
 
 	// Get the facture linked to the affaire 
@@ -226,7 +218,6 @@ if (isModEnabled('affaire')) {
 	} else if ($id) {
 		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["facture"]).")  :  ";
 	}
-	
 
 	// load facture
 	$object = new Facture($db);
@@ -248,117 +239,36 @@ if (isModEnabled('affaire')) {
 	$INFO["Object"] .= "<br> > $object->ref [$id]";
 
 
+
 	if ($affaire) {
 		// Fetch step of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStep = $db->fetch_object($resql);
-				$defaultStepStatus = $affaireStep->fk_default_status;
-				// var_dump($affaireStep);
-				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
-				$INFO["Banner"]["step"] = $affaireStep;
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStep = $affaire->getStep();
+		$defaultStepStatus = $affaireStep->fk_default_status;
+		$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
 
 		// Fetch status of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatus = $db->fetch_object($resql);
-				// var_dump($affaireStatus);
-				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
-				$INFO["Banner"]["status"] = $affaireStatus;
-			} else {
-				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				$INFO["Affaire"] .= "<br> > aff_Status: NoSuchStatusForThisStepInThisWorkflow";
-			}
-		} else {
-			dol_print_error($db);
-		}
-
+		$affaireStatus = $affaire->getStatus();
+		$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
 
 		// Fetch affaire status of each step
-		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatusbyStep = $db->fetch_object($resql);
-			} else {
-				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStatusbyStep = $affaire->getAllStatus();
+
 
 
 		// Fetch this step
 		$thisStepName = 'Facture'; // <-- this has to be modified when dictionnary change
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStep = $db->fetch_object($resql);
-				$defaultStepStatus = $thisStep->fk_default_status;
-				// var_dump($thisStep);
-				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				
-				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
-		
-		// Fetch all status of this step : facture
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
-		$resql = $db->query($sql);
-		if ($resql) {
-			$thisStatusArray = array();
-			if ($resql->num_rows > 0) {
-				while ($res = $db->fetch_object($resql)) {
-					$thisStatusArray[$res->rowid] = $res;
-				}
-			} else {
-				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
+		$thisStep = fetchStep(0, $thisStepName, $workflow);
+		$defaultStepStatus = $thisStep->fk_default_status;
+		$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
 
 		// Fetch status of affaire for this step
-		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
-		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
-		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStatus = $db->fetch_object($resql);
-				// var_dump($thisStatus);
-				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
-			} else {
-				if ($action == ('add' || 'create')) {
-					//setEventMessages($langs->trans("FactureNotCreated - NoStatus"), null, 'mesgs');
-				} else {
-					setEventMessages($langs->trans("FactureHasNoStatus"), null, 'errors');
-				}
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$thisStatus = $affaireStatusbyStep[strtolower($thisStep->label_short)];
+		$INFO["Page"] .= "<br> > Status : ".($thisStatus->label ?? '')." [".($thisStatus->rowid ?? '')."]";
+
+		// Fetch all status of this step 
+		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire->fk_workflow_type);
+
+
 
 		// Fetch status of object facture
 		if ($id) {
@@ -367,10 +277,10 @@ if (isModEnabled('affaire')) {
 			if ($resql) {
 				if ($resql->num_rows > 0) {
 					$ObjectStatus = $db->fetch_object($resql);
-					$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
-					// var_dump($ObjectStatus);
-					// print(json_encode($ObjectStatus, JSON_PRETTY_PRINT));
-					$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+					if ($ObjectStatus->aff_status) {
+						$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
+						$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+					}
 				} else {
 					$INFO["Object"] .= "<br> > No Status";
 				}
@@ -460,14 +370,18 @@ if ($reshook < 0) {
 }
 
 if (empty($reshook)) {
-	$backurlforlist = DOL_URL_ROOT.'/compta/facture/list.php';
+	if ($affaire) {
+		$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+	} else {
+		$backurlforlist = DOL_URL_ROOT.'/compta/facture/list.php';
+	}
 
 	if (empty($backtopage) || ($cancel && empty($id))) {
 		if (empty($backtopage) || ($cancel && strpos($backtopage, '__ID__'))) {
 			if (empty($id) && (($action != 'add' && $action != 'create') || $cancel)) {
 				$backtopage = $backurlforlist;
 			} else {
-				$backtopage = DOL_URL_ROOT.'/compta/facture/card.php?id='.((!empty($id) && $id > 0) ? $id : '__ID__');
+				$backtopage = $_SERVER["PHP_SELF"].'?id='.((!empty($id) && $id > 0) ? $id : '__ID__');
 			}
 		}
 	}
@@ -501,389 +415,20 @@ if (empty($reshook)) {
 
 		// Change object status ($facture->aff_status & Facture::STATUS)
 		if ($status_for == 'both' || $status_for == 'object') {
-			$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
-			$resql = $db->query($sql);
-			if ($resql) {
-				$obj = $db->fetch_object($resql);
-				$code = intval($obj->fk_type);
-				$soc= $object->thirdparty;
-				
-				if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('FACTURE_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
-					switch (true) {
-						case ($code < 0):
-							// CANCELED
-							$confirm = GETPOST('confirm', 'aZ09');
-							if (!$confirm) {
-								$action = 'chstatus_confirm_canceled';
-								$error = 'need_confirm';
-							} else if ($confirm == 'yes') {
-								$object->fetch($id);
-								$close_code = GETPOST("close_code", 'restricthtml');
-								$close_note = GETPOST("close_note", 'restricthtml');
-								if ($close_code) {
-									$result = $object->setCanceled($user, $close_code, $close_note);
-									if ($result < 0) {
-										$error = $object->error;
-									}
-								} else {
-									$error = $langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Reason"));
-								}
-							}
+			$object->oldcopy = dol_clone($object, 2);
+			$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
 
-							break;
-						case (0 <= $code && $code <= 99):
-							// DRAFT
-							if ($object->status == Facture::STATUS_VALIDATED && $usercanunvalidate) {
-								$confirm = GETPOST('confirm', 'aZ09');
-								if (!$confirm) {							
-									// We check if lines of invoice are not already transferred into accountancy
-									$ventilExportCompta = $object->getVentilExportCompta();
-
-									if ($ventilExportCompta == 0) {
-										$totalpaid = $object->getSommePaiement();
-										$totalcreditnotes = $object->getSumCreditNotesUsed();
-										$totaldeposits = $object->getSumDepositsUsed();
-										//print "totalpaid=".$totalpaid." totalcreditnotes=".$totalcreditnotes." totaldeposts=".$totaldeposits."
-										// selleruserrevenuestamp=".$selleruserevenustamp;
-
-										// We can also use bcadd to avoid pb with floating points
-										// For example print 239.2 - 229.3 - 9.9; does not return 0.
-										$resteapayer = price2num($object->total_ttc - $totalpaid - $totalcreditnotes - $totaldeposits, 'MT');
-
-										// Multicurrency
-										if (isModEnabled('multicurrency')) {
-											$multicurrency_totalpaid = $object->getSommePaiement(1);
-											$multicurrency_totalcreditnotes = $object->getSumCreditNotesUsed(1);
-											$multicurrency_totaldeposits = $object->getSumDepositsUsed(1);
-											$multicurrency_resteapayer = price2num($object->multicurrency_total_ttc - $multicurrency_totalpaid - $multicurrency_totalcreditnotes - $multicurrency_totaldeposits, 'MT');
-											// Code to fix case of corrupted data
-											// TODO We should not need this. Also data comes from a not reliable value of $object->multicurrency_total_ttc that may be wrong if it was
-											// calculated by summing lines that were in a currency for some of them and into another for others (lines from discount/down payment into another currency for example)
-											if ($resteapayer == 0 && $multicurrency_resteapayer != 0 && $object->multicurrency_code != $conf->currency) {
-												$resteapayer = price2num((float) $multicurrency_resteapayer / $object->multicurrency_tx, 'MT');
-											}
-										}
-
-										if ($object->paye) {
-											$resteapayer = 0;
-										}
-										$resteapayeraffiche = $resteapayer;
-										
-										if (getDolGlobalString('INVOICE_CAN_BE_EDITED_EVEN_IF_PAYMENT_DONE') || ($resteapayer == price2num($object->total_ttc, 'MT', 1) && empty($object->paye))) {
-											$objectidnext = $object->getIdReplacingInvoice();
-											if (!$objectidnext && $object->is_last_in_cycle()) {
-												if ($usercanunvalidate) {
-													$action = 'chstatus_confirm_setdraft';
-													$error = 'need_confirm';
-												} else {
-													$error = $langs->trans('NotEnoughPermissions');
-												}
-											} elseif (!$object->is_last_in_cycle()) {
-												$error = $langs->trans('NotLastInCycle');
-											} else {
-												$error = $langs->trans('DisabledBecauseReplacedInvoice');
-											}
-										}
-									} else {
-										$error = $langs->trans('DisabledBecauseDispatchedInBookkeeping');
-									}
-								} else if ($confirm == 'yes') {
-									// Go back to draft status (unvalidate)
-									$idwarehouse = GETPOSTINT('idwarehouse');
-
-									$object->fetch($id);
-									$object->fetch_thirdparty();
-
-									// Check parameters
-									if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
-										$qualified_for_stock_change = 0;
-										if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-											$qualified_for_stock_change = $object->hasProductsOrServices(2);
-										} else {
-											$qualified_for_stock_change = $object->hasProductsOrServices(1);
-										}
-
-										if ($qualified_for_stock_change) {
-											if (!$idwarehouse || $idwarehouse == - 1) {
-												$error++;
-												setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
-												$action = '';
-											}
-										}
-									}
-
-									if (!$error) {
-										// We check if invoice has payments
-										$totalpaid = 0;
-										$sql = 'SELECT pf.amount';
-										$sql .= ' FROM '.MAIN_DB_PREFIX.'paiement_facture as pf';
-										$sql .= ' WHERE pf.fk_facture = '.((int) $object->id);
-
-										$result = $db->query($sql);
-										if ($result) {
-											$i = 0;
-											$num = $db->num_rows($result);
-
-											while ($i < $num) {
-												$objp = $db->fetch_object($result);
-												$totalpaid += $objp->amount;
-												$i++;
-											}
-										} else {
-											dol_print_error($db, '');
-										}
-
-										$resteapayer = $object->total_ttc - $totalpaid;
-
-										// We check that invoice lines are transferred into accountancy
-										$ventilExportCompta = $object->getVentilExportCompta();
-
-										// We check if no payment has been made
-										if ($ventilExportCompta == 0) {
-											if (getDolGlobalString('INVOICE_CAN_BE_EDITED_EVEN_IF_PAYMENT_DONE') || ($resteapayer == $object->total_ttc && empty($object->paye))) {
-												$result = $object->setDraft($user, $idwarehouse);
-												if ($result < 0) {
-													setEventMessages($object->error, $object->errors, 'errors');
-												}
-
-												// Define output language
-												if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-													$outputlangs = $langs;
-													$newlang = '';
-													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-														$newlang = GETPOST('lang_id', 'aZ09');
-													}
-													if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-														$newlang = $object->thirdparty->default_lang;
-													}
-													if (!empty($newlang)) {
-														$outputlangs = new Translate("", $conf);
-														$outputlangs->setDefaultLang($newlang);
-														$outputlangs->load('products');
-													}
-													$model = $object->model_pdf;
-													$ret = $object->fetch($id); // Reload to get new records
-
-													$object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-												}
-											}
-										}
-									}
-								}
-							} else if ($object->statut != Facture::STATUS_DRAFT) {
-								$error = "Impossible mettre le status à $obj->label (System status : Facture::STATUS_DRAFT) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
-							}
-							break;
-						case (100 <= $code && $code <= 199):
-							// REOPEN
-							if ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT)
-								|| ($object->type == Facture::TYPE_CREDIT_NOTE && empty($discount->id))
-								|| ($object->type == Facture::TYPE_DEPOSIT && empty($discount->id))
-								|| ($object->type == Facture::TYPE_SITUATION && empty($discount->id)))
-								&& ($object->status == Facture::STATUS_CLOSED || $object->status == Facture::STATUS_ABANDONED || ($object->status == 1 && $object->paye == 1))   // Condition ($object->status == 1 && $object->paye == 1) should not happened but can be found due to corrupted data
-								&& ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $usercancreate) || $usercanreopen)) {				// A paid invoice (partially or completely)
-								
-								if ($object->close_code != 'replaced' || (!$objectidnext)) { 				// Not replaced by another invoice or replaced but the replacement invoice has been deleted
-									$result = $object->fetch($id);
-
-									if ($object->status == Facture::STATUS_CLOSED || ($object->status == Facture::STATUS_ABANDONED && ($object->close_code != 'replaced' || $object->getIdReplacingInvoice() == 0)) || ($object->status == Facture::STATUS_VALIDATED && $object->paye == 1)) {    // ($object->status == 1 && $object->paye == 1) should not happened but can be found when data are corrupted
-										$result = $object->setUnpaid($user);
-										if ($result > 0) {
-											break;
-										} else {
-											$error = $object->error;
-										}
-									}
-								} else {
-									$error = $langs->trans("DisabledBecauseReplacedInvoice");
-								}
-							}
-							// VALIDATED
-							else if ($object->status == Facture::STATUS_DRAFT && count($object->lines) > 0 && ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA || $object->type == Facture::TYPE_SITUATION) && (getDolGlobalString('FACTURE_ENABLE_NEGATIVE') || $object->total_ttc >= 0)) || ($object->type == Facture::TYPE_CREDIT_NOTE && $object->total_ttc <= 0)) && $usercanvalidate) {
-								$confirm = GETPOST('confirm', 'aZ09');
-								if (!$confirm) {
-									$object->fetch($id);
-
-									if ((preg_match('/^[\(]?PROV/i', $object->ref) || empty($object->ref)) &&	// empty should not happened, but when it occurs, the test save life
-										getDolGlobalString('FAC_FORCE_DATE_VALIDATION')								// If option enabled, we force invoice date
-									) {
-										$object->date = dol_now();
-									}
-
-									if (getDolGlobalString('INVOICE_CHECK_POSTERIOR_DATE')) {
-										$last_of_type = $object->willBeLastOfSameType(true);
-										if (empty($object->date_validation) && !$last_of_type[0]) {
-											$error = $langs->transnoentities("ErrorInvoiceIsNotLastOfSameType", $object->ref, dol_print_date($object->date, 'day'), dol_print_date($last_of_type[1], 'day'));
-										}
-									}
-
-									// We check invoice sign
-									if ($object->type == Facture::TYPE_CREDIT_NOTE) {
-										// If a credit note, the sign must be negative
-										if ($object->total_ht > 0) {
-											$error = $langs->trans("ErrorInvoiceAvoirMustBeNegative");
-										}
-									} else {
-										// If not a credit note, amount with tax must be positive or nul.
-										// Note that amount excluding tax can be negative because you can have a invoice of 100 with vat of 20 that
-										// consumes a credit note of 100 with vat 0 (total with tax is 0 but without tax is -20).
-										// For some cases, credit notes can have a vat of 0 (for example when selling goods in France).
-										if (!getDolGlobalString('FACTURE_ENABLE_NEGATIVE') && $object->total_ttc < 0) {
-											$error = $langs->trans("ErrorInvoiceOfThisTypeMustBePositive");
-										}
-
-										// Also negative lines should not be allowed on 'non Credit notes' invoices. A test is done when adding or updating lines but we must
-										// do it again in validation to avoid cases where invoice is created from another object that allow negative lines.
-										// Note that we can accept the negative line if sum with other lines with same vat makes total positive: Because all the lines will be merged together
-										// when converted into 'available credit' and we will get a positive available credit line.
-										// Note: Other solution if you want to add a negative line on invoice, is to create a discount for customer and consumme it (but this is possible on standard invoice only).
-										$array_of_total_ht_per_vat_rate = array();
-										$array_of_total_ht_devise_per_vat_rate = array();
-										foreach ($object->lines as $line) {
-											//$vat_src_code_for_line = $line->vat_src_code;		// TODO We check sign of total per vat without taking into account the vat code because for the moment the vat code is lost/unknown when we add a down payment.
-											$vat_src_code_for_line = '';
-											if (empty($array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line])) {
-												$array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] = 0;
-											}
-											if (empty($array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line])) {
-												$array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] = 0;
-											}
-											$array_of_total_ht_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] += $line->total_ht;
-											$array_of_total_ht_devise_per_vat_rate[$line->tva_tx.'_'.$vat_src_code_for_line] += $line->multicurrency_total_ht;
-										}
-
-										//var_dump($array_of_total_ht_per_vat_rate);exit;
-										foreach ($array_of_total_ht_per_vat_rate as $vatrate => $tmpvalue) {
-											$tmp_total_ht = price2num($array_of_total_ht_per_vat_rate[$vatrate]);
-											$tmp_total_ht_devise = price2num($array_of_total_ht_devise_per_vat_rate[$vatrate]);
-
-											if (($tmp_total_ht < 0 || $tmp_total_ht_devise < 0) && !getDolGlobalString('FACTURE_ENABLE_NEGATIVE_LINES')) {
-												if ($object->type == $object::TYPE_DEPOSIT) {
-													$langs->load("errors");
-													// Using negative lines on deposit lead to headach and blocking problems when you want to consume them.
-													$error = $langs->trans("ErrorLinesCantBeNegativeOnDeposits");
-												} else {
-													$tmpvatratetoshow = explode('_', $vatrate);
-													$tmpvatratetoshow[0] = round((float) $tmpvatratetoshow[0], 2);
-
-													if ($tmpvatratetoshow[0] != 0) {
-														$langs->load("errors");
-														$error = $langs->trans("ErrorLinesCantBeNegativeForOneVATRate", $tmpvatratetoshow[0]);
-													}
-												}
-											}
-										}
-									}
-
-									if ($action == 'changeStatus' && !$error) {
-										$action = 'chstatus_confirm_validate';
-										$error = 'need_confirm';
-									}
-								} else if ($confirm == 'yes') {
-									// Classify to validated
-									$idwarehouse = GETPOSTINT('idwarehouse');
-
-									$object->fetch($id);
-									$object->fetch_thirdparty();
-
-									// Check for warehouse
-									if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
-										$qualified_for_stock_change = 0;
-										if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-											$qualified_for_stock_change = $object->hasProductsOrServices(2);
-										} else {
-											$qualified_for_stock_change = $object->hasProductsOrServices(1);
-										}
-
-										if ($qualified_for_stock_change) {
-											if (!$idwarehouse || $idwarehouse == - 1) {
-												$error++;
-												setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv("Warehouse")), null, 'errors');
-												$action = '';
-											}
-										}
-									}
-
-									if (!$error) {
-										$result = $object->validate($user, '', $idwarehouse);
-										if ($result >= 0) {
-											// Define output language
-											if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-												$outputlangs = $langs;
-												$newlang = '';
-												if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-													$newlang = GETPOST('lang_id', 'aZ09');
-												}
-												if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-													$newlang = $object->thirdparty->default_lang;
-												}
-												if (!empty($newlang)) {
-													$outputlangs = new Translate("", $conf);
-													$outputlangs->setDefaultLang($newlang);
-													$outputlangs->load('products');
-												}
-												$model = $object->model_pdf;
-
-												$ret = $object->fetch($id); // Reload to get new records
-
-												$result = $object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-												if ($result < 0) {
-													setEventMessages($object->error, $object->errors, 'errors');
-												}
-											}
-										} else {
-											if (count($object->errors)) {
-												setEventMessages(null, $object->errors, 'errors');
-											} else {
-												setEventMessages($object->error, $object->errors, 'errors');
-											}
-										}
-									}
-								}
-							} else if ($object->total_ttc <= 0 || count($object->lines) < 0) {
-								$error = "Impossible mettre le status à $obj->label (System status : Facture::STATUS_VALIDATED) car elle ne contient pas de ligne ";
-							} else if ($object->statut != Facture::STATUS_VALIDATED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Facture::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut);
-							}
-							break;
-						case (200 <= $code && $code <= 299):
-							// 
-							
-							break;
-						case (300 <= $code && $code <= 399):
-							// CLOSED
-							
-							break;
-					}
-				}
-
-				if (empty($error)) {
-					$object->oldcopy = dol_clone($object, 2);
-					$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
-
-					$object->array_options["options_".$attribute_name] = $newStatus;
-					$result = $object->updateExtraField($attribute_name, 'FACTURE_MODIFY');
-					if ($result < 0) {
-						setEventMessages($object->error, $object->errors, 'errors');
-						$error--;
-					}
-					if ($error) {
-						$action = 'edit_extras';
-					}
-				}
-			} else {
-				$error = $langs->trans("StatusNotFound");
+			$object->array_options["options_".$attribute_name] = $newStatus;
+			$result = $object->updateExtraField($attribute_name, 'FACTURE_MODIFY');
+			if ($result < 0) {
+				setEventMessages($object->error, $object->errors, 'errors');
+				$error--;
 			}
-
-			if (empty($error) && $close_window) {
-				echo "<script>window.close();</script>";
+			if ($error) {
+				$action = 'edit_extras';
 			}
 		}
 		
-		if ($error && $error != 'need_confirm') {
-			setEventMessages($error, null, 'errors');
-		}
-
 		// Change affaire status (llx_affaire_affaire_status & llx_affaire_affaire)
 		if ($status_for == 'both' || $status_for == 'step') {
 			if (empty($error)) {
@@ -900,9 +445,6 @@ if (empty($reshook)) {
 		$path = $_SERVER["PHP_SELF"].'?id='.$id;
 		$path .= $affaire ? "&affaire=$affaire->id" : '';
 		$path .= ($action == 'edit_extras') ? "&action=$action&attribute_name=$attribute_name" : '';
-		if (preg_match('/^chstatus_confirm_(.*)/', $action, $matches)) {
-			$path .= "&action=$action&newStatus=$newStatus&status_for=$status_for&close_window=$close_window";
-		}
 		header('Location: '.$path);
 		exit;
 	} else if ($action == 'changeStatus') {
@@ -1012,8 +554,14 @@ if (empty($reshook)) {
 			|| ($usercancreate && $isErasable == 1)) {
 			$result = $object->delete($user, 0, $idwarehouse);
 			if ($result > 0) {
-				header('Location: '.DOL_URL_ROOT.'/compta/facture/list.php?restore_lastsearch_values=1');
-				exit();
+				if ($affaire) {
+					$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+					header("Location: $backurlforlist");
+					exit;
+				} else {
+					header('Location: '.DOL_URL_ROOT.'/compta/facture/list.php?restore_lastsearch_values=1');
+					exit();
+				}
 			} else {
 				setEventMessages($object->error, $object->errors, 'errors');
 				$action = '';
@@ -3897,6 +3445,21 @@ injectOpenUrlsScript();
 // Mode creation
 
 if ($action == 'create') {
+	$fact = checkFactureExist($affaire);
+	if (!empty($fact)) {
+		if (is_array($fact)) {
+			setEventMessages("Plusieurs factures exitent déjà !!!", null, 'warnings');
+			// TODO check if there is a proforma
+		}
+		if ($fact < 0) {
+			$error = "ERROR SQL : ".$affaire->db->lasterror();
+		}
+		if ($fact > 0) {
+			setEventMessages('Une facture existe déjà', null, 'warnings');
+			// TODO check if it's a proforma
+		}
+	}
+
 	$facturestatic = new Facture($db);
 	$extrafields->fetch_name_optionals_label($facturestatic->table_element);
 
@@ -5258,89 +4821,6 @@ if ($action == 'create') {
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id, $langs->trans('ValidateBill'), $text, 'confirm_valid', $formquestion, (($object->type != Facture::TYPE_CREDIT_NOTE && $object->total_ttc < 0) ? "no" : "yes"), 2);
 	}
 
-	// Confirmation of validation when aff status change
-	if ($action == 'chstatus_confirm_validate') {
-		$newStatus = GETPOSTINT('newStatus');
-		$close_window = GETPOSTINT('close_window');
-		$status_for = GETPOST('status_for', 'aZ09');
-
-		// we check object has a draft number
-		$objectref = substr($object->ref, 1, 4);
-		if ($objectref == 'PROV') {
-			$savdate = $object->date;
-			if (getDolGlobalString('FAC_FORCE_DATE_VALIDATION')) {
-				$object->date = dol_now();
-				$object->date_lim_reglement = $object->calculate_date_lim_reglement();
-			}
-			$numref = $object->getNextNumRef($soc);
-			// $object->date=$savdate;
-		} else {
-			$numref = $object->ref;
-		}
-
-		$text = $langs->trans('ConfirmValidateBill', $numref);
-		if (isModEnabled('notification')) {
-			require_once DOL_DOCUMENT_ROOT.'/core/class/notify.class.php';
-			$notify = new Notify($db);
-			$text .= '<br>';
-			$text .= $notify->confirmMessage('BILL_VALIDATE', $object->socid, $object);
-		}
-		$formquestion = array();
-
-		if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
-			$qualified_for_stock_change = 0;
-			if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-				$qualified_for_stock_change = $object->hasProductsOrServices(2);
-			} else {
-				$qualified_for_stock_change = $object->hasProductsOrServices(1);
-			}
-
-			if ($qualified_for_stock_change) {
-				$langs->load("stocks");
-				require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
-				require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
-				$formproduct = new FormProduct($db);
-				$warehouse = new Entrepot($db);
-				$warehouse_array = $warehouse->list_array();
-				if (count($warehouse_array) == 1) {
-					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("WarehouseForStockIncrease", current($warehouse_array)) : $langs->trans("WarehouseForStockDecrease", current($warehouse_array));
-					$value = '<input type="hidden" id="idwarehouse" name="idwarehouse" value="'.key($warehouse_array).'">';
-				} else {
-					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("SelectWarehouseForStockIncrease") : $langs->trans("SelectWarehouseForStockDecrease");
-					$value = $formproduct->selectWarehouses(GETPOST('idwarehouse') ? GETPOST('idwarehouse') : 'ifone', 'idwarehouse', '', 1);
-				}
-				$formquestion = array(
-									// 'text' => $langs->trans("ConfirmClone"),
-									// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' =>
-									// 1),
-									// array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans("PuttingPricesUpToDate"), 'value'
-									// => 1),
-									array('type' => 'other', 'name' => 'idwarehouse', 'label' => $label, 'value' => $value));
-			}
-		}
-		if ($object->type != Facture::TYPE_CREDIT_NOTE && $object->total_ttc < 0) { 		// Can happen only if getDolGlobalString('FACTURE_ENABLE_NEGATIVE') is on
-			$text .= '<br>'.img_warning().' '.$langs->trans("ErrorInvoiceOfThisTypeMustBePositive");
-		}
-
-		// mandatoryPeriod
-		$nbMandated = 0;
-		foreach ($object->lines as $line) {
-			$res = $line->fetch_product();
-			if ($res  > 0) {
-				if ($line->product->isService() && $line->product->isMandatoryPeriod() && (empty($line->date_start) || empty($line->date_end))) {
-					$nbMandated++;
-					break;
-				}
-			}
-		}
-		if ($nbMandated > 0) {
-			$text .= '<div><span class="clearboth nowraponall warning">'.$langs->trans("mandatoryPeriodNeedTobeSetMsgValidate").'</span></div>';
-		}
-
-
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id.'&affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$newStatus.'&status_for='.$status_for.'&close_window='.$close_window.'&token='.newToken(), $langs->trans('ValidateBill'), $text, 'changeStatus', $formquestion, (($object->type != Facture::TYPE_CREDIT_NOTE && $object->total_ttc < 0) ? "no" : "yes"), 2);
-	}
-
 	// Confirm back to draft status
 	if ($action == 'modif') {
 		$text = $langs->trans('ConfirmUnvalidateBill', $object->ref);
@@ -5379,49 +4859,6 @@ if ($action == 'create') {
 		}
 
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id, $langs->trans('UnvalidateBill'), $text, 'confirm_modif', $formquestion, "yes", 1);
-	}
-	// Confirm back to draft status when aff status change
-	if ($action == 'chstatus_confirm_setdraft') {
-		$newStatus = GETPOSTINT('newStatus');
-		$close_window = GETPOSTINT('close_window');
-		$status_for = GETPOST('status_for', 'aZ09');
-
-		$text = $langs->trans('ConfirmUnvalidateBill', $object->ref);
-		$formquestion = array();
-
-		if ($object->type != Facture::TYPE_DEPOSIT && getDolGlobalString('STOCK_CALCULATE_ON_BILL')) {
-			$qualified_for_stock_change = 0;
-			if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
-				$qualified_for_stock_change = $object->hasProductsOrServices(2);
-			} else {
-				$qualified_for_stock_change = $object->hasProductsOrServices(1);
-			}
-
-			if ($qualified_for_stock_change) {
-				$langs->load("stocks");
-				require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
-				require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
-				$formproduct = new FormProduct($db);
-				$warehouse = new Entrepot($db);
-				$warehouse_array = $warehouse->list_array();
-				if (count($warehouse_array) == 1) {
-					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("WarehouseForStockDecrease", current($warehouse_array)) : $langs->trans("WarehouseForStockIncrease", current($warehouse_array));
-					$value = '<input type="hidden" id="idwarehouse" name="idwarehouse" value="'.key($warehouse_array).'">';
-				} else {
-					$label = $object->type == Facture::TYPE_CREDIT_NOTE ? $langs->trans("SelectWarehouseForStockDecrease") : $langs->trans("SelectWarehouseForStockIncrease");
-					$value = $formproduct->selectWarehouses(GETPOST('idwarehouse') ? GETPOST('idwarehouse') : 'ifone', 'idwarehouse', '', 1);
-				}
-				$formquestion = array(
-									// 'text' => $langs->trans("ConfirmClone"),
-									// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' =>
-									// 1),
-									// array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans("PuttingPricesUpToDate"), 'value'
-									// => 1),
-									array('type' => 'other', 'name' => 'idwarehouse', 'label' => $label, 'value' => $value));
-			}
-		}
-
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?facid='.$object->id.'&affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$newStatus.'&status_for='.$status_for.'&close_window='.$close_window.'&token='.newToken(), $langs->trans('UnvalidateBill'), $text, 'changeStatus', $formquestion, "yes", 1);
 	}
 
 	// Confirmation of payment classification
@@ -6788,6 +6225,7 @@ if ($action == 'create') {
 		$parameters = array();
 		$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
 		if (empty($reshook)) {
+			$OLD = false;
 			if (!$affaire) {
 				$params = array(
 					'attr' => array(
@@ -7084,10 +6522,27 @@ if ($action == 'create') {
 					print dolGetButtonAction($htmltooltip, $langs->trans('Delete'), 'delete', '#', '', false);
 				}
 			} else if ($object->type == Facture::TYPE_PROFORMA) {
+				// Send by mail
+				if (empty($user->socid)) {
+					if (($object->status == Facture::STATUS_VALIDATED || $object->status == Facture::STATUS_CLOSED) || getDolGlobalString('FACTURE_SENDBYEMAIL_FOR_ALL_STATUS')) {
+						if ($objectidnext) {
+							print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("DisabledBecauseReplacedInvoice").'">'.$langs->trans('SendMail').'</span>';
+						} else {
+							if ($usercansend) {
+								unset($params['attr']['title']);
+								print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=presend&mode=init#formmailbeforetitle', '', true, $params);
+							} else {
+								unset($params['attr']['title']);
+								print dolGetButtonAction('', $langs->trans('SendMail'), 'default', '#', '', false, $params);
+							}
+						}
+					}
+				}
+
 				// SET Standart
 				$params = array();
 				print dolGetButtonAction($langs->trans('transformer en Standard'), '', 'default', $_SERVER['PHP_SELF'].'?affaire='.$affaire->id.'&id='.$object->id.'&amp;action=setStandard&token='.newToken(), '', true, $params);
-			} else {
+			} else if ($OLD) {
 				$params = array(
 					'attr' => array(
 						'class' => 'classfortooltip',
@@ -7322,6 +6777,322 @@ if ($action == 'create') {
 					print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 				}
 
+				// Delete
+				$isErasable = $object->is_erasable();
+				$htmltooltip = '';
+				if ($isErasable == -4) {
+					$htmltooltip = $langs->trans('DisabledBecausePayments');
+				} elseif ($isErasable == -3) {
+					$htmltooltip = $langs->trans('DisabledBecauseNotLastSituationInvoice');
+				} elseif ($isErasable == -2) {
+					$htmltooltip = $langs->trans('DisabledBecauseNotLastInvoice');
+				} elseif ($isErasable == -1) {
+					$htmltooltip = $langs->trans('DisabledBecauseDispatchedInBookkeeping');
+				} elseif ($isErasable <= 0) {	// Any other cases
+					$htmltooltip = $langs->trans('DisabledBecauseNotErasable');
+				} elseif ($objectidnext) {
+					$htmltooltip = $langs->trans('DisabledBecauseReplacedInvoice');
+				}
+				if ($usercandelete || ($usercancreate && $isErasable == 1)) {	// isErasable = 1 means draft with temporary ref (draft can always be deleted with no need of permissions)
+					$enableDelete = false;
+					$deleteHref = '#';
+					if ($isErasable > 0 && ! $objectidnext) {
+						$deleteHref = $_SERVER["PHP_SELF"].'?facid='.$object->id.'&action=delete&token='.newToken();
+						$enableDelete = true;
+					}
+					unset($params['attr']['title']);
+					print dolGetButtonAction($htmltooltip, $langs->trans('Delete'), 'delete', $deleteHref, '', $enableDelete, $params);
+				} else {
+					unset($params['attr']['title']);
+					print dolGetButtonAction($htmltooltip, $langs->trans('Delete'), 'delete', '#', '', false);
+				}
+			} else {
+				$params = array(
+					'attr' => array(
+						'class' => 'classfortooltip',
+						'title' => ''
+					)
+				);
+				// Edit a validated invoice without any payment and not transferred to accounting
+				if ($object->status == Facture::STATUS_VALIDATED) {
+					// We check if lines of invoice are not already transferred into accountancy
+					$ventilExportCompta = $object->getVentilExportCompta();
+	
+					if ($ventilExportCompta == 0) {
+						if (getDolGlobalString('INVOICE_CAN_BE_EDITED_EVEN_IF_PAYMENT_DONE') || ($resteapayer == price2num($object->total_ttc, 'MT', 1) && empty($object->paye))) {
+							if (!$objectidnext && $object->is_last_in_cycle()) {
+								if ($usercanunvalidate) {
+									unset($params['attr']['title']);
+									print dolGetButtonAction($langs->trans('Modify'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=modif&token='.newToken(), '', true, $params);
+								} else {
+									$params['attr']['title'] = $langs->trans('NotEnoughPermissions');
+									print dolGetButtonAction($langs->trans('Modify'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=modif&token='.newToken(), '', false, $params);
+								}
+							} elseif (!$object->is_last_in_cycle()) {
+								$params['attr']['title'] = $langs->trans('NotLastInCycle');
+								print dolGetButtonAction($langs->trans('Modify'), '', 'default', '#', '', false, $params);
+							} else {
+								$params['attr']['title'] = $langs->trans('DisabledBecauseReplacedInvoice');
+								print dolGetButtonAction($langs->trans('Modify'), '', 'default', '#', '', false, $params);
+							}
+						}
+					} else {
+						$params['attr']['title'] = $langs->trans('DisabledBecauseDispatchedInBookkeeping');
+						print dolGetButtonAction($langs->trans('Modify'), '', 'default', '#', '', false, $params);
+					}
+				}
+	
+				$discount = new DiscountAbsolute($db);
+				$result = $discount->fetch(0, $object->id);
+	
+				// Reopen an invoice
+				if ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT)
+					|| ($object->type == Facture::TYPE_CREDIT_NOTE && empty($discount->id))
+					|| ($object->type == Facture::TYPE_DEPOSIT && empty($discount->id))
+					|| ($object->type == Facture::TYPE_SITUATION && empty($discount->id)))
+					&& ($object->status == Facture::STATUS_CLOSED || $object->status == Facture::STATUS_ABANDONED || ($object->status == 1 && $object->paye == 1))   // Condition ($object->status == 1 && $object->paye == 1) should not happened but can be found due to corrupted data
+					&& ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $usercancreate) || $usercanreopen)) {				// A paid invoice (partially or completely)
+					if ($object->close_code != 'replaced' || (!$objectidnext)) { 				// Not replaced by another invoice or replaced but the replacement invoice has been deleted
+						unset($params['attr']['title']);
+						print dolGetButtonAction($langs->trans('ReOpen'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=reopen&token='.newToken(), '', true, $params);
+					} else {
+						$params['attr']['title'] = $langs->trans("DisabledBecauseReplacedInvoice");
+						print dolGetButtonAction($langs->trans('ReOpen'), '', 'default', '#', '', false, $params);
+					}
+				}
+	
+				// Create contract
+				if (getDolGlobalString('CONTRACT_CREATE_FROM_INVOICE')) {
+					if (isModEnabled('contract') && $object->status == Facture::STATUS_VALIDATED) {
+						$langs->load("contracts");
+	
+						if ($usercancreatecontract) {
+							print '<a class="butAction" href="' . DOL_URL_ROOT . '/contrat/card.php?action=create&amp;origin=' . $object->element . '&amp;originid=' . $object->id . '&amp;socid=' . $object->socid . '">' . $langs->trans('AddContract') . '</a>';
+						}
+					}
+				}
+	
+				// Validate
+				if ($object->status == Facture::STATUS_DRAFT && count($object->lines) > 0 && ((($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_REPLACEMENT || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA || $object->type == Facture::TYPE_SITUATION) && (getDolGlobalString('FACTURE_ENABLE_NEGATIVE') || $object->total_ttc >= 0)) || ($object->type == Facture::TYPE_CREDIT_NOTE && $object->total_ttc <= 0))) {
+					if ($usercanvalidate) {
+						unset($params['attr']['title']);
+						print dolGetButtonAction($langs->trans('Validate'), '', 'default', $_SERVER["PHP_SELF"].'?facid='.$object->id.'&action=valid&token='.newToken(), '', true, $params);
+					}
+				}
+	
+				// Send by mail
+				if (empty($user->socid)) {
+					if (($object->status == Facture::STATUS_VALIDATED || $object->status == Facture::STATUS_CLOSED) || getDolGlobalString('FACTURE_SENDBYEMAIL_FOR_ALL_STATUS')) {
+						if ($objectidnext) {
+							print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("DisabledBecauseReplacedInvoice").'">'.$langs->trans('SendMail').'</span>';
+						} else {
+							if ($usercansend) {
+								unset($params['attr']['title']);
+								print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&action=presend&mode=init#formmailbeforetitle', '', true, $params);
+							} else {
+								unset($params['attr']['title']);
+								print dolGetButtonAction('', $langs->trans('SendMail'), 'default', '#', '', false, $params);
+							}
+						}
+					}
+				}
+	
+				// Request a direct debit order
+				if ($object->status > Facture::STATUS_DRAFT && $object->paye == 0 && $num == 0) {
+					if ($resteapayer > 0) {
+						if ($usercancreatewithdrarequest) {
+							if (!$objectidnext && $object->close_code != 'replaced') { 				// Not replaced by another invoice
+								print '<a class="butAction" href="'.DOL_URL_ROOT.'/compta/facture/prelevement.php?facid='.$object->id.'" title="'.dol_escape_htmltag($langs->trans("MakeWithdrawRequest")).'">'.$langs->trans("MakeWithdrawRequest").'</a>';
+							} else {
+								print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("DisabledBecauseReplacedInvoice").'">'.$langs->trans('MakeWithdrawRequest').'</span>';
+							}
+						} else {
+							//print '<a class="butActionRefused classfortooltip" href="#" title="'.dol_escape_htmltag($langs->trans("NotEnoughPermissions")).'">'.$langs->trans("MakeWithdrawRequest").'</a>';
+						}
+					} else {
+						//print '<a class="butActionRefused classfortooltip" href="#" title="'.dol_escape_htmltag($langs->trans("AmountMustBePositive")).'">'.$langs->trans("MakeWithdrawRequest").'</a>';
+					}
+				}
+	
+				// POS Ticket
+				if (isModEnabled('takepos') && $object->module_source == 'takepos') {
+					$langs->load("cashdesk");
+					$receipt_url = DOL_URL_ROOT."/takepos/receipt.php";
+					print '<a target="_blank" rel="noopener noreferrer" class="butAction" href="'.$receipt_url.'?facid='.((int) $object->id).'">'.$langs->trans('POSTicket').'</a>';
+				}
+	
+				// Create payment
+				if ($object->type != Facture::TYPE_CREDIT_NOTE && $object->status == 1 && $object->paye == 0 && $usercanissuepayment) {
+					if ($objectidnext) {
+						print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("DisabledBecauseReplacedInvoice").'">'.$langs->trans('DoPayment').'</span>';
+					} else {
+						if ($object->type == Facture::TYPE_DEPOSIT && $resteapayer == 0) {
+							// For down payment, we refuse to receive more than amount to pay.
+							$params['attr']['title'] = $langs->trans('DisabledBecauseRemainderToPayIsZero');
+							print dolGetButtonAction($langs->trans('DoPayment'), '', 'default', '#', '', false, $params);
+						} else {
+							// Sometimes we can receive more, so we accept to enter more and will offer a button to convert into discount (but it is not a credit note, just a prepayment done)
+							//print '<a class="butAction" href="'.DOL_URL_ROOT.'/compta/paiement.php?facid='.$object->id.'&amp;action=create&amp;accountid='.$object->fk_account.'">'.$langs->trans('DoPayment').'</a>';
+							unset($params['attr']['title']);
+							print dolGetButtonAction($langs->trans('DoPayment'), '', 'default', DOL_URL_ROOT.'/compta/paiement.php?facid='.$object->id.'&amp;action=create'.($object->fk_account > 0 ? '&amp;accountid='.$object->fk_account : ''), '', true, $params);
+						}
+					}
+				}
+	
+				$sumofpayment = $totalpaid;
+				$sumofpaymentall = $totalpaid + $totalcreditnotes + $totaldeposits;
+	
+				// Reverse back money or convert to reduction
+				if ($object->type == Facture::TYPE_CREDIT_NOTE || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_SITUATION) {
+					// For credit note only
+					if ($object->type == Facture::TYPE_CREDIT_NOTE && $object->status == Facture::STATUS_VALIDATED && $object->paye == 0 && $usercanissuepayment) {
+						if ($resteapayer == 0) {
+							print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("DisabledBecauseRemainderToPayIsZero").'">'.$langs->trans('DoPaymentBack').'</span>';
+						} else {
+							print '<a class="butAction" href="'.DOL_URL_ROOT.'/compta/paiement.php?facid='.$object->id.'&amp;action=create&amp;accountid='.$object->fk_account.'">'.$langs->trans('DoPaymentBack').'</a>';
+						}
+					}
+	
+					// For standard invoice with excess received
+					if (($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_SITUATION) && $object->status == Facture::STATUS_VALIDATED && empty($object->paye) && $resteapayer < 0 && $usercancreate && empty($discount->id)) {
+						print '<a class="butAction'.($conf->use_javascript_ajax ? ' reposition' : '').'" href="'.$_SERVER["PHP_SELF"].'?facid='.$object->id.'&amp;action=converttoreduc">'.$langs->trans('ConvertExcessReceivedToReduc').'</a>';
+					}
+					// For credit note
+					if ($object->type == Facture::TYPE_CREDIT_NOTE && $object->status == Facture::STATUS_VALIDATED && $object->paye == 0 && $usercancreate
+						&& (getDolGlobalString('INVOICE_ALLOW_REUSE_OF_CREDIT_WHEN_PARTIALLY_REFUNDED') || $sumofpayment == 0) && $object->total_ht < 0
+					) {
+						print '<a class="butAction classfortooltip'.($conf->use_javascript_ajax ? ' reposition' : '').'" href="'.$_SERVER["PHP_SELF"].'?facid='.$object->id.'&amp;action=converttoreduc" title="'.dol_escape_htmltag($langs->trans("ConfirmConvertToReduc2")).'">'.$langs->trans('ConvertToReduc').'</a>';
+					}
+					// For down payment invoice (deposit)
+	
+					if ($object->type == Facture::TYPE_DEPOSIT && $usercancreate && $object->status > Facture::STATUS_DRAFT && empty($discount->id)) {
+						// We can close a down payment only if paid amount is same than amount of down payment (by definition). We can bypass this if hidden and unstable option DEPOSIT_AS_CREDIT_AVAILABLE_EVEN_UNPAID is set.
+						if (price2num($object->total_ttc, 'MT') == price2num($sumofpaymentall, 'MT') || getDolGlobalInt('DEPOSIT_AS_CREDIT_AVAILABLE_EVEN_UNPAID') || ($object->type == Facture::STATUS_ABANDONED && in_array($object->close_code, array('bankcharge', 'discount_vat', 'other')))) {
+							print '<a class="butAction'.($conf->use_javascript_ajax ? ' reposition' : '').'" href="'.$_SERVER["PHP_SELF"].'?facid='.$object->id.'&amp;action=converttoreduc">'.$langs->trans('ConvertToReduc').'</a>';
+						} else {
+							print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("AmountPaidMustMatchAmountOfDownPayment").'">'.$langs->trans('ConvertToReduc').'</span>';
+						}
+					}
+				}
+	
+				// Classify paid
+				if ($object->status == Facture::STATUS_VALIDATED && $object->paye == 0 && $usercanissuepayment && (
+					($object->type != Facture::TYPE_CREDIT_NOTE && $object->type != Facture::TYPE_DEPOSIT && ($resteapayer <= 0 || (getDolGlobalString('INVOICE_CAN_SET_PAID_EVEN_IF_PARTIALLY_PAID') && $object->total_ttc == $resteapayer))) ||
+					($object->type == Facture::TYPE_CREDIT_NOTE && $resteapayer >= 0) ||
+					($object->type == Facture::TYPE_DEPOSIT && $object->total_ttc > 0)
+				)
+				) {
+					if ($object->type == Facture::TYPE_DEPOSIT && price2num($object->total_ttc, 'MT') != price2num($sumofpaymentall, 'MT')) {
+						// We can close a down payment only if paid amount is same than amount of down payment (by definition)
+						$params['attr']['title'] = $langs->trans('AmountPaidMustMatchAmountOfDownPayment');
+						print dolGetButtonAction($langs->trans('ClassifyPaid'), '', 'default', '#', '', false, $params);
+					} else {
+						unset($params['attr']['title']);
+						print dolGetButtonAction($langs->trans('ClassifyPaid'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=paid', '', true, $params);
+					}
+				}
+	
+				// Classify 'closed not completely paid' (possible if validated and not yet filed paid)
+				if ($object->status == Facture::STATUS_VALIDATED && $object->paye == 0 && $resteapayer > 0 && (!getDolGlobalString('INVOICE_CAN_SET_PAID_EVEN_IF_PARTIALLY_PAID') || $resteapayer != $object->total_ttc) && $usercanissuepayment) {
+					if ($totalpaid > 0 || $totalcreditnotes > 0) {
+						// If one payment or one credit note was linked to this invoice
+						print '<a class="butAction'.($conf->use_javascript_ajax ? ' reposition' : '').'" href="'.$_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=paid">'.$langs->trans('ClassifyPaidPartially').'</a>';
+					} else {
+						if (!getDolGlobalString('INVOICE_CAN_NEVER_BE_CANCELED')) {
+							if ($objectidnext) {
+								print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("DisabledBecauseReplacedInvoice").'">'.$langs->trans('ClassifyCanceled').'</span>';
+							} else {
+								print '<a class="butAction'.($conf->use_javascript_ajax ? ' reposition' : '').'" href="'.$_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=canceled">'.$langs->trans('ClassifyCanceled').'</a>';
+							}
+						}
+					}
+				}
+	
+				// Create a credit note
+				if (($object->type == Facture::TYPE_STANDARD || ($object->type == Facture::TYPE_DEPOSIT && !getDolGlobalString('FACTURE_DEPOSITS_ARE_JUST_PAYMENTS')) || $object->type == Facture::TYPE_PROFORMA) && $object->status > 0 && $usercancreate) {
+					if (!$objectidnext) {
+						print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?socid='.$object->socid.'&amp;fac_avoir='.$object->id.'&amp;action=create&amp;type=2'.($object->fk_project > 0 ? '&amp;projectid='.$object->fk_project : '').($object->entity > 0 ? '&amp;originentity='.$object->entity : '').'">'.$langs->trans("CreateCreditNote").'</a>';
+					}
+				}
+	
+				// For situation invoice with excess received
+				if ($object->status > Facture::STATUS_DRAFT
+					&& $object->type == Facture::TYPE_SITUATION
+					&& ($object->total_ttc - $totalpaid - $totalcreditnotes - $totaldeposits) > 0
+					&& $usercancreate
+					&& !$objectidnext
+					&& $object->is_last_in_cycle()
+					&& getDolGlobalInt('INVOICE_USE_SITUATION_CREDIT_NOTE')
+				) {
+					if ($usercanunvalidate) {
+						print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?socid='.$object->socid.'&amp;fac_avoir='.$object->id.'&amp;invoiceAvoirWithLines=1&amp;action=create&amp;type=2'.($object->fk_project > 0 ? '&amp;projectid='.$object->fk_project : '').'">'.$langs->trans("CreateCreditNote").'</a>';
+					} else {
+						print '<span class="butActionRefused classfortooltip" title="'.$langs->trans("NotEnoughPermissions").'">'.$langs->trans("CreateCreditNote").'</span>';
+					}
+				}
+	
+				// // Clone
+				// if (($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA) && $usercancreate) {
+				// 	unset($params['attr']['title']);
+				// 	print dolGetButtonAction($langs->trans('ToClone'), '', 'default', $_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=clone&amp;object=invoice', '', true, $params);
+				// }
+	
+				// Clone as predefined / Create template
+				if (($object->type == Facture::TYPE_STANDARD || $object->type == Facture::TYPE_DEPOSIT || $object->type == Facture::TYPE_PROFORMA) && $object->status == 0 && $usercancreate) {
+					if (!$objectidnext && count($object->lines) > 0) {
+						unset($params['attr']['title']);
+						print dolGetButtonAction($langs->trans('ChangeIntoRepeatableInvoice'), '', 'default', DOL_URL_ROOT.'/compta/facture/card-rec.php?facid='.$object->id.'&amp;action=create', '', true, $params);
+					}
+				}
+	
+				// Remove situation from cycle
+				if (in_array($object->status, array(Facture::STATUS_CLOSED, Facture::STATUS_VALIDATED))
+					&& $object->type == Facture::TYPE_SITUATION
+					&& $usercancreate
+					&& !$objectidnext
+					&& $object->situation_counter > 1
+					&& $object->is_last_in_cycle()
+					&& $usercanunvalidate
+				) {
+					if (($object->total_ttc - $totalcreditnotes) == 0) {
+						print '<a id="butSituationOut" class="butAction" href="'.$_SERVER['PHP_SELF'].'?facid='.$object->id.'&amp;action=situationout">'.$langs->trans("RemoveSituationFromCycle").'</a>';
+					} else {
+						print '<a id="butSituationOutRefused" class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("DisabledBecauseNotEnouthCreditNote").'" >'.$langs->trans("RemoveSituationFromCycle").'</a>';
+					}
+				}
+	
+				// Create next situation invoice
+				if ($usercancreate && ($object->type == 5) && ($object->status == 1 || $object->status == 2)) {
+					if ($object->is_last_in_cycle() && $object->situation_final != 1) {
+						print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=create&amp;type=5&amp;origin=facture&amp;originid='.$object->id.'&amp;socid='.$object->socid.'" >'.$langs->trans('CreateNextSituationInvoice').'</a>';
+					} elseif (!$object->is_last_in_cycle()) {
+						print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("DisabledBecauseNotLastInCycle").'">'.$langs->trans('CreateNextSituationInvoice').'</a>';
+					} else {
+						print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("DisabledBecauseFinal").'">'.$langs->trans('CreateNextSituationInvoice').'</a>';
+					}
+				}
+	
+				// Change status
+				if (isModEnabled('affaire')) {
+					$arrayofstatusforbutaction = array();
+
+					foreach ($thisStatusArray as $key => $rstatus) {
+						$labeltoshow = $rstatus->label;
+						if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
+						if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
+							$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+						} else {
+							$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+						}
+					}
+	
+					$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
+	
+					// $infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: propal $object->ref");
+					$infobulle = '';
+					print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayofstatusforbutaction, 'changeStatusButton', 1, $params);
+				}
+	
 				// Delete
 				$isErasable = $object->is_erasable();
 				$htmltooltip = '';

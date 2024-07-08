@@ -88,6 +88,16 @@ function majStatuts()
 			$result=$db->query($sql);
 		}
 		
+		// Mettre la tâche à 100% si le statut est terminé
+		if (GETPOST('statut_fab'.$i) == 4) {
+			global $user;
+			require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
+
+			$task = new Task($db);
+			$task->fetch(GETPOST('statut_idx'.$i));
+			$task->progress = 100;
+			$task->update($user);
+		}
 	}
 	
 }

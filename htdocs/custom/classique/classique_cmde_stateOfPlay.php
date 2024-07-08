@@ -34,7 +34,7 @@
 
 /**
  *   \file      htdocs/custom/classique/classique_cmde_stateOfPlay.php
- * \ingroup 	affaire
+ *	 \ingroup 	affaire
  *   \brief     Page to show sales order
  */
 
@@ -3736,15 +3736,15 @@ if ($action == 'create' && $usercancreate) {
 	
 					// Change status
 					if (isModEnabled('affaire')) {
-						$arrayforbutaction = array();
+						$arrayofstatusforbutaction = array();
 
 						foreach ($thisStatusArray as $key => $rstatus) {
 							$labeltoshow = $rstatus->label;
 							if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
 							if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
-								$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+								$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 							} else {
-								$arrayforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+								$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
 							}
 						}
 		
@@ -3752,7 +3752,7 @@ if ($action == 'create' && $usercancreate) {
 		
 						// $infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: propal $object->ref");
 						$infobulle = '';
-						print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
+						print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayofstatusforbutaction, 'changeStatusButton', 1, $params);
 					}
 
 					// Delete order

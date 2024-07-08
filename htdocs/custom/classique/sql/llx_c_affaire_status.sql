@@ -43,7 +43,7 @@ INSERT INTO `llx_c_affaire_status` (`rowid`, `label`, `label_short`, `fk_workflo
 (76, 'Abandonnée', 'Abandonnée', 2, 12, -1, 0, 'both', 1),
 (77, 'Payée partiellement', 'Payée (en partie)', 2, 12, 350, 1, 'both', 1),
 (78, 'Payée', 'Payée', 2, 12, 300, 1, 'both', 1),
-(79, 'Validation Admin. (de clore l affaire)', 'Valid Admin.', 2, 13, 100, 1, 'step', 1),
+(79, 'À clôturé', 'À clôturé', 2, 13, 100, 1, 'step', 1),
 (80, 'Att. certificat d exportation', 'Att. certificat export.', 2, 13, 150, 1, 'step', 1),
 (81, 'Clôturé', 'Clôturé', 2, 13, 300, 1, 'step', 1),
 (82, 'Annulée', 'Annulée', 2, 8, -1, 0, 'both', 1);

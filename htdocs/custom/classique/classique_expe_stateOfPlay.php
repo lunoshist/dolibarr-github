@@ -15,6 +15,7 @@
  * Copyright (C) 2020       Lenin Rivas         	<lenin@leninrivas.com>
  * Copyright (C) 2022       Josep Lluís Amador      <joseplluis@lliuretic.cat>
  * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024	   Lucas Noirie			 	<lunoshist@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,8 +32,8 @@
  */
 
 /**
- *	\file       htdocs/expedition/card.php
- *	\ingroup    expedition
+ *	\file       htdocs/custom/classique/classique_expe_stateOfPlay.php
+ * \ingroup 	affaire
  *	\brief      Card of a shipment
  */
 
@@ -126,19 +127,11 @@ if (isModEnabled('affaire')) {
 
 
 	// Workflow
-	$workflow_array = array();
-	// $workflow = (object)array("rowid"=>2, "label"=>'classique');
-	$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = 'Classique'";
-	$resql = $db->query($sql);
-	if ($resql) {
-		$res = $db->fetch_object($resql);
-		$workflow_array["rowid"] = $res->rowid;
-		$workflow_array["label"] = $res->label;
-		$workflow = (object)$workflow_array;
-	} else {
-		dol_print_error($db);
-	}
+	$modName = 'Classique';
+	$workflow = fetchWorkflow($modName);
 	$INFO["Workflow"] .= "<br> > $workflow->label [$workflow->rowid]";
+
+
 
 	// Get affaire
 	$affaireID = GETPOSTINT('affaire') ?? GETPOSTINT('affaireID');
@@ -160,20 +153,14 @@ if (isModEnabled('affaire')) {
 				header('Location: '.$path);
 				exit();
 			}
-
-			/* TODO the associated function
-			dol_tabs($affaire);
-			dol_banner($affaire);
-			dol_workflow_tabs($affaire->fk_workflow_type);
-			*/
 		} else {
 			setEventMessages($affaire->error, $affaire->errors, 'errors');
 			$action = '';
 		}
 	}
 	$INFO["Affaire"] .= "<br> > $affaire->ref [$affaire->id]";
-	$INFO["Banner"]["ref"] = $affaire->ref;
 	
+
 
 	// Get the expedition linked to the affaire 
 	$affaire->fetchObjectLinked($affaire->id, $affaire->element, $affaire->id, $affaire->element);
@@ -225,7 +212,6 @@ if (isModEnabled('affaire')) {
 		$INFO["Object"] .= "(nb: ".count($affaire->linkedObjects["shipping"]).")  :  ";
 	}
 	
-
 	// load expedition
 	$object = new Expedition($db);
 	$objectorder = new Commande($db);
@@ -242,117 +228,36 @@ if (isModEnabled('affaire')) {
 	$INFO["Object"] .= "<br> > $object->ref [$id]";
 
 
+
 	if ($affaire) {
 		// Fetch step of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE rowid = $affaire->fk_step AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStep = $db->fetch_object($resql);
-				$defaultStepStatus = $affaireStep->fk_default_status;
-				// var_dump($affaireStep);
-				// print(json_encode($affaireStep, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
-				$INFO["Banner"]["step"] = $affaireStep;
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStep = $affaire->getStep();
+		$defaultStepStatus = $affaireStep->fk_default_status;
+		$INFO["Affaire"] .= "<br> > aff_Step: $affaireStep->label_short [$affaireStep->rowid]  default: [$defaultStepStatus]";
 
 		// Fetch status of affaire
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $affaire->fk_status AND (fk_step = $affaire->fk_step OR fk_step = 1 OR fk_step = 2) AND (fk_workflow_type = $affaire->fk_workflow_type OR fk_workflow_type = 1)";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatus = $db->fetch_object($resql);
-				// var_dump($affaireStatus);
-				// print(json_encode($affaireStatus, JSON_PRETTY_PRINT));
-				$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
-				$INFO["Banner"]["status"] = $affaireStatus;
-			} else {
-				setEventMessages($langs->trans("NoSuchStatusForThisStepInThisWorkflow"), null, 'errors');
-				$INFO["Affaire"] .= "<br> > aff_Status: NoSuchStatusForThisStepInThisWorkflow";
-			}
-		} else {
-			dol_print_error($db);
-		}
-
+		$affaireStatus = $affaire->getStatus();
+		$INFO["Affaire"] .= "<br> > aff_Status: $affaireStatus->label [$affaireStatus->rowid]";
 
 		// Fetch affaire status of each step
-		$sql = "SELECT * FROM llx_affaire_affaire_status WHERE fk_affaire = $affaire->id";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$affaireStatusbyStep = $db->fetch_object($resql);
-			} else {
-				setEventMessages($langs->trans("No row in llx_afaire_affaire_status"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$affaireStatusbyStep = $affaire->getAllStatus();
+
 
 
 		// Fetch this step
-		$thisStepName = 'Expe'; // <-- this has to be modified when dictionnary change
-
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_default_status, position, object, active FROM llx_c_affaire_steps WHERE label_short = '$thisStepName' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStep = $db->fetch_object($resql);
-				$defaultStepStatus = $thisStep->fk_default_status;
-				// var_dump($thisStep);
-				// print(json_encode($thisStep, JSON_PRETTY_PRINT));
-				
-				$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
-			} else {
-				setEventMessages($langs->trans("NoSuchStepInThisWorkflow"), null, 'errors');
-			}
-		} else {
-			dol_print_error($db);
-		}
-		
-		// Fetch all status of this step : expedition
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type AND active = 1";
-		$resql = $db->query($sql);
-		if ($resql) {
-			$thisStatusArray = array();
-			if ($resql->num_rows > 0) {
-				while ($res = $db->fetch_object($resql)) {
-					$thisStatusArray[$res->rowid] = $res;
-				}
-			} else {
-				setEventMessages($langs->trans("BeleBele"), null, 'mesg');
-			}
-		} else {
-			dol_print_error($db);
-		}
-
+		$thisStepName = 'Expe'; // <-- this and the name of the file have to be modified when dictionnary change
+		$thisStep = fetchStep(0, $thisStepName, $workflow);
+		$defaultStepStatus = $thisStep->fk_default_status;
+		$INFO["Page"] .= "<br> > Step: $thisStep->label_short [$thisStep->rowid]  default: [$defaultStepStatus]";
 
 		// Fetch status of affaire for this step
-		$fk_status_thisstep = "fk_status_".strtolower($thisStep->label_short);
-		$thisStatusRowid = isset($affaireStatusbyStep->{"$fk_status_thisstep"}) ? $affaireStatusbyStep->{"$fk_status_thisstep"} : "' '";
-		
-		$sql = "SELECT rowid, label, label_short, fk_workflow_type, fk_step, fk_type, status_for, active FROM llx_c_affaire_status WHERE rowid = $thisStatusRowid AND fk_step = '$thisStep->rowid' AND fk_workflow_type = $affaire->fk_workflow_type";
-		$resql = $db->query($sql);
-		if ($resql) {
-			if ($resql->num_rows > 0) {
-				$thisStatus = $db->fetch_object($resql);
-				// var_dump($thisStatus);
-				// print(json_encode($thisStatus, JSON_PRETTY_PRINT));
-				$INFO["Page"] .= "<br> > Status : $thisStatus->label [$thisStatus->rowid]";
-			} else {
-				if ($action == ('add' || 'create')) {
-					//setEventMessages($langs->trans("ExpeditionNotCreated - NoStatus"), null, 'mesgs');
-				} else {
-					setEventMessages($langs->trans("ExpeditionHasNoStatus"), null, 'errors');
-				}
-			}
-		} else {
-			dol_print_error($db);
-		}
+		$thisStatus = $affaireStatusbyStep[strtolower($thisStep->label_short)];
+		$INFO["Page"] .= "<br> > Status : ".($thisStatus->label ?? '')." [".($thisStatus->rowid ?? '')."]";
+
+		// Fetch all status of this step 
+		$thisStatusArray = fetchAllStatusOfStep($thisStep, $affaire->fk_workflow_type);
+
+
 
 		// Fetch status of object expedition
 		if ($id) {
@@ -361,10 +266,10 @@ if (isModEnabled('affaire')) {
 			if ($resql) {
 				if ($resql->num_rows > 0) {
 					$ObjectStatus = $db->fetch_object($resql);
-					$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
-					// var_dump($ObjectStatus);
-					// print(json_encode($ObjectStatus, JSON_PRETTY_PRINT));
-					$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+					if ($ObjectStatus->aff_status) {
+						$ObjectStatus = $thisStatusArray[$ObjectStatus->aff_status];
+						$INFO["Object"] .= "<br> > Status : $ObjectStatus->label [$ObjectStatus->rowid]";
+					}
 				} else {
 					$INFO["Object"] .= "<br> > No Status";
 				}
@@ -450,169 +355,14 @@ if (empty($reshook)) {
 
 		// Change object status ($expedition->aff_status & Expedition::STATUS)
 		if ($status_for == 'both' || $status_for == 'object') {
-			$sql = "SELECT fk_type, label FROM llx_c_affaire_status WHERE rowid = $newStatus";
-			$resql = $db->query($sql);
-			if ($resql) {
-				$obj = $db->fetch_object($resql);
-				$code = intval($obj->fk_type);
-				$soc= $object->thirdparty;
+			$object->oldcopy = dol_clone($object, 2);
+			$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
 
-				$lines = $object->lines;
-				$num_prod = count($lines);
-				
-				if (!getDolGlobalString('GLOBAL_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS') && !getDolGlobalString('EXPEDITION_CHANGE_STATUS_WITHOUT_CHANGING_SYSTEM_STATUS')) {
-					switch (true) {
-						case ($code < 0):
-							// CANCELED
-							if ($object->status == Expedition::STATUS_VALIDATED  && $user->hasRight('expedition', 'supprimer')) {
-								$also_update_stock = (GETPOST('alsoUpdateStock', 'alpha') ? 1 : 0);
-								$result = $object->cancel(0, $also_update_stock);
-								if ($result > 0) {
-									$result = $object->setStatut(-1);
-									$id = ''; 
-									setEventMessages("L'expédition a bien été annulé, elle n'est plus lié à l'affaire", null, 'warnings');
-								} else {
-									$error = $object->error;
-								}
-							} else if ($object->status != Expedition::STATUS_CANCELED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Expedition::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
-							}
-							break;
-						case (0 <= $code && $code <= 99):
-							// REOPEN if needed
-							if ($object->status == Expedition::STATUS_CLOSED && $user->hasRight('expedition', 'creer')) {
-								$object->fetch($id);
-								$result = $object->reOpen();
-								if ($result < 0) {
-									$error = $object->error;
-								}
-							}
-							
-							// DRAFT
-							if ($object->status == Expedition::STATUS_VALIDATED && !getDolGlobalString('STOCK_CALCULATE_ON_SHIPMENT') && $user->hasRight('expedition', 'creer')) {
-								$object->fetch($id);
-								$result = $object->setDraft($user, 0);
-								if ($result < 0) {
-									$error = $object->error;
-								}
-							} else if ($object->status != Expedition::STATUS_DRAFT) {
-								$error = "Impossible mettre le status à $obj->label (System status : Expedition::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
-							}
-							break;
-						case (100 <= $code && $code <= 199):
-							// REOPEN
-							if ($object->status == Expedition::STATUS_CLOSED && $user->hasRight('expedition', 'creer')) {
-								$object->fetch($id);
-								$result = $object->reOpen();
-								if ($result < 0) {
-									$error = $object->error;
-								}
-							}
-							// VALIDATED
-							else if ($object->status == Expedition::STATUS_DRAFT && $num_prod > 0
-							&& ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('expedition', 'creer')) || (getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('expedition', 'shipping_advance', 'validate')))) {
-								$objectref = substr($object->ref, 1, 4);
-								if ($objectref == 'PROV') {
-									$numref = $object->getNextNumRef($soc);
-								} else {
-									$numref = $object->ref;
-								}
-
-								$text = $langs->trans("ConfirmValidateSending", $numref);
-								if (getDolGlobalString('STOCK_CALCULATE_ON_SHIPMENT')) {
-									$text .= '<br>'.img_picto('', 'movement', 'class="pictofixedwidth"').$langs->trans("StockMovementWillBeRecorded").'.';
-								} elseif (getDolGlobalString('STOCK_CALCULATE_ON_SHIPMENT_CLOSE')) {
-									$text .= '<br>'.img_picto('', 'movement', 'class="pictofixedwidth"').$langs->trans("StockMovementNotYetRecorded").'.';
-								}
-
-								if (isModEnabled('notification')) {
-									require_once DOL_DOCUMENT_ROOT.'/core/class/notify.class.php';
-									$notify = new Notify($db);
-									$text .= '<br>';
-									$text .= $notify->confirmMessage('SHIPPING_VALIDATE', $object->socid, $object);
-								}
-								
-								$object->fetch_thirdparty();
-
-								$result = $object->valid($user);
-
-								if ($result < 0) {
-									$error = $object->error;
-								} else {
-									// Define output language
-									if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-										$outputlangs = $langs;
-										$newlang = '';
-										if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang) && GETPOST('lang_id', 'aZ09')) {
-											$newlang = GETPOST('lang_id', 'aZ09');
-										}
-										if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
-											$newlang = $object->thirdparty->default_lang;
-										}
-										if (!empty($newlang)) {
-											$outputlangs = new Translate("", $conf);
-											$outputlangs->setDefaultLang($newlang);
-										}
-										$model = $object->model_pdf;
-										$ret = $object->fetch($id); // Reload to get new records
-
-										$result = $object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-										if ($result < 0) {
-											dol_print_error($db, $result);
-										}
-									}
-								}
-							} else if ($object->statut != Expedition::STATUS_VALIDATED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Expedition::STATUS_VALIDATED) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
-							}
-							break;
-						case (200 <= $code && $code <= 299):
-							// SHIPMENT_IN_PROGRESS
-							// if () {
-								
-							// } else if ($object->statut != Expedition::STATUS_SHIPMENT_IN_PROGRESS) {
-							// 	$error = "Impossible mettre le status à $obj->label (System status : Expedition::STATUS_SIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
-							// }
-							break;
-						case (300 <= $code && $code <=  399):
-							// BILLED - CLOSED
-							if ($object->status == Expedition::STATUS_VALIDATED) {
-								// BILLED
-								$object->fetch($id);
-								$result = $object->setBilled();
-								if ($result < 0) {
-									$error = $object->error;
-								}
-								// CLOSED
-								$object->fetch($id);
-								$result = $object->setClosed();
-								if ($result < 0) {
-									$error = $object->error;
-								}
-							} else if ($object->statut != Expedition::STATUS_CLOSED) {
-								$error = "Impossible mettre le status à $obj->label (System status : Expedition::STATUS_NOTSIGNED) depuis l'ancien status system : ".$object->LibStatut($object->statut, 0);
-							}
-							break;
-					}
-				}
-
-				if (empty($error)) {
-					$object->oldcopy = dol_clone($object, 2);
-					$attribute_name = (empty(GETPOST('attribute', 'restricthtml'))) ? 'aff_status': GETPOST('attribute', 'restricthtml');
-
-					$object->array_options["options_".$attribute_name] = $newStatus;
-					$result = $object->updateExtraField($attribute_name, 'EXPEDITION_MODIFY');
-					if ($result < 0) {
-						$error = $object->error;
-						$action = 'edit_extras';
-					}
-				}
-			} else {
-				$error = $langs->trans("StatusNotFound");
-			}
-
-			if (empty($error) && $close_window) {
-				echo "<script>window.close();</script>";
+			$object->array_options["options_".$attribute_name] = $newStatus;
+			$result = $object->updateExtraField($attribute_name, 'EXPEDITION_MODIFY');
+			if ($result < 0) {
+				$error = $object->error;
+				$action = 'edit_extras';
 			}
 		}
 		
@@ -1028,6 +778,11 @@ if (empty($reshook)) {
 		$result = $object->cancel(0, $also_update_stock);
 		if ($result > 0) {
 			$result = $object->setStatut(-1);
+			if ($affaire) {
+				$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+				header("Location: $backurlforlist");
+				exit;
+			}
 		} else {
 			setEventMessages($object->error, $object->errors, 'errors');
 		}
@@ -1035,8 +790,14 @@ if (empty($reshook)) {
 		$also_update_stock = (GETPOST('alsoUpdateStock', 'alpha') ? 1 : 0);
 		$result = $object->delete($user, 0, $also_update_stock);
 		if ($result > 0) {
-			header("Location: ".DOL_URL_ROOT.'/expedition/index.php');
-			exit;
+			if ($affaire) {
+				$backurlforlist = dol_buildpath('/affaire/affaire_workflow.php', 1).'?id='.$affaire->id;;
+				header("Location: $backurlforlist");
+				exit;
+			} else {
+				header("Location: ".DOL_URL_ROOT.'/expedition/index.php');
+				exit;
+			}
 		} else {
 			setEventMessages($object->error, $object->errors, 'errors');
 		}
@@ -1457,6 +1218,21 @@ if ($action == 'create2') {
 
 // Mode creation.
 if ($action == 'create') {
+	$expe = checkExpeExist($affaire);
+	if (!empty($expe)) {
+		if (is_array($expe)) {
+			setEventMessages("Plusieurs expeditions exitent déjà !!!", null, 'warnings');
+			// TODO check if there is a proforma
+		}
+		if ($expe < 0) {
+			$error = "ERROR SQL : ".$affaire->db->lasterror();
+		}
+		if ($expe > 0) {
+			setEventMessages('Une expedition existe déjà', null, 'warnings');
+			// TODO check if it's a proforma
+		}
+	}
+
 	$expe = new Expedition($db);
 
 	print load_fiche_titre($langs->trans("CreateShipment"), '', 'dolly');
@@ -3292,6 +3068,7 @@ if ($action == 'create') {
 		$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been
 		// modified by hook
 		if (empty($reshook)) {
+			$old = false;
 			if (!$affaire) {
 				// Validate
 				if ($object->status == Expedition::STATUS_DRAFT && $num_prod > 0) {
@@ -3364,7 +3141,7 @@ if ($action == 'create') {
 				if ($user->hasRight('expedition', 'supprimer')) {
 					print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');
 				}
-			} else {
+			} else if ($old) {
 				// Send
 				if (empty($user->socid)) {
 					if ($object->status > 0) {
@@ -3411,6 +3188,101 @@ if ($action == 'create') {
 					print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayforbutaction, 'changeStatusButton', 1, $params);
 				}
 
+				// Delete
+				if ($user->hasRight('expedition', 'supprimer')) {
+					print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');
+				}
+			} else {
+				if ($object->status == Expedition::STATUS_DRAFT && $num_prod > 0) {
+					if ((!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('expedition', 'creer'))
+					 || (getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('expedition', 'shipping_advance', 'validate'))) {
+						print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER["PHP_SELF"].'?action=valid&token='.newToken().'&id='.$object->id, '');
+					} else {
+						print dolGetButtonAction($langs->trans('NotAllowed'), $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+					}
+				}
+	
+				// 0=draft, 1=validated/delivered, 2=closed/delivered
+				if ($object->status == Expedition::STATUS_VALIDATED && !getDolGlobalString('STOCK_CALCULATE_ON_SHIPMENT')) {
+					if ($user->hasRight('expedition', 'creer')) {
+						print dolGetButtonAction('', $langs->trans('SetToDraft'), 'default', $_SERVER["PHP_SELF"].'?action=setdraft&token='.newToken().'&id='.$object->id, '');
+					}
+				}
+				if ($object->status == Expedition::STATUS_CLOSED) {
+					if ($user->hasRight('expedition', 'creer')) {
+						print dolGetButtonAction('', $langs->trans('ReOpen'), 'default', $_SERVER["PHP_SELF"].'?action=reopen&token='.newToken().'&id='.$object->id, '');
+					}
+				}
+	
+				// Send
+				if (empty($user->socid)) {
+					if ($object->status > 0) {
+						if (!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') || $user->hasRight('expedition', 'shipping_advance', 'send')) {
+							print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER["PHP_SELF"].'?action=presend&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
+						} else {
+							print dolGetButtonAction('', $langs->trans('SendMail'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+						}
+					}
+				}
+	
+				// Create bill
+				if (getDolGlobalInt('WORKFLOW_2_CAN_CREATE_INVOICE_FROM_EXPE')) {
+					if (isModEnabled('invoice') && ($object->status == Expedition::STATUS_VALIDATED || $object->status == Expedition::STATUS_CLOSED)) {
+						if ($user->hasRight('facture', 'creer')) {
+							if (getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT') !== '0') {
+								$steplabel = empty(getDolGlobalString('STEP_INVOICE_FOR_WORKFLOW_'.$workflow->rowid)) ? 'facture' : getDolGlobalString('STEP_INVOICE_FOR_WORKFLOW_'.$workflow->rowid);
+								$url =  '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&amp;action=create&automatic=1&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid;
+						
+								print dolGetButtonAction('', $langs->trans('CreateBill'), 'default', dol_buildpath($url, 1), '');
+							}
+						}
+					}
+				}
+	
+				// This is just to generate a delivery receipt
+				//var_dump($object->linkedObjectsIds['delivery']);
+				if (getDolGlobalInt('MAIN_SUBMODULE_DELIVERY') && ($object->status == Expedition::STATUS_VALIDATED || $object->status == Expedition::STATUS_CLOSED) && $user->hasRight('expedition', 'delivery', 'creer') && empty($object->linkedObjectsIds['delivery'])) {
+					print dolGetButtonAction('', $langs->trans('CreateDeliveryOrder'), 'default', $_SERVER["PHP_SELF"].'?action=create_delivery&token='.newToken().'&id='.$object->id, '');
+				}
+	
+				// Set Billed and Closed
+				if ($object->status == Expedition::STATUS_VALIDATED) {
+					if ($user->hasRight('expedition', 'creer') && $object->status > 0) {
+						if (!$object->billed && getDolGlobalInt('WORKFLOW_2_CAN_CLASSIFY_BILLED_EXPE') && getDolGlobalString('WORKFLOW_BILL_ON_SHIPMENT') !== '0') {
+							print dolGetButtonAction('', $langs->trans('ClassifyBilled'), 'default', $_SERVER["PHP_SELF"].'?action=classifybilled&token='.newToken().'&id='.$object->id, '');
+						}
+						print dolGetButtonAction('', $langs->trans("Close"), 'default', $_SERVER["PHP_SELF"].'?action=classifyclosed&token='.newToken().'&id='.$object->id, '');
+					}
+				}
+	
+				// Cancel
+				if ($object->status == Expedition::STATUS_VALIDATED) {
+					if ($user->hasRight('expedition', 'creer')) {
+						print dolGetButtonAction('', $langs->trans('Cancel'), 'danger', $_SERVER["PHP_SELF"].'?action=cancel&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
+					}
+				}
+	
+				// Change status
+				if (isModEnabled('affaire')) {
+					$arrayofstatusforbutaction = array();
+
+					foreach ($thisStatusArray as $key => $rstatus) {
+						$labeltoshow = $rstatus->label;
+						if ($rstatus->status_for != 'both') $labeltoshow .= " [".$rstatus->status_for." only]";
+						if (getDolGlobalInt('ASK_FOR_CONFIRMATION')) {
+							$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=confirm_changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+						} else {
+							$arrayofstatusforbutaction[$rstatus->rowid] = array("lang"=> 'affaire', "enabled"=> isModEnabled("affaire"), "perm"=> 1, "label"=> $labeltoshow, 'url'=> '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$object->id.'&action=changeStatus&newStatus='.$rstatus->rowid.'&status_for='.$rstatus->status_for.'&token='.newToken());
+						}
+					}
+	
+					$params = array('backtopage' => $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&token='.newToken().'&object='.$object->element.'&affaire='.$affaire->id);
+	
+					// $infobulle = $langs->trans("Changer le status de l'étape et/ou de cet object: propal $object->ref");
+					$infobulle = '';
+					print dolGetButtonAction($infobulle, $langs->trans("ChangeStatus"), 'default', $arrayofstatusforbutaction, 'changeStatusButton', 1, $params);
+				}
+	
 				// Delete
 				if ($user->hasRight('expedition', 'supprimer')) {
 					print dolGetButtonAction('', $langs->trans('Delete'), 'delete', $_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$object->id, '');

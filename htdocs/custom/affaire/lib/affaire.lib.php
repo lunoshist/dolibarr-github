@@ -1359,7 +1359,6 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 				// $GroupId=$obj->rowid;
 				
 				
-				
 				// Ne pas inserer une nouvelle tache identique
 				$sqlsearch = "SELECT task.rowid,task.fk_projet,task.label,task.note_private ";
 				$sqlsearch.= 'FROM '.MAIN_DB_PREFIX.'projet_task AS task ';
@@ -1384,6 +1383,7 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 						}					
 					} else {
 						$result = $TaskRowid = $Task->create($user);
+						$Task->add_object_linked($affaire->element, $affaire->id);
 					
 						// Ajout leader comme cdp de la tache pour qu'il ai les droits
 						if ($result > 0 && $object->fk_project_leader && getDolGlobalInt("SET_PROJECT_LEADER_ON_CREATION")) {
