@@ -216,7 +216,7 @@ class modAffaire extends DolibarrModules
 		// $this->tabs[] = array('data'=>'order:-order');
 		$this->tabs[] = array('data'=>'order:+aff:AFF Commande:@affaire:true:/custom/affaire/objectStep/cmde_stateOfPlay.php?id=__ID__');
 		// $this->tabs[] = array('data'=>'project:-project');
-		$this->tabs[] = array('data'=>'project:+aff:AFF Projet:@affaire:true:/custom/affaire/objectStep/prod_stateOfPlay.php?id=__ID__');
+		// $this->tabs[] = array('data'=>'project:+aff:AFF Projet:@affaire:true:/custom/affaire/objectStep/prod_stateOfPlay.php?id=__ID__');
 		// $this->tabs[] = array('data'=>'expedition:-shipping');
 		$this->tabs[] = array('data'=>'expedition:+aff:AFF Expédition:@affaire:true:/custom/affaire/objectStep/expe_stateOfPlay.php?id=__ID__');
 		// $this->tabs[] = array('data'=>'invoice:-compta');
@@ -478,6 +478,34 @@ class modAffaire extends DolibarrModules
             'mainmenu'=>'affaire',
             'leftmenu'=>'plan_charge_fab',
             'url'=>'/affaire/suivi/planDeChargeFab.php',
+            'langs'=>'affaire@affaire',
+            'position'=>1000+$r,
+            'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+            'target'=>'',
+            'user'=>2,
+        );
+        $this->menu[$r++]=array(
+            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=suivi',
+            'type'=>'left',
+            'titre'=>'Suivi des propositions',
+            'mainmenu'=>'affaire',
+            'leftmenu'=>'suivi_propal',
+            'url'=>'/affaire/suivi/suiviPropal.php',
+            'langs'=>'affaire@affaire',
+            'position'=>1000+$r,
+            'enabled'=>'isModEnabled("affaire")',
+			'perms'=>'$user->hasRight("affaire", "affaire", "read")',
+            'target'=>'',
+            'user'=>2,
+        );
+        $this->menu[$r++]=array(
+            'fk_menu'=>'fk_mainmenu=affaire,fk_leftmenu=suivi',
+            'type'=>'left',
+            'titre'=>'Suivi des commandes',
+            'mainmenu'=>'affaire',
+            'leftmenu'=>'suivi_cmde',
+            'url'=>'/affaire/suivi/suiviCommande.php',
             'langs'=>'affaire@affaire',
             'position'=>1000+$r,
             'enabled'=>'isModEnabled("affaire")',

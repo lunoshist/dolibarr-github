@@ -59,8 +59,8 @@ foreach ($linkedObjectBlock as $key => $objectlink) {
 	}
 	print '</td>';
 	print '<td class="linkedcol-name tdoverflowmax150">'.$objectlink->getNomUrl(1).'</td>';
-	print '<td class="linkedcol-ref" >'.$objectlink->ref_client.'</td>';
-	print '<td class="linkedcol-date center">'.dol_print_date($objectlink->date, 'day').'</td>';
+	print '<td class="linkedcol-ref" >'.(isset($objectlink->ref_client) ? $objectlink->ref_client : $objectlink->ref ).'</td>';
+	print '<td class="linkedcol-date center">'.(isset($objectlink->date) ? dol_print_date($objectlink->date, 'day') : '').'</td>';
 	print '<td class="linkedcol-amount right">';
 	if ($user->hasRight('affaire', 'lire')) {
 		$total = $total + $objectlink->total_ht;

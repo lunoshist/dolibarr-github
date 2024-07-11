@@ -198,6 +198,8 @@ function affaireBanner($affaire, $selectedStep=null, $workflow=null) {
 		$res = $affaire->fetch_thirdparty();
 		$morehtmlref .= '<br><span class="hideonsmartphone">'.$langs->trans('ThirdParty').' : </span>'.$affaire->thirdparty->getNomUrl(1, 'customer');
 	}
+	// Note
+	$morehtmlref.= '<br><span class="opacitymedium">'.$affaire->note_private.'</span>';
 
 	$morehtmlref .= '</div>';
 
@@ -266,6 +268,7 @@ function printBagde($Status, $width) {
 		case 'big':
 			return '<span class="badge badge-status'.$Status->fk_type.' badge-status" style=" '.$color.' font-size: 1.1em; padding: .4em .4em;">'.$Status->label.'</span>';
 	}
+	return 'wrong width';
 }
 
 function printStep($Step) {
@@ -670,6 +673,8 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 										if ($result < 0) {
 											$error = $value->error;
 										}
+										$sqlupdate = "UPDATE ".MAIN_DB_PREFIX."propal SET note_private = 'Propal signée : $object->ref' WHERE rowid = $value->id";
+										$resqlupdate = $db->query($sqlupdate);
 									}
 
 									// OLD METHOD
@@ -685,8 +690,16 @@ function look_for_automating($affaire, $newStatus, $previousStatus, $workflow, $
 						}
 					}
 				}
-				if ($r->new_step == 'STRING') {
-					// Do domething
+				if ($r->new_step == 'Compatibility') {
+					$project_rowid = checkProjectExist($affaire);
+
+					if (is_numeric($project_rowid) && $project_rowid > 0){
+						$sql='UPDATE '.MAIN_DB_PREFIX.'projet_task_extrafields AS xtra, '.MAIN_DB_PREFIX.'projet_task AS tache ';
+						$sql.= ' SET xtra.statut_adm = '.$r->new_status;
+						$sql.= ' WHERE tache.fk_projet='.$project_rowid.' AND xtra.fk_object=tache.rowid';
+						$result=$db->query($sql);
+						$db->free($result);
+					}
 				}
 				if ($r->new_step == 'STRING') {
 					// Do domething
@@ -1174,11 +1187,11 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 		if ($object->element == 'commande'){
     		$sql2 = "SELECT cmdep.rowid, cmdep.fk_commande, cmdep.fk_product, cmdep.description ";
     		$sql2.= 'FROM '.MAIN_DB_PREFIX.'commandedet AS cmdep ';
-    		$sql2.= 'WHERE cmdep.fk_commande='.$object->rowid;
+    		$sql2.= 'WHERE cmdep.fk_commande='.(isset($object->rowid) ? $object->rowid : $object->id);
 		} else if ($object->element == 'propal') {
 		    $sql2 = "SELECT propaldet.rowid, propaldet.fk_propal, propaldet.fk_product, propaldet.description ";
 		    $sql2.= 'FROM '.MAIN_DB_PREFIX.'propaldet AS propaldet ';
-		    $sql2.= 'WHERE propaldet.fk_propal='.$object->rowid;
+		    $sql2.= 'WHERE propaldet.fk_propal='.(isset($object->rowid) ? $object->rowid : $object->id);
 		    
 		}
 		$resql2 = $db->query($sql2);
@@ -1268,12 +1281,12 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 	}
 
 
-	// // Mise a jour du status a termine des extrafiels existants
-	// $sqlupdate='UPDATE '.MAIN_DB_PREFIX.'projet_task_extrafields AS extra, '.MAIN_DB_PREFIX.'projet_task AS tache';
-	// $sqlupdate.= ' SET extra.statut_fab=4 ,extra.statut_adm=11 ' ;
-	// $sqlupdate.= ' WHERE extra.fk_object=tache.rowid AND tache.fk_projet='.$ProjetRowid;
-	// $resultupdate=$db->query($sqlupdate);
-	// $db->free($resultupdate);
+	// Mise a jour du status a termine des extrafiels existants
+	$sqlupdate='UPDATE '.MAIN_DB_PREFIX.'projet_task_extrafields AS extra, '.MAIN_DB_PREFIX.'projet_task AS tache';
+	$sqlupdate.= ' SET extra.statut_fab=4, extra.statut_adm=11, tache.progress=100 ' ;
+	$sqlupdate.= ' WHERE extra.fk_object=tache.rowid AND tache.fk_projet='.$ProjetRowid;
+	$resultupdate=$db->query($sqlupdate);
+	$db->free($resultupdate);
 
 
 	// Ajout des taches en fonction des items de la commande
@@ -1319,9 +1332,9 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 			}	
 
 			
-			// Mise a jour du status a  des extrafiels existants
+			// Mise a jour du status a zéro des extrafiels existants
 			$sqlupdate='UPDATE '.MAIN_DB_PREFIX.'projet_task_extrafields AS Extra, '.MAIN_DB_PREFIX.'projet_task AS Tache';
-			$sqlupdate.= ' SET Extra.statut_fab=0 ';
+			$sqlupdate.= ' SET Extra.statut_fab=0, Tache.progress=0';
 			$sqlupdate.= ' WHERE Extra.fk_object=Tache.rowid AND Tache.note_private='.$objdet->rowid;
 			$resultupdate=$db->query($sqlupdate);
 			$db->free($resultupdate);
@@ -1329,7 +1342,7 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 			
 			if ($NewTaskName!='')
 			{
-				// Mise a jour du status a  des extrafiels existants
+				// Mise a jour du nom et de la description des taches
 				$sqlupdate='UPDATE '.MAIN_DB_PREFIX.'projet_task AS Tache';
 				$sqlupdate.= ' SET Tache.description="'.$NewTaskDescription.'", Tache.label="'.$NewTaskName.'"';
 				$sqlupdate.= ' WHERE Tache.note_private="'.$objdet->rowid.'"';
@@ -1370,29 +1383,10 @@ function generateProject($id, $element, $object='', $affaire=false, $defaultStep
 					$objsearch = $db->fetch_object($resqlsearch);
 					if ($resqlsearch->num_rows > 0) {
 						// trouver donc Ne pas inserer nouvelle tache
-						$TaskRowid = $objsearch->rowid;
-
-						// update leader
-						if ($object->fk_project_leader && getDolGlobalInt("SET_PROJECT_LEADER_ON_CREATION")) {		
-							
-							$sqlupdate='UPDATE '.MAIN_DB_PREFIX.'element_contact';
-							$sqlupdate.= ' SET fk_socpeople='.$object->fk_project_leader;
-							$sqlupdate.= ' WHERE statut=4 AND fk_c_type_contact=180 AND element_id='.$TaskRowid;
-							$result=$db->query($sqlupdate);
-							$db->free($result);
-						}					
+						$TaskRowid = $objsearch->rowid;					
 					} else {
 						$result = $TaskRowid = $Task->create($user);
 						$Task->add_object_linked($affaire->element, $affaire->id);
-					
-						// Ajout leader comme cdp de la tache pour qu'il ai les droits
-						if ($result > 0 && $object->fk_project_leader && getDolGlobalInt("SET_PROJECT_LEADER_ON_CREATION")) {
-							// Declaration comme intervenent les membres du groupes  180=TASKLEADER INTERNAL
-							$sql = 'INSERT  INTO '.MAIN_DB_PREFIX.'element_contact (statut, element_id , fk_c_type_contact, fk_socpeople)';
-							$sql.= ' values (4, "'.$TaskRowid.'", 180, "'.$object->fk_project_leader.'")';
-							$result=$db->query($sql);
-							$db->free($result);
-						}
 					}
 					if ($result <= 0) {
 						$error_message = $db->lasterror();
@@ -1990,13 +1984,24 @@ function aff_show_input_field($extra, $key, $value, $moreparam = '', $keysuffix 
 function fetchWorkflow($modName='', $rowid=0) {
 	global $db, $langs;
 
-	if (is_string($modName)) {
+	if (is_string($modName) && !empty($modName)) {
 		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE label = '$modName'";
-	} else if (is_numeric($rowid)) {
+	} else if (is_numeric($rowid) && !empty($rowid)) {
 		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types WHERE rowid = $rowid";
 	} else {
-		setEventMessages($langs->trans("ErrorWrongValueForParameter", $langs->transnoentities("Step")), null, 'errors');
-		return -1;
+		$sql = "SELECT rowid, label FROM llx_c_affaire_workflow_types";
+
+		$array_of_workflow = array();
+		$resql = $db->query($sql);
+		if ($resql && $resql->num_rows > 0) {
+			while ($workflow = $db->fetch_object($resql)) {
+				$array_of_workflow[] = $workflow;
+			}
+			return $array_of_workflow;
+		} else {
+			dol_print_error($db);
+			return -1;
+		}
 	}
 
 	$resql = $db->query($sql);

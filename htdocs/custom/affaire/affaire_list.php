@@ -145,6 +145,11 @@ if (!$sortorder) {
 // Initialize array of search criteria
 $search_all = trim(GETPOST('search_all', 'alphanohtml'));
 $search = array();
+
+// Exclude closed by default: 
+if (!GETPOST('search_'."fk_status", 'alpha')) {
+	$search["fk_status"] = '!=36';
+}
 foreach ($object->fields as $key => $val) {
 	if (GETPOST('search_'.$key, 'alpha') !== '') {
 		$search[$key] = GETPOST('search_'.$key, 'alpha');

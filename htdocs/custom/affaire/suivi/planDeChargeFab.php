@@ -6,7 +6,7 @@
  */
 
 /**
- *  \file       /serem/page/projet/planDeChargeFab.php
+ *  \file       /affaire/suivi/planDeChargeFab.php
  *  \ingroup    serem
  *  \brief      Affiche les projet et taches en cours pour les techniciens et les ingénieurs
  */
@@ -341,14 +341,43 @@ function return_active_order($htmlname="ListActiveOrder")
         				// change : $livraison_aff=strftime('%d-%m-%Y', strtotime($obj->date_livraison));	
 						$livraison_aff = date('d-m-Y', strtotime($obj->date_livraison));
 						// END SEREM				
-						
-        				print "<tr class=\"".$class."\">";
-            				print "<td class=\"nowrap\">".$client_aff."</td><td align=\"left\">".$obj->qty."</td>";
-            				print "<td title=\"".$obj->description."\">";
-            				// MODIF 503->802 if($obj->id_tache!="")print "<a href=\"/dolibarr/htdocs/projet/tasks/time.php?id=".$obj->id_tache."\"><img src=\"/dolibarr/htdocs/theme/eldy/img/object_technic.png\" border=\"0\" title=\"Pointer des heures sur la tache ".$obj->r_tache."\"></a>";
+													
+						$att_admin = false;
+						dol_include_once('/projet/class/task.class.php');
+						dol_include_once('/affaire/class/affaire.class.php');
+						dol_include_once('/affaire/lib/affaire_affaire.lib.php');
+						dol_include_once('/affaire/lib/affaire.lib.php');
+						$task = new Task($db);
+						$task->id = $obj->id_tache;
+						$affaireID = getLinkedAff($task);
+						// Load affaire
+						if ($affaireID > 0) {
+							$affaire = new Affaire($db);
+						 	$res = $affaire->fetch($affaireID);
+						 	
+							// Vérifie que le status de l'affaire n'est pas attente admin
+							$AFFstatusProd = $affaire->getStatus('prod');
+						 	$att_admin = ($AFFstatusProd->fktyp < 100);
+							
+							// BON lien
+							$workflow = fetchWorkflow('', $affaire->fk_workflow_type);
+							$picto = 'order';  // @phan-suppress-current-line PhanUndeclaredProperty
+							$prefix = 'object_';
+							$nophoto = img_picto('No photo', $prefix.$picto);
+							$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
+							$page = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&id='.$obj->id_source;
+							$path = dol_buildpath($page, 1);
+							$projet_aff='<a href="'.$path.'">'.$nophoto.' '.$source_num.'</a>';
+						} else {
+							// MODIF 503->802 if($obj->id_tache!="")print "<a href=\"/dolibarr/htdocs/projet/tasks/time.php?id=".$obj->id_tache."\"><img src=\"/dolibarr/htdocs/theme/eldy/img/object_technic.png\" border=\"0\" title=\"Pointer des heures sur la tache ".$obj->r_tache."\"></a>";
             				// MODIF saisie non active if($obj->id_tache!="")print "<a href=\"/dolibarr/htdocs/projet/tasks/time.php?id=".$obj->id_tache."&withproject=1"."\"><img src=\"/dolibarr/htdocs/theme/eldy/img/object_technic.png\" border=\"0\" title=\"Pointer des heures sur la tache ".$obj->r_tache."\"></a>";
             				$projet_aff="<a href=\"".dol_buildpath("/$LinkAff[$numAff]/card.php?id=$obj->id_source", 1)."\">".$source_num."</a>";
 							// if($obj->id_tache!="")print "<a href=\"/dolibarr/htdocs/projet/tasks/time.php?withproject=1&id=".$obj->id_tache."&action=createtime"."\"><img src=\"/dolibarr/htdocs/theme/eldy/img/object_technic.png\" border=\"0\" title=\"Pointer des heures sur la tache ".$obj->r_tache."\"></a>";
+						}
+
+        				print "<tr class=\"".$class."\">";
+            				print "<td class=\"nowrap\">".$client_aff."</td><td align=\"left\">".$obj->qty."</td>";
+            				print "<td title=\"".$obj->description."\">";
 							if($obj->id_tache!="")print "<a href=\"".dol_buildpath("/projet/tasks/time.php?withproject=1&id=$obj->id_tache&action=createtime", 1)."\"><img src=\"".dol_buildpath("/theme/eldy/img/object_technic.png", 1)."\" border=\"0\" title=\"Pointer des heures sur la tache ".$obj->r_tache."\"></a>";
             				if ($DescriptionAff[$numAff]=="r_prod"){
             				    print  "	&nbsp".$obj->r_prod."<input type=\"hidden\" name=\"statut_idx".$k."\" value=\"".$obj->id_tache."\"></td>";
@@ -359,9 +388,13 @@ function return_active_order($htmlname="ListActiveOrder")
                             print "<td style=\"color:".$color."\" align=\"center\">".$obj->firstname."</td>";
             				print "<td style=\"color:".$color."\" align=\"center\">".$livraison_aff."</td>";
             				print "<td align=\"center\" class=\"nowrap\">";
-                                print "<select style=COLOR:".colorOfStatut($obj->statut_fab,"fab")." name=\"statut_fab".$k."\" class=\"flat \" class=\"mar\">";
-                                    for($j=0;$j<sizeof($statut_fab_option);$j++)print "<option value=\"".$j."\" ".isSelectedOption($j,$obj->statut_fab).">".$statut_fab_option[$j]."</option>";
-                				print "	</select>";
+							if ($att_admin) {
+								print 'attente Admin';
+							} else {
+								print "<select style=COLOR:".colorOfStatut($obj->statut_fab,"fab")." name=\"statut_fab".$k."\" class=\"flat \" class=\"mar\">";
+									for($j=0;$j<sizeof($statut_fab_option);$j++)print "<option value=\"".$j."\" ".isSelectedOption($j,$obj->statut_fab).">".$statut_fab_option[$j]."</option>";
+								print "	</select>";
+							}
                 			print "</td>";
                 		print "</tr>";
         				$source_previous=$source;

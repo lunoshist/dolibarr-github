@@ -107,9 +107,8 @@ class mod_affaire_serem extends ModeleNumRefAffaire
 	{
 		global $db,$conf;
 
-		$date=$object->date;
-		$yy = date("y",$date);
-		$ddd = sprintf("%03s",date("z",$date) +1);
+		$yy = date("y");
+		$ddd = sprintf("%03s",date("z") +1);
 
 		// D'abord on recupere la valeur max
 		$sql = "SELECT MAX(SUBSTRING(ref, 9, 2)) as max";
