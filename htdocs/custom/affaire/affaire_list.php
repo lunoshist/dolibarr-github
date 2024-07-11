@@ -147,7 +147,7 @@ $search_all = trim(GETPOST('search_all', 'alphanohtml'));
 $search = array();
 
 // Exclude closed by default: 
-if (!GETPOST('search_'."fk_status", 'alpha')) {
+if (empty(GETPOST('search_'."fk_status", 'alpha'))) {
 	$search["fk_status"] = '!=36';
 }
 foreach ($object->fields as $key => $val) {
@@ -337,6 +337,13 @@ foreach ($search as $key => $val) {
 			}
 			$mode_search = 2;
 		}
+		// Exclude closed by default: 
+		if ($search[$key] == '!=36' && $key == 'fk_status') {
+			$sql .= natural_search("t.".$db->escape($key), '!=36', 1); //<-- 36 = status closed
+		} else 
+		if ($search[$key] == '0' && $key == 'fk_status') {
+			// Pas de filtre, on veut toutes les affaires
+		} else 
 		if ($search[$key] != '') {
 			$sql .= natural_search("t.".$db->escape($key), $search[$key], (($key == 'status') ? 2 : $mode_search));
 		}
@@ -546,7 +553,7 @@ $newcardbutton = '';
 $newcardbutton .= dolGetButtonTitle($langs->trans('ViewList'), '', 'fa fa-bars imgforviewmode', $_SERVER["PHP_SELF"].'?mode=common'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ((empty($mode) || $mode == 'common') ? 2 : 1), array('morecss'=>'reposition'));
 $newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-list imgforviewmode', $_SERVER["PHP_SELF"].'?mode=kanban'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ($mode == 'kanban' ? 2 : 1), array('morecss'=>'reposition'));
 $newcardbutton .= dolGetButtonTitleSeparator();
-$newcardbutton .= dolGetButtonTitle($langs->trans('New'), '', 'fa fa-plus-circle', dol_buildpath('/affaire/affaire_card.php', 1).'?action=create&backtopage='.urlencode($_SERVER['PHP_SELF']), '', $permissiontoadd);
+// $newcardbutton .= dolGetButtonTitle($langs->trans('New'), '', 'fa fa-plus-circle', dol_buildpath('/affaire/affaire_card.php', 1).'?action=create&backtopage='.urlencode($_SERVER['PHP_SELF']), '', $permissiontoadd);
 
 print_barre_liste($title, $page, $_SERVER["PHP_SELF"], $param, $sortfield, $sortorder, $massactionbutton, $num, $nbtotalofrecords, 'object_'.$object->picto, 0, $newcardbutton, '', $limit, 0, 0, 1);
 

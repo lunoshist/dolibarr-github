@@ -140,7 +140,7 @@ class Affaire extends CommonObject
 		"date_close" => array("type"=>"datetime", "label"=>"DateClose", "enabled"=>"1", 'position'=>502, 'notnull'=>0, "visible"=>"-2",),
 		"fk_user_close" => array("type"=>"integer:user:user/class/user.class.php", "label"=>"UserClose", "enabled"=>"1", 'position'=>512, 'notnull'=>-1, "visible"=>"-2", "csslist"=>"tdoverflowmax150",),
 		"fk_step" => array("type"=>"integer", "label"=>"Step", "enabled"=>"1", 'position'=>90, 'notnull'=>1, "visible"=>"2", "searchall"=>"1", "arrayofkeyval"=>array("7" => "Affaire", "8" => "Proposition(s)", "9" => "Commande", "10" => "Production", "11" => "Expédition(s)", "12" => "Facturation(s)", "13" => "Administratif"),),
-		"fk_status" => array("type"=>"integer", "label"=>"Status", "enabled"=>"1", 'position'=>95, 'notnull'=>1, "visible"=>"2", "searchall"=>"1",),
+		"fk_status" => array("type"=>"integer", "label"=>"Status", "enabled"=>"1", 'position'=>95, 'notnull'=>1, "visible"=>"2", "searchall"=>"1", "arrayofkeyval"=>array("0" => "Toutes les affaires", "!=36" => "En cours", "36" => "Clôturée"),),
 	);
 	public $rowid;
 	public $ref;

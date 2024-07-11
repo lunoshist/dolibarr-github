@@ -83,7 +83,8 @@ function affaireAdminPrepareHead()
  */
 function getLinkedAff($object) {
 	$AffID = 0;
-
+	
+	$object->clearObjectLinkedCache();
 	$object->fetchObjectLinked($object->id, $object->element, $object->id, $object->element);
 
 	if (isset($object->linkedObjects["affaire"])) {
@@ -226,10 +227,11 @@ function affaireBanner($affaire, $selectedStep=null, $workflow=null) {
  * 
  * @param object|int $Status
  * @param string $width
+ * @param bool $empty
  * 
  * @return string html to print
  */
-function printBagde($Status, $width) {
+function printBagde($Status, $width, $empty=false) {
 	global $db, $langs;
 
 	// TODO check if $status is int and fetch status if it's the case
@@ -256,7 +258,11 @@ function printBagde($Status, $width) {
 			$color .= !empty($Type->background_color) ? "background-color: #$Type->background_color !important; " : "background-color: transparent !important; ";
 		}
 	} else {
-		return '<span class="badge badge-status">Pas de status</span>';
+		if ($empty) {
+			return '';
+		} else {
+			return '<span class="badge badge-status">Pas de status</span>';
+		}
 	}
 
 	switch ($width) {

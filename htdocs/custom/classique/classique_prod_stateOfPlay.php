@@ -134,9 +134,15 @@ if ($reshook < 0) {
 if (empty($reshook)) {
 
     if ($action == 'changeStatus') {
-        $newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
-        if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
-        if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
+		if (!empty(GETPOSTINT('newStatus'))) {
+			$newStatus = GETPOSTINT('newStatus');
+		} else if (!empty(GETPOST("options_aff_status"))) {
+			$newStatus = GETPOST("options_aff_status");
+		} else if (!empty(GETPOST('newStatus')) && GETPOST('newStatus') == 'defaultStatus'){
+			$newStatus = $defaultStepStatus;
+		} else {
+			$newStatus = '';
+		}
 
         $error = 0;
 

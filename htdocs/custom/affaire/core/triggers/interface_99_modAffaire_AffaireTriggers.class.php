@@ -90,6 +90,27 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 			return call_user_func($callback, $action, $object, $user, $langs, $conf);
 		}
 
+		//Change link to affaire (new link too)
+		switch ($action) {
+			case 'ORDER_MODIFY':
+				if (!empty($object->array_options["options_fk_affaire"])) {
+					$affaire = new Affaire($object->db);
+					$res = $affaire->fetch($object->array_options["options_fk_affaire"]);
+					// Check commande exist
+					if (!empty(checkCommandeExist($affaire)) && checkCommandeExist($affaire) != $object->id) {
+						setEventMessages("Une commande est déjà lié à l'affaire", null, 'errors');
+						return -1;
+					}
+				}
+			case 'PROPAL_MODIFY':
+			case 'PROJECT_MODIFY':
+			case 'SHIPPING_MODIFY':
+			case 'BILL_MODIFY':
+				$this->changeAffaire($action, $object, $user, $langs, $conf);
+				break;
+		}
+		
+		// Change Status
 		$affaireID = getLinkedAff($object);
 		if ($affaireID) {
 			$affaire = new Affaire($object->db);
@@ -480,7 +501,7 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 									$res = $object->db->fetch_object($resql);
 									$rStatus = fetchStatus($res->aff_status);
 			
-									if ($rStatus->fk_type <= $status->fk_type) {
+									if ($rStatus->fk_type < 100) {
 										setEventMessages('Une propal est toujours en brouillon', null, 'warnings');
 										return 0;
 									}
@@ -1394,6 +1415,34 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 			}
 		} else {
 			return 0;
+		}
+	}
+
+	public function changeAffaire ($action, $object, User $user, Translate $langs, Conf $conf) {
+		global $db;
+		
+		$affaireID = getLinkedAff($object);
+		if ($affaireID != $object->array_options["options_fk_affaire"]) {
+			if ($affaireID) {
+				// Delete linked affaire
+				$res = $object->deleteObjectLinked($affaireID, 'affaire');
+				if ($res < 0) {
+					return -1;
+				}
+			}
+
+			if (!empty($object->array_options["options_fk_affaire"])) {
+				// Link to affaire
+				$res = $object->add_object_linked('affaire', $object->array_options["options_fk_affaire"]);
+				if ($res == 1) {
+					// TODO log it instead of a message
+					setEventMessage("$object->ref a bien été lié à l'affaire", 'mesgs');
+				} else {
+					$error_message = $db->lasterror();
+					setEventMessage("IMPOSSIBLE DE LIER $object->ref À L'AFFAIRE : $error_message", 'errors');
+					// TODO log it
+				}
+			}
 		}
 	}
 }

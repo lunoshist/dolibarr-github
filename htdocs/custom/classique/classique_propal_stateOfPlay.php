@@ -361,11 +361,17 @@ if (empty($reshook)) {
 
 	// Affaire action
 	if ($id && $action == 'changeStatus') {
-		$newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
+		if (!empty(GETPOSTINT('newStatus'))) {
+			$newStatus = GETPOSTINT('newStatus');
+		} else if (!empty(GETPOST("options_aff_status"))) {
+			$newStatus = GETPOST("options_aff_status");
+		} else if (!empty(GETPOST('newStatus')) && GETPOST('newStatus') == 'defaultStatus'){
+			$newStatus = $defaultStepStatus;
+		} else {
+			$newStatus = '';
+		}
 		$close_window = GETPOSTINT('close_window');
 		$status_for = GETPOST('status_for', 'aZ09');
-		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
-		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
 		if (isset($_SESSION['createUrl'])) {
 			$createUrl = $_SESSION['createUrl'];
 			unset($_SESSION['createUrl']);
@@ -710,12 +716,6 @@ if (empty($reshook)) {
 			$error++;
 		}
 
-		// Extrafields for affaire
-		if ($affaire) {
-			$object->array_options["options_fk_affaire"] = $affaire->id;
-			$object->array_options["options_aff_status"] = $defaultStepStatus;
-		}
-
 		if (!$error) {
 			$db->begin();
 
@@ -789,6 +789,11 @@ if (empty($reshook)) {
 				if ($ret < 0) {
 					$error++;
 					$action = 'create';
+				}
+				// Extrafields for affaire
+				if ($affaire) {
+					$object->array_options["options_fk_affaire"] = $affaire->id;
+					$object->array_options["options_aff_status"] = $defaultStepStatus;
 				}
 			}
 
@@ -1065,6 +1070,67 @@ if (empty($reshook)) {
 					} else {
 						$error++;
 						setEventMessages($object->error, $object->errors, 'errors');
+					}
+				}
+
+				if (!$error && GETPOSTINT('createORDER')) {
+					if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CREATE_SALE_ORDER_FROM_PROPOSAL') 
+					&& isModEnabled('commande') 
+					&& GETPOSTINT('statut') == $object::STATUS_SIGNED 
+					&& $usercancreateorder) {
+						$object->fetchObjectLinked();
+						if (empty($object->linkedObjectsIds['commande']) && empty(checkCommandeExist($affaire))) {
+							include_once DOL_DOCUMENT_ROOT.'/commande/class/commande.class.php';
+							$newobject = new Commande($db);
+
+							$newobject->context['createfrompropal'] = 'createfrompropal';
+							$newobject->context['origin'] = $object->element;
+							$newobject->context['origin_id'] = $object->id;
+
+							$ret = $newobject->createFromProposal($object, $user);
+							if ($ret >= 0) {
+								// Link to affaire
+								if ($newobject->id > 0 && $affaire) {
+									$result = $newobject->add_object_linked($affaire->element, $affaire->id);
+									if ($result == 1) {
+										// TODO log it instead of a message
+										setEventMessage("La commande à bien été lié à l'affaire", 'mesgs');
+									} else {
+										$error_message = $db->lasterror();
+										setEventMessage("IMPOSSIBLE DE LIER LA COMMANDE À L4AFFAIRE : $error_message", 'errors');
+										// TODO log it
+									}
+								}
+
+								// Extrafields for affaire
+								if ($affaire) {
+									$newobject->array_options["options_fk_affaire"] = $affaire->id;
+									$newobject->array_options["options_aff_status"] = $defaultStepStatus;
+								}
+								$result1 = $newobject->updateExtraField('fk_affaire', 'ORDER_MODIFY');
+								$result2 = $newobject->updateExtraField('aff_status', 'ORDER_MODIFY');
+								if ($result1 < 0 || $result2 < 0) {
+									setEventMessages($newobject->error, $newobject->errors, 'errors');
+								}
+
+								$object->clearObjectLinkedCache();
+								$steplabel = empty(getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid)) ? 'cmde' : getDolGlobalString('STEP_ORDER_FOR_WORKFLOW_'.$workflow->rowid);
+								$cmde_page = '/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&action=changeStatus&newStatus=defaultStatus&status_for=both';
+								$locationTarget = dol_buildpath($cmde_page, 1);
+							} else {
+								$error++;
+								setEventMessages($newobject->error, $newobject->errors, 'errors');
+							}
+						} else {
+							if (empty($object->context['closedfromonlinesignature'])) {
+								$langs->load("orders");
+								setEventMessages($langs->trans("OrderExists"), null, 'warnings');
+							}
+							$error++;
+						}
+					} else {
+						$error++;
+						setEventMessages('Impossible de créer la commande', null, 'errors');
 					}
 				}
 
@@ -2820,6 +2886,17 @@ if ($action == 'create') {
 			));
 		}
 
+		$formquestion[] = array('type' => 'separator',);
+		if (getDolGlobalInt('FORCE_CREATE_SALE_ORDER_ON_PROPAL_SIGNATURE')) {
+			$formquestion[] = array('type' => 'hidden', 'name' => 'createORDER', "value" => '1');
+			$addinfo = 'Vous serez automatiquement redirigé sur la page de création de la commande';
+		} else {
+			$formquestion[] = array('type' => 'checkbox', 'name' => 'createORDER', 'label' => 'Créer la commande', 'value' => getDolGlobalInt('PRESELECTED_CREATE_SALE_ORDER_ON_PROPAL_SIGNATURE'));
+			$addinfo = '';
+			$formquestion[] = array('type' => 'separator',);
+		}
+
+
 		if (!getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE')) {
 			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('SetAcceptedRefused'), '', 'confirm_closeas', $formquestion, '', 1, 250);
 		} else {
@@ -2914,8 +2991,8 @@ if ($action == 'create') {
 		$morehtmlref .= '<br>';
 		if (!empty($affaire)) {
 			$morehtmlref .= $affaire->getNomUrl(1);
-			if ($affaire->title) {
-				$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->title).'</span>';
+			if ($affaire->label) {
+				$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->label).'</span>';
 			}
 		}
 	}

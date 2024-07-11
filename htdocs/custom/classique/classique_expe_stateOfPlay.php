@@ -345,11 +345,17 @@ if (empty($reshook)) {
 
 	// Affaire action
 	if ($id && $action == 'changeStatus') {
-		$newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
+		if (!empty(GETPOSTINT('newStatus'))) {
+			$newStatus = GETPOSTINT('newStatus');
+		} else if (!empty(GETPOST("options_aff_status"))) {
+			$newStatus = GETPOST("options_aff_status");
+		} else if (!empty(GETPOST('newStatus')) && GETPOST('newStatus') == 'defaultStatus'){
+			$newStatus = $defaultStepStatus;
+		} else {
+			$newStatus = '';
+		}
 		$close_window = GETPOSTINT('close_window');
 		$status_for = GETPOST('status_for', 'aZ09');
-		if ($newStatus == 0) $newStatus = GETPOST('newStatus', 'aZ09');
-		if ($newStatus == 'defaultStatus') $newStatus = $defaultStepStatus;
 
 		$error = 0;
 
@@ -2298,8 +2304,8 @@ if ($action == 'create') {
 		} else {
 			if (!empty($affaire)) {
 				$morehtmlref .= $affaire->getNomUrl(1);
-				if ($affaire->title) {
-					$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->title).'</span>';
+				if ($affaire->label) {
+					$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($affaire->label).'</span>';
 				}
 			}
 		}

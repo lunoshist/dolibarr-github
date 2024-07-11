@@ -436,8 +436,15 @@ if (empty($reshook)) {
 
 	// Affaire action
 	if ($id && $action == 'changeStatus') {
-		$newStatus = (empty(GETPOSTINT('newStatus'))) ? GETPOST("options_aff_status") : GETPOSTINT('newStatus');
-		if ((!is_int($newStatus) || empty($newStatus)) && (GETPOST('newStatus', 'aZ09') == 'defaultStatus')) $newStatus = $defaultStepStatus;
+		if (!empty(GETPOSTINT('newStatus'))) {
+			$newStatus = GETPOSTINT('newStatus');
+		} else if (!empty(GETPOST("options_aff_status"))) {
+			$newStatus = GETPOST("options_aff_status");
+		} else if (!empty(GETPOST('newStatus')) && GETPOST('newStatus') == 'defaultStatus'){
+			$newStatus = $defaultStepStatus;
+		} else {
+			$newStatus = '';
+		}
 		$close_window = GETPOSTINT('close_window');
 		$status_for = GETPOST('status_for', 'aZ09');
 
