@@ -320,7 +320,7 @@ class InterfaceAffaireTriggers extends DolibarrTriggers
 					} else if (getDolGlobalInt('WORKFLOW_2_ORDER_SHIPPED_STATUS')) {
 						dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);			
 						
-						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_CLOSED_STATUS');
+						$statusID = getDolGlobalInt('WORKFLOW_2_ORDER_SHIPPED_STATUS');
 						$status = fetchStatus($statusID);
 
 						// Check conditions (pour changer le status object, et celui étape)

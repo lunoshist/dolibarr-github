@@ -247,8 +247,8 @@ class modClassique extends DolibarrModules
 
 			array('WORKFLOW_2_ORDER_DRAFT_STATUS', 'chaine', '43', 'WORKFLOW_2_ORDER_DRAFT_STATUS', 0, 'current', 0),
 			array('WORKFLOW_2_ORDER_VALIDATED_STATUS', 'chaine', '44', 'WORKFLOW_2_ORDER_VALIDATED_STATUS', 0, 'current', 0),
-			// array('WORKFLOW_2_ORDER_SHIPPED_STATUS', 'chaine', '0', 'WORKFLOW_2_ORDER_SHIPPED_STATUS', 0, 'current', 0),
-			// array('WORKFLOW_2_ORDER_BILLED_STATUS', 'chaine', '0', 'WORKFLOW_2_ORDER_BILLED_STATUS', 0, 'current', 0),
+			array('WORKFLOW_2_ORDER_SHIPPED_STATUS', 'chaine', '84', 'WORKFLOW_2_ORDER_SHIPPED_STATUS', 0, 'current', 0),
+			array('WORKFLOW_2_ORDER_BILLED_STATUS', 'chaine', '83', 'WORKFLOW_2_ORDER_BILLED_STATUS', 0, 'current', 0),
 			// array('WORKFLOW_2_ORDER_UNBILLED_STATUS', 'chaine', '0', 'WORKFLOW_2_ORDER_UNBILLED_STATUS', 0, 'current', 0),
 			array('WORKFLOW_2_ORDER_CLOSED_STATUS', 'chaine', '54', 'WORKFLOW_2_ORDER_CLOSED_STATUS', 0, 'current', 0),
 			array('WORKFLOW_2_ORDER_CANCELED_STATUS', 'chaine', '53', 'WORKFLOW_2_ORDER_CANCELED_STATUS', 0, 'current', 0),

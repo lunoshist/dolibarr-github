@@ -379,6 +379,48 @@ class modAffaire extends DolibarrModules
 			'target'=>'',
 			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
 		);
+		$this->menu[$r++] = array(
+			'fk_menu'=>'fk_mainmenu=serem', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'type'=>'top', // This is a Top menu entry
+			'titre'=>'ProductionOrders',
+			'mainmenu'=>'serem',
+			'leftmenu'=>'serem',
+			'url'=>'/affaire/suivi/planDeChargeFab.php',
+			'langs'=>'serem@serem', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'position'=>1000 + $r,
+			'enabled'=>'isModEnabled("serem")', // Define condition to show or hide menu entry. Use 'isModEnabled("serem")' if entry must be visible if module is enabled.
+			'perms'=>'$user->hasRight("serem", "PDC")', // Use 'perms'=>'$user->hasRight("serem", "myobject", "read")' if you want your menu with a permission rules
+			'target'=>'',
+			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
+		);
+		$this->menu[$r++] = array(
+			'fk_menu'=>'fk_mainmenu=affaire', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'type'=>'top', // This is a Top menu entry
+			'titre'=>'Suivi des propositions',
+			'mainmenu'=>'affaire',
+			'leftmenu'=>'serem',
+			'url'=>'/affaire/suivi/suiviPropal.php',
+			'langs'=>'serem@serem', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'position'=>1000 + $r,
+			'enabled'=>'isModEnabled("serem")', // Define condition to show or hide menu entry. Use 'isModEnabled("serem")' if entry must be visible if module is enabled.
+			'perms'=>'$user->hasRight("serem", "SDF")', // Use 'perms'=>'$user->hasRight("serem", "myobject", "read")' if you want your menu with a permission rules
+			'target'=>'',
+			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
+		);
+		$this->menu[$r++] = array(
+			'fk_menu'=>'fk_mainmenu=affaire', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'type'=>'top', // This is a Top menu entry
+			'titre'=>'Suivi des commandes',
+			'mainmenu'=>'affaire',
+			'leftmenu'=>'serem',
+			'url'=>'/affaire/suivi/suiviCommande.php',
+			'langs'=>'serem@serem', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
+			'position'=>1000 + $r,
+			'enabled'=>'isModEnabled("serem")', // Define condition to show or hide menu entry. Use 'isModEnabled("serem")' if entry must be visible if module is enabled.
+			'perms'=>'$user->hasRight("serem", "SDF")', // Use 'perms'=>'$user->hasRight("serem", "myobject", "read")' if you want your menu with a permission rules
+			'target'=>'',
+			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
+		);
 		/* END MODULEBUILDER TOPMENU MYOBJECT */
 
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */

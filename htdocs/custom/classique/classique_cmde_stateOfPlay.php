@@ -2893,6 +2893,76 @@ if ($action == 'create' && $usercancreate) {
 
 			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('Production'), $addinfo, 'generateProject', $formquestion, 'yes', 1, 350);
 		}
+		// Maj project
+		if ($action == 'confirm_majProject') {
+			$steplabel = empty(getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$workflow->rowid)) ? 'prod' : getDolGlobalString('STEP_PROD_FOR_WORKFLOW_'.$workflow->rowid);
+			$path = '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.$steplabel.'_stateOfPlay.php?affaire='.$affaire->id.'&amp;action=create&automatic=1&amp;token='.newToken().'&amp;origin='.urlencode($object->element).'&amp;originid='.$object->id.'&amp;socid='.$object->socid;
+
+			$arrayOfObjectStatus = fetchAllStatusOfStep($steplabel, $affaire->fk_workflow_type);
+			$arrayOfStatus = array();
+			foreach ($arrayOfObjectStatus as $key => $value) {
+				$arrayOfStatus[$key] = $value->label;
+			}
+
+			// Create an array for form
+			$disable = ((getDolGlobalInt('FORCE_LEADER_BY_DEFAULT') || getDolGlobalString('FORCE_LEADER_BY_DEFAULT')) ? 1 : 0);
+			if (GETPOST('leader')) {
+				$selected = GETPOST('leader');
+			} else if (getDolGlobalString('FORCE_LEADER_BY_DEFAULT') == '__user__' || getDolGlobalInt('USER_WHO_GENERATE_IS_LEADER_BY_DEFAULT')) {
+				$selected = $user->id;
+			} else if (getDolGlobalInt('FORCE_LEADER_BY_DEFAULT')) {
+				$selected = getDolGlobalInt('FORCE_LEADER_BY_DEFAULT');
+			} else {
+				$projID = checkProjectExist($affaire);
+				$typeid = 160; // chef de projet  160=PROJECTLEADER
+		
+				$sqldel='SELECT fk_socpeople as fk_user FROM '.MAIN_DB_PREFIX.'element_contact';
+				$sqldel.= ' WHERE  element_id = '.$projID;
+				$sqldel.= ' AND fk_c_type_contact = '.$typeid;
+				$ressqldel=$db->query($sqldel);
+				if ($ressqldel) {
+					if ($resql->num_rows > 0) {
+						$Obj = $db->fetch_object($resqldel);
+						$selected = $Obj->fk_user;
+					} else {
+						$selected = '';
+					}
+				} else {
+					dol_print_error($db);
+				}
+			}
+
+			$formquestion = array(
+				'text' => $langs->trans("Mettre à jour le leader et les tâches du projet"),
+				array('type' => 'separator',),
+				// ($selected = '', $htmlname = 'userid', $show_empty = 0, $exclude = null, $disabled = 0, $include = '', $enableonly = '', $force_entity = '', $maxlength = 0, $showstatus = 0, $morefilter = '', $show_every = 0, $enableonlytext = '', $morecss = '', $notdisabled = 0, $outputmode = 0, $multiple = false, $forcecombo = 0)
+				array('type' => 'other', 'name' => 'leader', 'label' => $langs->trans("TypeContact_project_internal_PROJECTLEADER"), 'value' => $form->select_dolusers($selected, 'leader', 1, array(1, 10), $disable, null, 0, 0, 56, 0, '', 0, '', 'minwidth100imp widthcentpercentminusxx maxwidth400 userselectcontact', 1, 0, false, 0)),
+			);
+			
+			// if (getDolGlobalInt('FORCE_ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION')) {
+			// 	$formquestion[] = array('type' => 'other', 'name' => 'groupid', 'label' => 'Ajouter un groupe comme '.$langs->trans("TypeContact_project_internal_PROJECTCONTRIBUTOR"), 'value' => $form->select_dolgroups(getDolGlobalInt('FORCE_ADD_GROUP_AS_CONTACT_ON_PROJECT_CREATION'), 'groupid', 1, '', 1, '', array(), '0', false, 'minwidth100imp widthcentpercentminusxx maxwidth400 groupselectcontact'));
+			// } else {
+			// 	$formquestion[] = array('type' => 'other', 'name' => 'groupid', 'label' => 'Ajouter un groupe comme '.$langs->trans("TypeContact_project_internal_PROJECTCONTRIBUTOR"), 'value' => $form->select_dolgroups(0, 'groupid', 1, '', 0, '', array(), '0', false, 'minwidth100imp widthcentpercentminusxx maxwidth400 groupselectcontact'));
+			// }
+			// $formquestion[] = array('type' => 'separator',);
+			
+			if (getDolGlobalInt('FORCE_ADD_TO_TASK_BY_DEFAULT')) {
+				$formquestion[] = array('type' => 'hidden', 'name' => 'addToTask', "value" => '1');
+				$addinfo = 'Le leader sera aussi ajouté aux tâches';
+			} else {
+				$formquestion[] = array('type' => 'checkbox', 'name' => 'addToTask', 'label' => 'Ajouter également aux tâches', 'value' => getDolGlobalInt('PRESELECTED_ADD_TO_TASK_BY_DEFAULT'));
+				$addinfo = '';
+				$formquestion[] = array('type' => 'separator',);
+			}
+			
+			// $formquestion[] = array('type' => 'separator',);
+			// $formquestion[] = array('type' => 'other', 'name' => 'newStatus', 'label' => $langs->trans("Nouveau Status Production"), 'value' => $form->selectarray('newStatus', $arrayOfStatus, '', 0));
+			// $formquestion[] = array('type' => 'separator',);
+			$statusProd = $affaireStatusbyStep[strtolower($steplabel)];
+			$formquestion[] = array('type' => 'hidden', 'name' => 'newStatus', "value" => $statusProd->rowid);
+
+			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('Production'), $addinfo, 'generateProject', $formquestion, 'yes', 1, 200);
+		}
 
 		// Call Hook formConfirm
 		$parameters = array('formConfirm' => $formconfirm, 'lineid' => $lineid);
@@ -3641,8 +3711,8 @@ if ($action == 'create' && $usercancreate) {
 								$enable = true;
 							// }
 						}
-						if (getDolGlobalInt("CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE") && $date_delivery == '' && $enable) {
-							print dolGetButtonAction($langs->trans("Le champ 'Date prévue de livraison' est doit être définie"), $langs->trans('Lancer production'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
+						if (getDolGlobalInt("CANOT_CREATE_PROJECT_IF_NO_DELIVERY_DATE") && empty($object->delivery_date) && $enable) {
+							print dolGetButtonAction($langs->trans("Le champ 'Date prévue de livraison' doit être définie"), $langs->trans('Lancer production'), 'default', $_SERVER['PHP_SELF']. '#', '', false);
 						} else {
 							$arrayforbutaction[] = array(
 								'lang' => 'affaire',
@@ -3650,7 +3720,7 @@ if ($action == 'create' && $usercancreate) {
 								'enabled' => $enable ?? false,
 								'perm' => $user->hasRight('project', 'creer'),
 								'label' => (empty(checkProjectExist($affaire)) ? 'Lancer production' : 'MAJ production'),
-								'url' => '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?action=confirm_generateProject&id='.$object->id.'&affaire='.$affaire->id.'&token='.newToken()
+								'url' => '/custom/'.strtolower($workflow->label).'/'.strtolower($workflow->label).'_'.strtolower($thisStep->label_short).'_stateOfPlay.php?action='.(empty(checkProjectExist($affaire)) ? 'confirm_generateProject' : 'confirm_majProject').'&id='.$object->id.'&affaire='.$affaire->id.'&token='.newToken()
 							);
 						}
 						

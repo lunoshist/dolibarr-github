@@ -521,12 +521,6 @@ if (empty($reshook)) {
 		$stockLine = array();
 		$array_options = array();
 
-		// Extrafields for affaire
-		if ($affaire) {
-			$object->array_options["options_fk_affaire"] = $affaire->id;
-			$object->array_options["options_aff_status"] = $defaultStepStatus;
-		}
-
 		$num = count($objectsrc->lines);
 		$totalqty = 0;
 
@@ -687,6 +681,12 @@ if (empty($reshook)) {
 			$ret = $extrafields->setOptionalsFromPost(null, $object);
 			if ($ret < 0) {
 				$error++;
+			}
+
+			// Extrafields for affaire
+			if ($affaire) {
+				$object->array_options["options_fk_affaire"] = $affaire->id;
+				$object->array_options["options_aff_status"] = $defaultStepStatus;
 			}
 
 			if (!$error) {

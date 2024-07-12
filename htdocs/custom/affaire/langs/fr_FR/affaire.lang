@@ -60,3 +60,8 @@ MyWidgetDescription = My widget description
 Step=Étape
 
 ChangeStatus=Changer le status
+
+
+MajLineOrderMsg=Attention !! Si la production à déjà été lancé, le lien entre les lignes de la commande et les tâches sera perdu !
+ConfirmMajLineOrder=Mettre à jour les lignes de la commande
+MAJlineOrder=MAJ lignes commande

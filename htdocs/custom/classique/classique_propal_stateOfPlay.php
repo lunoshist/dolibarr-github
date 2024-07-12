@@ -421,6 +421,138 @@ if (empty($reshook)) {
 		$action = 'confirm_changeStatus';
 	}
 
+	// Maj Commande
+	if ($action == 'confirm_maj_cmde') {
+		// Check commande exist
+		$cmdeID = checkCommandeExist($affaire);
+		if ($cmdeID > 0) {
+			// 1- Supprimer les ancienne lignes de la commande
+			dol_include_once('/affaire/class/AFF_Commande.class.php');
+			$commande = new AFF_Commande($db);
+			$res = $commande->fetch($cmdeID);
+			$ret = $commande->fetch_lines();
+			foreach ($commande->lines as $line) {
+				$del = $commande->deleteline($user, $line->id);
+			}
+
+
+
+			// 2- Ajouter les lignes de la propal
+			$num = count($object->lines);
+			for ($i = 0; $i < $num; $i++) {
+				$line = new OrderLine($db);
+
+				$line->libelle           = $object->lines[$i]->libelle;
+				$line->label             = $object->lines[$i]->label;
+				$line->desc              = $object->lines[$i]->desc;
+				$line->price             = $object->lines[$i]->price;
+				$line->subprice          = $object->lines[$i]->subprice;
+				$line->vat_src_code      = $object->lines[$i]->vat_src_code;
+				$line->tva_tx            = $object->lines[$i]->tva_tx;
+				$line->localtax1_tx      = $object->lines[$i]->localtax1_tx;
+				$line->localtax2_tx      = $object->lines[$i]->localtax2_tx;
+				$line->qty               = $object->lines[$i]->qty;
+				$line->fk_remise_except  = $object->lines[$i]->fk_remise_except;
+				$line->remise_percent    = $object->lines[$i]->remise_percent;
+				$line->fk_product        = $object->lines[$i]->fk_product;
+				$line->info_bits         = $object->lines[$i]->info_bits;
+				$line->product_type      = $object->lines[$i]->product_type;
+				$line->rang              = $object->lines[$i]->rang;
+				$line->special_code      = $object->lines[$i]->special_code;
+				$line->fk_parent_line    = $object->lines[$i]->fk_parent_line;
+				$line->fk_unit 			 = $object->lines[$i]->fk_unit;
+
+				$line->date_start 		= $object->lines[$i]->date_start;
+				$line->date_end    		= $object->lines[$i]->date_end;
+
+				$line->fk_fournprice	= $object->lines[$i]->fk_fournprice;
+				$marginInfos			= getMarginInfos($object->lines[$i]->subprice, $object->lines[$i]->remise_percent, $object->lines[$i]->tva_tx, $object->lines[$i]->localtax1_tx, $object->lines[$i]->localtax2_tx, $object->lines[$i]->fk_fournprice, $object->lines[$i]->pa_ht);
+				$line->pa_ht			= $marginInfos[0];
+				$line->marge_tx			= $marginInfos[1];
+				$line->marque_tx		= $marginInfos[2];
+
+				$line->origin           = $object->element;
+				$line->origin_id        = $object->lines[$i]->id;
+
+				// get extrafields from original line
+				$object->lines[$i]->fetch_optionals();
+				foreach ($object->lines[$i]->array_options as $options_key => $value) {
+					$line->array_options[$options_key] = $value;
+				}
+
+				$commande->lines[$i] = $line;
+
+				// Reset fk_parent_line for no child products and special product
+				if (($line->product_type != 9 && empty($line->fk_parent_line)) || $line->product_type == 9) {
+					$fk_parent_line = 0;
+				}
+
+				// Complete vat rate with code
+				$vatrate = $line->tva_tx;
+				if ($line->vat_src_code && !preg_match('/\(.*\)/', $vatrate)) {
+					$vatrate .= ' ('.$line->vat_src_code.')';
+				}
+
+				if (getDolGlobalString('MAIN_CREATEFROM_KEEP_LINE_ORIGIN_INFORMATION')) {
+					$originid = $line->origin_id;
+					$origintype = $line->origin;
+				} else {
+					$originid = $line->id;
+					$origintype = $commande->element;
+				}
+
+				// ref_ext
+				if (empty($line->ref_ext)) {
+					$line->ref_ext = '';
+				}
+
+				$result = $commande->addline(
+					$line->desc,
+					$line->subprice,
+					$line->qty,
+					$vatrate,
+					$line->localtax1_tx,
+					$line->localtax2_tx,
+					$line->fk_product,
+					$line->remise_percent,
+					$line->info_bits,
+					$line->fk_remise_except,
+					'HT',
+					0,
+					$line->date_start,
+					$line->date_end,
+					$line->product_type,
+					$line->rang,
+					$line->special_code,
+					$fk_parent_line,
+					$line->fk_fournprice,
+					$line->pa_ht,
+					$line->label,
+					$line->array_options,
+					$line->fk_unit,
+					$origintype,
+					$originid,
+					0,
+					$line->ref_ext,
+					0
+				);
+				if ($result < 0) {
+					if ($result != self::STOCK_NOT_ENOUGH_FOR_ORDER) {
+						$commande->error = $commande->db->lasterror();
+						$commande->errors[] = $commande->error;
+						dol_print_error($commande->db);
+					}
+					$commande->db->rollback();
+					return -1;
+				}
+				// Defined the new fk_parent_line
+				if ($result > 0 && $line->product_type == 9) {
+					$fk_parent_line = $result;
+				}
+			}
+		}
+	}
+
 	// Action clone object
 	if ($action == 'confirm_clone' && $confirm == 'yes' && $usercancreate) {
 		if (!($socid > 0)) {
@@ -1126,7 +1258,6 @@ if (empty($reshook)) {
 								$langs->load("orders");
 								setEventMessages($langs->trans("OrderExists"), null, 'warnings');
 							}
-							$error++;
 						}
 					} else {
 						$error++;
@@ -2898,10 +3029,13 @@ if ($action == 'create') {
 
 
 		if (!getDolGlobalString('PROPAL_SKIP_ACCEPT_REFUSE')) {
-			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('SetAcceptedRefused'), '', 'confirm_closeas', $formquestion, '', 1, 250);
+			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('SetAcceptedRefused'), $addinfo, 'confirm_closeas', $formquestion, '', 1, 250);
 		} else {
-			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"] . '?statut=3&id=' . $object->id, $langs->trans('Close'), '', 'confirm_closeas', $formquestion, '', 1, 250);
+			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"] . '?statut=3&id=' . $object->id, $langs->trans('Close'), $addinfo, 'confirm_closeas', $formquestion, '', 1, 250);
 		}
+	} elseif ($action == 'maj_cmde') {
+		// Confirm maj commande
+		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans("ConfirmMajLineOrder"), $langs->trans('MajLineOrderMsg', $object->ref), 'confirm_maj_cmde', '', 0, 1);
 	} elseif ($action == 'cancel') {
 		// Confirm cancel
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans("CancelPropal"), $langs->trans('ConfirmCancelPropal', $object->ref), 'confirm_cancel', '', 0, 1);
@@ -3764,6 +3898,13 @@ if ($action == 'create') {
 				// Cancel propal
 				if ($object->status > Propal::STATUS_DRAFT && $usercanclose) {
 					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=cancel&token='.newToken().'">'.$langs->trans("CancelPropal").'</a>';
+				}
+
+				// MAJ commande
+				if (getDolGlobalString('WORKFLOW_'.$workflow->rowid.'_CAN_CLASSIFY_BILLED_PROPOSAL')) {
+					if (checkCommandeExist($affaire) > 0 && ($object->statut == Propal::STATUS_DRAFT || $object->statut == Propal::STATUS_VALIDATED || $object->statut == Propal::STATUS_SIGNED)) {
+						print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=maj_cmde&token='.newToken().'">'.$langs->trans("MAJlineOrder").'</a>';
+					}
 				}
 
 				// Clone
